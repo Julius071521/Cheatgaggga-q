@@ -1,14 +1,3 @@
---[[
-    GROW A GARDEN 2 - PREMIUM AUTOMATION HUB v2.0
-    Load with: loadstring(game:HttpGet("YOUR_RAW_URL_HERE"))()
-
-    Features:
-    ✓ Fixed Sprinkler Radius for Auto Plant Seed & Auto Plant All Seeds
-    ✓ Select Send Gear (Dropdown) + Auto Send Gear (Toggle)
-    ✓ Select Ignore Seed/Gear (Dropdown) + Stock Predictions + Notifications
-    ✓ Improved Event Weather Predictions
-    ✓ Full Bright + Infinite Zoom Out
---]]
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
