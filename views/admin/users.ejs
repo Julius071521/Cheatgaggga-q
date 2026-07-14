@@ -17,13 +17,14 @@
       <thead><tr><th>ID</th><th>Email</th><th>Name</th><th>Role</th><th class="num">Balance</th><th>Verified</th><th>Joined</th><th>Actions</th></tr></thead>
       <tbody>
         <% users.forEach(function(u) { %>
-        <tr class="<%= u.banned_at ? 'row-banned' : '' %>">
+        <% const banned = String(u.status || 'Active').toLowerCase() !== 'active'; %>
+        <tr class="<%= banned ? 'row-banned' : '' %>">
           <td class="muted">#<%= u.id %></td>
-          <td><%= u.email %><% if (u.banned_at) { %> <span class="badge badge-failed">banned</span><% } %></td>
-          <td><%= u.name || '—' %></td>
+          <td><%= u.email %><% if (banned) { %> <span class="badge badge-failed"><%= u.status %></span><% } %></td>
+          <td><%= u.username || '—' %></td>
           <td><%= u.role %></td>
           <td class="num price">₱<%= h.money(u.balance) %></td>
-          <td><%= u.email_verified_at ? '✔' : '—' %></td>
+          <td><%= u.email_verified ? '✔' : '—' %></td>
           <td class="muted"><%= h.formatDate(u.created_at) %></td>
           <td class="actions-cell">
             <form method="post" action="/admin/users/<%= u.id %>/adjust" class="inline-form">
@@ -32,11 +33,11 @@
               <input type="text" name="note" placeholder="Note" maxlength="255" class="input-sm">
               <button type="submit" class="btn btn-outline btn-sm">Adjust</button>
             </form>
-            <% if (u.role !== 'admin') { %>
+            <% if (u.role !== 'admin' && u.role !== 'super_admin') { %>
             <form method="post" action="/admin/users/<%= u.id %>/ban" class="inline-form">
               <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-              <% if (u.banned_at) { %><input type="hidden" name="unban" value="1"><% } %>
-              <button type="submit" class="btn <%= u.banned_at ? 'btn-success' : 'btn-danger' %> btn-sm"><%= u.banned_at ? 'Unban' : 'Ban' %></button>
+              <% if (banned) { %><input type="hidden" name="unban" value="1"><% } %>
+              <button type="submit" class="btn <%= banned ? 'btn-success' : 'btn-danger' %> btn-sm"><%= banned ? 'Unban' : 'Ban' %></button>
             </form>
             <% } %>
           </td>

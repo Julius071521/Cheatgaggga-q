@@ -6,7 +6,7 @@
 
   <div class="kpi-grid kpi-grid-wide">
     <div class="kpi card"><span class="kpi-label">Revenue (net of refunds)</span><span class="kpi-value">₱<%= h.money(kpi.revenue) %></span></div>
-    <div class="kpi card"><span class="kpi-label">Upstream cost</span><span class="kpi-value">$<%= Number(kpi.cost_usd).toFixed(2) %></span></div>
+    <div class="kpi card"><span class="kpi-label">Net profit</span><span class="kpi-value">₱<%= h.money(kpi.profit) %></span></div>
     <div class="kpi card"><span class="kpi-label">Wallet liabilities</span><span class="kpi-value">₱<%= h.money(kpi.liabilities) %></span></div>
     <div class="kpi card <%= Number(kpi.pending_deposits) > 0 ? 'kpi-alert' : '' %>">
       <span class="kpi-label">Pending deposits</span><span class="kpi-value"><%= kpi.pending_deposits %></span>

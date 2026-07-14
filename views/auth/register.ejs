@@ -16,8 +16,8 @@
     <form method="post" action="/register">
       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
       <label class="field">
-        <span>Name</span>
-        <input type="text" name="name" maxlength="100" autocomplete="name" placeholder="Juan dela Cruz">
+        <span>Username</span>
+        <input type="text" name="username" required minlength="3" maxlength="100" autocomplete="username" placeholder="juandelacruz">
       </label>
       <label class="field">
         <span>Email</span>

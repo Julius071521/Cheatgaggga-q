@@ -41,10 +41,10 @@
           <% recentOrders.forEach(function(o) { %>
           <tr>
             <td class="muted">#<%= o.id %></td>
-            <td><div class="svc-cell"><%- include('../partials/platform-badge', { platform: o.platform, size: 26 }) %><span class="svc-name"><%= o.service_name.length > 55 ? o.service_name.slice(0,55) + '…' : o.service_name %></span></div></td>
-            <td class="num"><%= o.quantity.toLocaleString() %></td>
-            <td class="num">₱<%= h.money(o.charge_php) %></td>
-            <td><span class="badge badge-<%= o.status %>"><%= h.statusLabel(o.status) %></span></td>
+            <td><div class="svc-cell"><%- include('../partials/platform-badge', { platform: h.platformFromText(o.service_name), size: 26 }) %><span class="svc-name"><%= o.service_name.length > 55 ? o.service_name.slice(0,55) + '…' : o.service_name %></span></div></td>
+            <td class="num"><%= Number(o.quantity).toLocaleString() %></td>
+            <td class="num">₱<%= h.money(o.charge) %></td>
+            <td><span class="badge badge-<%= h.statusSlug(o.status) %>"><%= h.statusLabel(o.status) %></span></td>
             <td class="muted"><%= h.formatDate(o.created_at) %></td>
           </tr>
           <% }); %>

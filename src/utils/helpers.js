@@ -65,18 +65,46 @@ function platformLabel(code) {
   return PLATFORM_LABELS[code] || 'Other';
 }
 
-const STATUS_LABELS = {
-  pending: 'Pending', in_progress: 'In Progress', processing: 'Processing',
-  completed: 'Completed', partial: 'Partial', canceled: 'Canceled', failed: 'Failed',
-  approved: 'Approved', rejected: 'Rejected',
-};
+// Detect a platform code from free text (service name/category) — used for
+// existing orders that have no platform column.
+const PLATFORM_TEXT_KEYWORDS = [
+  ['instagram', ['instagram', ' ig ', 'insta']],
+  ['tiktok', ['tiktok', 'tik tok', 'tik-tok']],
+  ['facebook', ['facebook', ' fb ', 'fb ', 'fb.', 'meta ']],
+  ['youtube', ['youtube', ' yt ', 'you tube']],
+  ['twitter', ['twitter', 'x.com']],
+  ['telegram', ['telegram', 'tg ']],
+  ['spotify', ['spotify']],
+  ['snapchat', ['snapchat', 'snap ']],
+  ['twitch', ['twitch']],
+  ['discord', ['discord']],
+  ['linkedin', ['linkedin']],
+  ['website', ['website traffic', 'web traffic', 'traffic', 'google review']],
+];
+function platformFromText(text) {
+  const hay = ` ${String(text || '').toLowerCase()} `;
+  for (const [platform, kws] of PLATFORM_TEXT_KEYWORDS) {
+    if (kws.some((k) => hay.includes(k))) return platform;
+  }
+  return 'other';
+}
 
+// Statuses are stored in the DB already human-readable (e.g. "In progress").
 function statusLabel(code) {
-  return STATUS_LABELS[code] || code;
+  return code ? String(code) : '—';
+}
+
+// CSS-safe slug for badge classes: "In progress" -> "in_progress".
+function statusSlug(code) {
+  return String(code || '').trim().toLowerCase().replace(/\s+/g, '_');
+}
+
+function isAdminRole(role) {
+  return role === 'admin' || role === 'super_admin';
 }
 
 module.exports = {
   toCents, centsToPhp, money, moneyRate, randomToken, sha256,
   isValidEmail, isValidHttpUrl, clampInt, formatDate,
-  platformLabel, statusLabel, PLATFORM_LABELS,
+  platformLabel, platformFromText, statusLabel, statusSlug, isAdminRole, PLATFORM_LABELS,
 };

@@ -72,11 +72,14 @@ function sendPasswordReset(to, token) {
 }
 
 function sendDepositResult(to, deposit, approved) {
+  const method = String(deposit.payment_method || deposit.method || 'payment').toUpperCase();
+  const amount = Number(deposit.amount != null ? deposit.amount : deposit.amount_php).toFixed(2);
+  const ref = deposit.reference_id || deposit.reference_no || '';
   const title = approved ? 'Deposit approved 🎉' : 'Deposit rejected';
   const body = approved
-    ? `<p>Your ${deposit.method.toUpperCase()} deposit of <b>₱${Number(deposit.amount_php).toFixed(2)}</b> (ref: ${deposit.reference_no}) has been approved and added to your wallet.</p>
+    ? `<p>Your ${method} deposit of <b>₱${amount}</b> (ref: ${ref}) has been approved and added to your wallet.</p>
        ${button(`${env.BASE_URL}/dashboard`, 'Go to dashboard')}`
-    : `<p>Your ${deposit.method.toUpperCase()} deposit of <b>₱${Number(deposit.amount_php).toFixed(2)}</b> (ref: ${deposit.reference_no}) was rejected.</p>
+    : `<p>Your ${method} deposit of <b>₱${amount}</b> (ref: ${ref}) was rejected.</p>
        ${deposit.admin_note ? `<p><b>Reason:</b> ${deposit.admin_note}</p>` : ''}
        <p>If you believe this is a mistake, reply to this email with your payment receipt.</p>`;
   return send(to, `${env.SITE_NAME} — deposit ${approved ? 'approved' : 'rejected'}`, title, body);

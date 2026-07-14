@@ -9,8 +9,8 @@
   <div class="filter-bar card">
     <div class="filter-platforms">
       <a href="/admin/orders" class="pill <%= !status ? 'active' : '' %>">All</a>
-      <% ['pending','in_progress','processing','completed','partial','canceled','failed'].forEach(function(s) { %>
-        <a href="/admin/orders?status=<%= s %>" class="pill <%= status === s ? 'active' : '' %>"><%= h.statusLabel(s) %></a>
+      <% orderStatuses.forEach(function(s) { %>
+        <a href="/admin/orders?status=<%= encodeURIComponent(s) %>" class="pill <%= status === s ? 'active' : '' %>"><%= s %></a>
       <% }); %>
     </div>
     <form method="post" action="/admin/orders/sync" class="inline-form">
@@ -22,22 +22,22 @@
   <% if (orders.length) { %>
   <div class="table-wrap card">
     <table class="table">
-      <thead><tr><th>ID</th><th>User</th><th>Service</th><th class="num">Qty</th><th class="num">Charge</th><th class="num">Cost $</th><th>Provider #</th><th>Status</th><th>Date</th><th></th></tr></thead>
+      <thead><tr><th>ID</th><th>User</th><th>Service</th><th class="num">Qty</th><th class="num">Charge</th><th class="num">Profit</th><th>Provider #</th><th>Status</th><th>Date</th><th></th></tr></thead>
       <tbody>
         <% orders.forEach(function(o) { %>
         <tr>
-          <td class="muted">#<%= o.id %></td>
+          <td class="muted" title="<%= o.order_id %>">#<%= o.id %></td>
           <td><%= o.email %></td>
-          <td><div class="svc-cell"><%- include('../partials/platform-badge', { platform: o.platform, size: 24 }) %><span class="svc-name"><%= o.service_name.length > 40 ? o.service_name.slice(0,40) + '…' : o.service_name %></span></div>
-            <% if (o.error) { %><small class="neg"><%= o.error.slice(0, 60) %></small><% } %></td>
-          <td class="num"><%= o.quantity.toLocaleString() %></td>
-          <td class="num">₱<%= h.money(o.charge_php) %><% if (Number(o.refunded_php) > 0) { %><br><small class="refund">↩ ₱<%= h.money(o.refunded_php) %></small><% } %></td>
-          <td class="num"><%= Number(o.cost_usd).toFixed(4) %></td>
+          <td><div class="svc-cell"><%- include('../partials/platform-badge', { platform: h.platformFromText(o.service_name), size: 24 }) %><span class="svc-name"><%= o.service_name.length > 40 ? o.service_name.slice(0,40) + '…' : o.service_name %></span></div>
+            <% if (o.admin_notes) { %><small class="neg"><%= String(o.admin_notes).slice(0, 60) %></small><% } %></td>
+          <td class="num"><%= Number(o.quantity).toLocaleString() %></td>
+          <td class="num">₱<%= h.money(o.charge) %><% if (Number(o.refund_amount) > 0) { %><br><small class="refund">↩ ₱<%= h.money(o.refund_amount) %></small><% } %></td>
+          <td class="num"><%= o.net_profit == null ? '—' : '₱' + h.money(o.net_profit) %></td>
           <td class="muted"><%= o.provider_order_id || '—' %></td>
-          <td><span class="badge badge-<%= o.status %>"><%= h.statusLabel(o.status) %></span></td>
+          <td><span class="badge badge-<%= h.statusSlug(o.status) %>"><%= h.statusLabel(o.status) %></span></td>
           <td class="muted"><%= h.formatDate(o.created_at) %></td>
           <td>
-            <% if (['pending','in_progress','processing'].includes(o.status) && o.provider_order_id) { %>
+            <% if (['Pending','In progress','Processing'].includes(o.status) && o.provider_order_id) { %>
             <form method="post" action="/admin/orders/<%= o.id %>/refresh" class="inline-form">
               <input type="hidden" name="_csrf" value="<%= csrfToken %>">
               <button type="submit" class="btn btn-ghost btn-sm" title="Refresh">⟳</button>

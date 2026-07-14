@@ -13,7 +13,7 @@ async function siteStats() {
       SELECT
         (SELECT COUNT(*) FROM users) AS users,
         (SELECT COUNT(*) FROM orders) AS orders,
-        (SELECT COUNT(*) FROM orders WHERE status = 'completed') AS completed,
+        (SELECT COUNT(*) FROM orders WHERE status = 'Completed') AS completed,
         (SELECT COUNT(*) FROM services WHERE enabled = 1 AND deleted = 0) AS services
     `);
     cache = {

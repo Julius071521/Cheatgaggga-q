@@ -16,8 +16,8 @@
     <form method="post" action="/login">
       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
       <label class="field">
-        <span>Email</span>
-        <input type="email" name="email" required maxlength="190" autocomplete="email" placeholder="you@example.com">
+        <span>Username or email</span>
+        <input type="text" name="usernameOrEmail" required maxlength="190" autocomplete="username" placeholder="username or you@example.com">
       </label>
       <label class="field">
         <span>Password</span>

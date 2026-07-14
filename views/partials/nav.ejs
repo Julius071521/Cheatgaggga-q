@@ -13,7 +13,7 @@
       <a href="/#faq" class="nav-link">FAQ</a>
       <% if (user) { %>
         <a href="/dashboard" class="nav-link <%= path.startsWith('/dashboard') ? 'active' : '' %>">Dashboard</a>
-        <% if (user.role === 'admin') { %><a href="/admin" class="nav-link <%= path.startsWith('/admin') ? 'active' : '' %>">Admin</a><% } %>
+        <% if (user.isAdmin) { %><a href="/admin" class="nav-link <%= path.startsWith('/admin') ? 'active' : '' %>">Admin</a><% } %>
       <% } %>
     </nav>
 

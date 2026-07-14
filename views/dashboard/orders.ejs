@@ -11,17 +11,17 @@
       <tbody>
         <% orders.forEach(function(o) { %>
         <tr>
-          <td class="muted">#<%= o.id %></td>
-          <td><div class="svc-cell"><%- include('../partials/platform-badge', { platform: o.platform, size: 26 }) %><span class="svc-name"><%= o.service_name.length > 45 ? o.service_name.slice(0,45) + '…' : o.service_name %></span></div></td>
-          <td><a href="<%= o.link %>" target="_blank" rel="noopener nofollow" class="link-cell"><%= o.link.replace(/^https?:\/\//,'').slice(0, 28) %>…</a></td>
-          <td class="num"><%= o.quantity.toLocaleString() %></td>
-          <td class="num">₱<%= h.money(o.charge_php) %><% if (Number(o.refunded_php) > 0) { %><br><small class="refund">↩ ₱<%= h.money(o.refunded_php) %></small><% } %></td>
-          <td class="num"><%= o.start_count === null ? '—' : o.start_count.toLocaleString() %></td>
-          <td class="num"><%= o.remains === null ? '—' : o.remains.toLocaleString() %></td>
-          <td><span class="badge badge-<%= o.status %>"><%= h.statusLabel(o.status) %></span></td>
+          <td class="muted" title="<%= o.order_id %>">#<%= o.id %></td>
+          <td><div class="svc-cell"><%- include('../partials/platform-badge', { platform: h.platformFromText(o.service_name), size: 26 }) %><span class="svc-name"><%= o.service_name.length > 45 ? o.service_name.slice(0,45) + '…' : o.service_name %></span></div></td>
+          <td><a href="<%= o.url %>" target="_blank" rel="noopener nofollow" class="link-cell"><%= String(o.url).replace(/^https?:\/\//,'').slice(0, 28) %>…</a></td>
+          <td class="num"><%= Number(o.quantity).toLocaleString() %></td>
+          <td class="num">₱<%= h.money(o.charge) %><% if (Number(o.refund_amount) > 0) { %><br><small class="refund">↩ ₱<%= h.money(o.refund_amount) %></small><% } %></td>
+          <td class="num"><%= o.start_count == null ? '—' : Number(o.start_count).toLocaleString() %></td>
+          <td class="num"><%= o.remains == null ? '—' : Number(o.remains).toLocaleString() %></td>
+          <td><span class="badge badge-<%= h.statusSlug(o.status) %>"><%= h.statusLabel(o.status) %></span></td>
           <td class="muted"><%= h.formatDate(o.created_at) %></td>
           <td>
-            <% if (['pending','in_progress','processing'].includes(o.status)) { %>
+            <% if (['Pending','In progress','Processing'].includes(o.status)) { %>
             <form method="post" action="/orders/<%= o.id %>/refresh" class="inline-form">
               <input type="hidden" name="_csrf" value="<%= csrfToken %>">
               <button type="submit" class="btn btn-ghost btn-sm" title="Refresh status">⟳</button>

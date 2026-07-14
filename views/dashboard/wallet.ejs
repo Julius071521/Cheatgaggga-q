@@ -64,11 +64,11 @@
             <tbody>
               <% deposits.forEach(function(d) { %>
               <tr>
-                <td><%= d.method.toUpperCase() %></td>
-                <td class="num">₱<%= h.money(d.amount_php) %></td>
-                <td class="muted"><%= d.reference_no.slice(0, 14) %></td>
-                <td><span class="badge badge-<%= d.status %>"><%= h.statusLabel(d.status) %></span>
-                  <% if (d.status === 'rejected' && d.admin_note) { %><br><small class="muted"><%= d.admin_note %></small><% } %></td>
+                <td><%= String(d.payment_method).toUpperCase() %></td>
+                <td class="num">₱<%= h.money(d.amount) %></td>
+                <td class="muted"><%= String(d.reference_id).slice(0, 14) %></td>
+                <td><span class="badge badge-<%= h.statusSlug(d.status) %>"><%= h.statusLabel(d.status) %></span>
+                  <% if (String(d.status).toLowerCase() === 'rejected' && d.admin_note) { %><br><small class="muted"><%= d.admin_note %></small><% } %></td>
                 <td class="muted"><%= h.formatDate(d.created_at) %></td>
               </tr>
               <% }); %>
@@ -87,9 +87,9 @@
             <tbody>
               <% transactions.forEach(function(t) { %>
               <tr>
-                <td><span class="badge badge-tx-<%= t.type %>"><%= t.type %></span><% if (t.note) { %><br><small class="muted"><%= t.note.slice(0, 40) %></small><% } %></td>
-                <td class="num <%= Number(t.amount_php) >= 0 ? 'pos' : 'neg' %>"><%= Number(t.amount_php) >= 0 ? '+' : '' %>₱<%= h.money(t.amount_php) %></td>
-                <td class="num">₱<%= h.money(t.balance_after) %></td>
+                <td><span class="badge badge-tx-<%= t.type %>"><%= t.type %></span><% if (t.description) { %><br><small class="muted"><%= t.description.slice(0, 40) %></small><% } %></td>
+                <td class="num <%= Number(t.amount) >= 0 ? 'pos' : 'neg' %>"><%= Number(t.amount) >= 0 ? '+' : '' %>₱<%= h.money(t.amount) %></td>
+                <td class="num">₱<%= h.money(t.new_balance) %></td>
                 <td class="muted"><%= h.formatDate(t.created_at) %></td>
               </tr>
               <% }); %>

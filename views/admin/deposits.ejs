@@ -18,10 +18,10 @@
         <% deposits.forEach(function(d) { %>
         <tr>
           <td class="muted">#<%= d.id %></td>
-          <td><%= d.email %></td>
-          <td><%= d.method.toUpperCase() %></td>
-          <td class="num price">₱<%= h.money(d.amount_php) %></td>
-          <td><code><%= d.reference_no %></code></td>
+          <td><%= d.email %><br><small class="muted"><%= d.username %></small></td>
+          <td><%= String(d.payment_method).toUpperCase() %></td>
+          <td class="num price">₱<%= h.money(d.amount) %></td>
+          <td><code><%= d.reference_id %></code></td>
           <td><% if (d.receipt_path) { %><a href="/receipt/<%= d.id %>" target="_blank" rel="noopener">View 🧾</a><% } else { %>—<% } %></td>
           <td class="muted"><%= h.formatDate(d.created_at) %></td>
           <% if (status === 'pending') { %>

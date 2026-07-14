@@ -27,7 +27,7 @@ Built with Node.js + Express + EJS + MySQL — everything is configured through
 - 🤖 AI support chat widget backed by an OpenAI-compatible router (key stays
   server-side)
 
-## Setup
+## Setup (fresh install)
 
 ```bash
 cp .env.example .env         # fill in your real values
@@ -37,8 +37,27 @@ node src/db/seed.js admin@yourdomain.com "StrongPassword123"   # first admin
 npm start                    # serves on PORT (default 3000)
 ```
 
-Then sign in as the admin, open **Admin → Services**, and hit the sync buttons
-to import the catalog from your providers.
+## Setup on an EXISTING ApexBoost database
+
+This build is designed to run against the existing production database
+(users / orders / deposits / transactions are reused as-is). The migration is
+**additive and non-destructive** — it never drops or recreates your data, it
+only adds the support tables (`services`, `providers`, `settings`,
+`ai_chat_logs`) and a few columns on `deposits`.
+
+```bash
+cp .env.example .env         # point DB_* at your existing database
+npm install
+npm run migrate              # additive only — safe on live data
+npm start
+```
+
+- **Do not run the seed script** — your existing admin accounts (role
+  `admin` / `super_admin`) already work. Existing users keep their passwords
+  (bcrypt/pbkdf2); legacy plain-text accounts sign in via Google or the
+  "forgot password" flow, exactly as before.
+- Sign in as your admin, open **Admin → Services**, and hit the provider
+  **Sync** buttons to populate the catalog.
 
 ## Cron jobs
 
