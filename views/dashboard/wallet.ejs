@@ -1,0 +1,104 @@
+<%- include('../partials/head', { title }) %>
+<%- include('../partials/nav') %>
+<main class="container page">
+  <div class="page-head">
+    <h1>Wallet & <span class="grad-text">add funds</span></h1>
+    <p>Current balance: <strong class="price">₱<%= h.money(user.balance) %></strong></p>
+  </div>
+  <%- include('../partials/dash-nav') %>
+
+  <div class="wallet-layout">
+    <div class="card" data-reveal>
+      <h2>1️⃣ Send your payment</h2>
+      <p class="muted">Transfer any amount (min. ₱50) to one of our accounts:</p>
+      <% if (methods.length) { %>
+      <div class="pay-methods">
+        <% methods.forEach(function(m) { %>
+        <div class="pay-method pay-<%= m.code %>">
+          <div class="pm-head"><strong><%= m.label %></strong><% if (m.extra) { %><small><%= m.extra %></small><% } %></div>
+          <div class="pm-row">
+            <span class="pm-number" id="pm-<%= m.code %>"><%= m.number %></span>
+            <button type="button" class="btn btn-ghost btn-sm copy-btn" data-copy="<%= m.number %>">Copy</button>
+          </div>
+          <small class="muted">Account name: <%= m.name %></small>
+        </div>
+        <% }); %>
+      </div>
+      <% } else { %>
+        <p class="empty-note">Payment channels are being set up. Please contact support to add funds.</p>
+      <% } %>
+
+      <h2 class="mt">2️⃣ Submit the details</h2>
+      <form method="post" action="/wallet/deposit?_csrf=<%= csrfToken %>" enctype="multipart/form-data">
+        <label class="field">
+          <span>Payment method</span>
+          <select name="method" required>
+            <option value="">— Choose —</option>
+            <% methods.forEach(function(m) { %><option value="<%= m.code %>"><%= m.label %></option><% }); %>
+          </select>
+        </label>
+        <label class="field">
+          <span>Amount sent (₱)</span>
+          <input type="number" name="amount" min="50" max="1000000" step="0.01" required placeholder="500.00">
+        </label>
+        <label class="field">
+          <span>Reference number</span>
+          <input type="text" name="reference" required minlength="4" maxlength="100" placeholder="e.g. 1234 5678 9012">
+        </label>
+        <label class="field">
+          <span>Receipt screenshot <small>(optional, JPG/PNG/WEBP, max 5MB)</small></span>
+          <input type="file" name="receipt" accept="image/jpeg,image/png,image/webp">
+        </label>
+        <button type="submit" class="btn btn-primary btn-lg btn-block">Submit deposit</button>
+        <p class="auth-fineprint">Deposits are verified by our team — usually within minutes to a few hours. You'll get an email once it's credited.</p>
+      </form>
+    </div>
+
+    <div class="wallet-side">
+      <div class="card" data-reveal data-reveal-delay="100">
+        <h2>Recent deposits</h2>
+        <% if (deposits.length) { %>
+        <div class="table-wrap">
+          <table class="table table-compact">
+            <thead><tr><th>Method</th><th class="num">Amount</th><th>Ref</th><th>Status</th><th>Date</th></tr></thead>
+            <tbody>
+              <% deposits.forEach(function(d) { %>
+              <tr>
+                <td><%= d.method.toUpperCase() %></td>
+                <td class="num">₱<%= h.money(d.amount_php) %></td>
+                <td class="muted"><%= d.reference_no.slice(0, 14) %></td>
+                <td><span class="badge badge-<%= d.status %>"><%= h.statusLabel(d.status) %></span>
+                  <% if (d.status === 'rejected' && d.admin_note) { %><br><small class="muted"><%= d.admin_note %></small><% } %></td>
+                <td class="muted"><%= h.formatDate(d.created_at) %></td>
+              </tr>
+              <% }); %>
+            </tbody>
+          </table>
+        </div>
+        <% } else { %><p class="empty-note">No deposits yet.</p><% } %>
+      </div>
+
+      <div class="card" data-reveal data-reveal-delay="180">
+        <h2>Transaction history</h2>
+        <% if (transactions.length) { %>
+        <div class="table-wrap">
+          <table class="table table-compact">
+            <thead><tr><th>Type</th><th class="num">Amount</th><th class="num">Balance</th><th>Date</th></tr></thead>
+            <tbody>
+              <% transactions.forEach(function(t) { %>
+              <tr>
+                <td><span class="badge badge-tx-<%= t.type %>"><%= t.type %></span><% if (t.note) { %><br><small class="muted"><%= t.note.slice(0, 40) %></small><% } %></td>
+                <td class="num <%= Number(t.amount_php) >= 0 ? 'pos' : 'neg' %>"><%= Number(t.amount_php) >= 0 ? '+' : '' %>₱<%= h.money(t.amount_php) %></td>
+                <td class="num">₱<%= h.money(t.balance_after) %></td>
+                <td class="muted"><%= h.formatDate(t.created_at) %></td>
+              </tr>
+              <% }); %>
+            </tbody>
+          </table>
+        </div>
+        <% } else { %><p class="empty-note">Nothing here yet.</p><% } %>
+      </div>
+    </div>
+  </div>
+</main>
+<%- include('../partials/footer') %>

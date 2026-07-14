@@ -1,0 +1,85 @@
+'use strict';
+const nodemailer = require('nodemailer');
+const env = require('../config/env');
+
+let transporter = null;
+if (env.EMAIL_HOST && env.EMAIL_USER && env.EMAIL_PASS) {
+  transporter = nodemailer.createTransport({
+    host: env.EMAIL_HOST,
+    port: env.EMAIL_PORT,
+    secure: env.EMAIL_SECURE,
+    auth: { user: env.EMAIL_USER, pass: env.EMAIL_PASS },
+    tls: env.EMAIL_TLS_SERVERNAME ? { servername: env.EMAIL_TLS_SERVERNAME } : undefined,
+  });
+}
+
+function layout(title, bodyHtml) {
+  return `
+  <div style="background:#f4f6fb;padding:32px 16px;font-family:Arial,Helvetica,sans-serif;">
+    <div style="max-width:520px;margin:0 auto;background:#ffffff;border-radius:14px;overflow:hidden;border:1px solid #e6e9f2;">
+      <div style="background:linear-gradient(135deg,#2563eb,#0ea5e9);padding:22px 28px;">
+        <span style="color:#ffffff;font-size:20px;font-weight:bold;">${env.SITE_NAME}</span>
+      </div>
+      <div style="padding:28px;color:#1f2937;font-size:15px;line-height:1.6;">
+        <h2 style="margin:0 0 14px;font-size:18px;color:#111827;">${title}</h2>
+        ${bodyHtml}
+      </div>
+      <div style="padding:18px 28px;background:#f9fafb;color:#6b7280;font-size:12px;border-top:1px solid #eef0f5;">
+        ${env.SITE_NAME} · ${env.SITE_DOMAIN}${env.SUPPORT_EMAIL ? ` · Need help? <a href="mailto:${env.SUPPORT_EMAIL}" style="color:#2563eb;">${env.SUPPORT_EMAIL}</a>` : ''}
+      </div>
+    </div>
+  </div>`;
+}
+
+function button(url, label) {
+  return `<p style="margin:22px 0;"><a href="${url}" style="background:#2563eb;color:#ffffff;text-decoration:none;padding:12px 26px;border-radius:8px;font-weight:bold;display:inline-block;">${label}</a></p>
+  <p style="color:#6b7280;font-size:12px;">If the button doesn't work, copy this link:<br>${url}</p>`;
+}
+
+async function send(to, subject, title, bodyHtml) {
+  if (!transporter) {
+    console.warn(`[mailer] SMTP not configured — skipped email "${subject}" to ${to}`);
+    return false;
+  }
+  try {
+    await transporter.sendMail({
+      from: `"${env.EMAIL_FROM_NAME}" <${env.EMAIL_FROM || env.EMAIL_USER}>`,
+      to,
+      subject,
+      html: layout(title, bodyHtml),
+    });
+    return true;
+  } catch (err) {
+    console.error(`[mailer] Failed to send "${subject}" to ${to}: ${err.message}`);
+    return false;
+  }
+}
+
+function sendVerification(to, token) {
+  const url = `${env.BASE_URL}/verify/${token}`;
+  return send(to, `Verify your ${env.SITE_NAME} account`, 'Confirm your email address',
+    `<p>Welcome to ${env.SITE_NAME}! Click the button below to verify your email and activate your account.</p>
+     ${button(url, 'Verify my email')}
+     <p style="color:#6b7280;font-size:12px;">This link expires in 24 hours. If you didn't sign up, you can ignore this email.</p>`);
+}
+
+function sendPasswordReset(to, token) {
+  const url = `${env.BASE_URL}/reset/${token}`;
+  return send(to, `Reset your ${env.SITE_NAME} password`, 'Password reset request',
+    `<p>We received a request to reset your password. Click below to choose a new one.</p>
+     ${button(url, 'Reset password')}
+     <p style="color:#6b7280;font-size:12px;">This link expires in 1 hour. If you didn't request this, no action is needed.</p>`);
+}
+
+function sendDepositResult(to, deposit, approved) {
+  const title = approved ? 'Deposit approved 🎉' : 'Deposit rejected';
+  const body = approved
+    ? `<p>Your ${deposit.method.toUpperCase()} deposit of <b>₱${Number(deposit.amount_php).toFixed(2)}</b> (ref: ${deposit.reference_no}) has been approved and added to your wallet.</p>
+       ${button(`${env.BASE_URL}/dashboard`, 'Go to dashboard')}`
+    : `<p>Your ${deposit.method.toUpperCase()} deposit of <b>₱${Number(deposit.amount_php).toFixed(2)}</b> (ref: ${deposit.reference_no}) was rejected.</p>
+       ${deposit.admin_note ? `<p><b>Reason:</b> ${deposit.admin_note}</p>` : ''}
+       <p>If you believe this is a mistake, reply to this email with your payment receipt.</p>`;
+  return send(to, `${env.SITE_NAME} — deposit ${approved ? 'approved' : 'rejected'}`, title, body);
+}
+
+module.exports = { send, sendVerification, sendPasswordReset, sendDepositResult };

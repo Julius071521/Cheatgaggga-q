@@ -1,0 +1,302 @@
+<%- include('partials/head', { title }) %>
+<%- include('partials/nav') %>
+<main>
+
+<% if (announcement) { %>
+<div class="announce"><div class="container">📣 <%= announcement %></div></div>
+<% } %>
+
+<!-- ═══ HERO ═══ -->
+<section class="hero">
+  <div class="hero-bg" aria-hidden="true">
+    <span class="blob blob-1"></span>
+    <span class="blob blob-2"></span>
+    <span class="blob blob-3"></span>
+    <span class="float-icon fi-1" data-depth="14"><%- include('partials/platform-badge', { platform: 'instagram', size: 52 }) %></span>
+    <span class="float-icon fi-2" data-depth="22"><%- include('partials/platform-badge', { platform: 'tiktok', size: 46 }) %></span>
+    <span class="float-icon fi-3" data-depth="10"><%- include('partials/platform-badge', { platform: 'youtube', size: 56 }) %></span>
+    <span class="float-icon fi-4" data-depth="18"><%- include('partials/platform-badge', { platform: 'facebook', size: 44 }) %></span>
+    <span class="float-icon fi-5" data-depth="26"><%- include('partials/platform-badge', { platform: 'telegram', size: 40 }) %></span>
+    <span class="float-icon fi-6" data-depth="12"><%- include('partials/platform-badge', { platform: 'spotify', size: 42 }) %></span>
+  </div>
+
+  <div class="container hero-inner">
+    <div class="hero-copy" data-reveal>
+      <span class="hero-eyebrow">🇵🇭 #1 SMM Panel for Pinoy creators & businesses</span>
+      <h1 class="hero-title">Boost your <span class="grad-text">social media</span><br>in minutes, not months.</h1>
+      <p class="hero-sub">
+        Followers, likes, views, and engagement for every major platform —
+        instant automated delivery at the lowest prices in pesos.
+      </p>
+      <div class="hero-chips">
+        <span class="chip">⚡ Instant delivery</span>
+        <span class="chip">₱ Peso pricing</span>
+        <span class="chip">💳 GCash · Maya · BPI</span>
+        <span class="chip">🕐 24/7 support</span>
+      </div>
+      <div class="hero-cta">
+        <a href="/register" class="btn btn-primary btn-lg btn-glow">Get started — it's free</a>
+        <a href="/services" class="btn btn-outline btn-lg">Browse services</a>
+      </div>
+      <p class="hero-proof">Trusted by <strong data-count="<%= Math.max(stats.users, 1) %>">0</strong>+ members · <strong data-count="<%= Math.max(stats.orders, 1) %>">0</strong>+ orders delivered</p>
+    </div>
+
+    <div class="hero-visual" data-reveal data-reveal-delay="150">
+      <div class="phone-card tilt">
+        <div class="phone-head">
+          <span class="avatar">A</span>
+          <div>
+            <strong>@yourbrand</strong>
+            <small>Growing with <%= site.name %></small>
+          </div>
+          <span class="live-pill"><span class="dot"></span> LIVE</span>
+        </div>
+        <div class="phone-stat">
+          <span class="ps-label">Followers</span>
+          <span class="ps-value" data-count="128400" data-count-duration="2600">0</span>
+          <span class="ps-delta">▲ +10.5k this week</span>
+        </div>
+        <div class="phone-bars" aria-hidden="true">
+          <span style="--h:35%"></span><span style="--h:48%"></span><span style="--h:42%"></span>
+          <span style="--h:60%"></span><span style="--h:74%"></span><span style="--h:68%"></span>
+          <span style="--h:92%"></span>
+        </div>
+        <div class="phone-row">
+          <div class="mini-stat">❤️ <span data-count="7300">0</span></div>
+          <div class="mini-stat">💬 <span data-count="1200">0</span></div>
+          <div class="mini-stat">👁️ <span data-count="45800">0</span></div>
+        </div>
+      </div>
+      <div class="order-toast" aria-hidden="true">
+        <span class="ot-icon">✅</span>
+        <div><strong>Order completed</strong><small>1,000 IG followers · just now</small></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ STATS STRIP ═══ -->
+<section class="stats-strip">
+  <div class="container stats-grid">
+    <div class="stat" data-reveal>
+      <span class="stat-num" data-count="<%= Math.max(stats.orders, 1) %>">0</span>
+      <span class="stat-label">Total orders</span>
+    </div>
+    <div class="stat" data-reveal data-reveal-delay="80">
+      <span class="stat-num" data-count="<%= Math.max(stats.users, 1) %>">0</span>
+      <span class="stat-label">Happy members</span>
+    </div>
+    <div class="stat" data-reveal data-reveal-delay="160">
+      <span class="stat-num" data-count="<%= Math.max(stats.services, 1) %>">0</span>
+      <span class="stat-label">Services available</span>
+    </div>
+    <div class="stat" data-reveal data-reveal-delay="240">
+      <span class="stat-num" data-count="<%= Math.max(stats.completed, 1) %>">0</span>
+      <span class="stat-label">Orders completed</span>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ HOW IT WORKS ═══ -->
+<section class="section" id="how-it-works">
+  <div class="container">
+    <div class="section-head" data-reveal>
+      <span class="section-eyebrow">Simple by design</span>
+      <h2>Start growing in <span class="grad-text">3 easy steps</span></h2>
+    </div>
+    <div class="steps">
+      <svg class="steps-line" viewBox="0 0 800 40" preserveAspectRatio="none" aria-hidden="true">
+        <path d="M40 20 H760" stroke="currentColor" stroke-width="2.5" stroke-dasharray="8 8" fill="none" pathLength="100"/>
+      </svg>
+      <div class="step card" data-reveal>
+        <span class="step-num">1</span>
+        <div class="step-icon">📝</div>
+        <h3>Create an account</h3>
+        <p>Sign up free in seconds — email or Google. No credit card needed.</p>
+      </div>
+      <div class="step card" data-reveal data-reveal-delay="120">
+        <span class="step-num">2</span>
+        <div class="step-icon">💰</div>
+        <h3>Add funds</h3>
+        <p>Top up your peso wallet via GCash, Maya, or BPI transfer. Verified fast.</p>
+      </div>
+      <div class="step card" data-reveal data-reveal-delay="240">
+        <span class="step-num">3</span>
+        <div class="step-icon">🚀</div>
+        <h3>Place your order</h3>
+        <p>Pick a service, paste your link, and watch your numbers climb automatically.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ FEATURES ═══ -->
+<section class="section section-alt" id="features">
+  <div class="container">
+    <div class="section-head" data-reveal>
+      <span class="section-eyebrow">Why <%= site.name %></span>
+      <h2>Everything you need to <span class="grad-text">go viral</span></h2>
+    </div>
+    <div class="features-grid">
+      <% const feats = [
+        ['💸','Lowest peso prices','Rates start at centavos per 1000. No hidden fees, no surprises.'],
+        ['⚡','Instant auto-delivery','Orders are sent to our network the second you click. Most start within minutes.'],
+        ['🇵🇭','Local payments','GCash, Maya, and BPI — pay the way you already do. No cards required.'],
+        ['🛡️','Safe & secure','No passwords ever needed. We only ask for your public link.'],
+        ['♻️','Auto refunds','Partial or canceled orders? The unspent balance goes right back to your wallet.'],
+        ['🔌','Reseller API','Standard SMM panel API so you can resell our services on your own panel.'],
+        ['📊','Real-time tracking','Watch statuses update live — start counts, remains, and completions.'],
+        ['🕐','24/7 support','Our AI assistant answers instantly; humans jump in when you need them.'],
+      ]; %>
+      <% feats.forEach(function(f, i) { %>
+        <div class="feature card" data-reveal data-reveal-delay="<%= (i % 4) * 90 %>">
+          <span class="feature-icon"><%= f[0] %></span>
+          <h3><%= f[1] %></h3>
+          <p><%= f[2] %></p>
+        </div>
+      <% }); %>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ POPULAR SERVICES ═══ -->
+<section class="section" id="popular">
+  <div class="container">
+    <div class="section-head" data-reveal>
+      <span class="section-eyebrow">Best sellers</span>
+      <h2>Popular <span class="grad-text">services</span></h2>
+      <p class="section-sub">Live prices from our catalog — from the platforms you love.</p>
+    </div>
+    <% if (showcase.length) { %>
+    <div class="showcase-grid">
+      <% showcase.forEach(function(s, i) { %>
+        <div class="showcase card" data-reveal data-reveal-delay="<%= (i % 4) * 90 %>">
+          <div class="showcase-top">
+            <%- include('partials/platform-badge', { platform: s.platform, size: 44 }) %>
+            <div>
+              <h3><%= h.platformLabel(s.platform) %></h3>
+              <span class="stars" aria-label="Rated 4.9 out of 5">★★★★★ <small>4.9</small></span>
+            </div>
+          </div>
+          <p class="showcase-name"><%= s.name.length > 70 ? s.name.slice(0, 70) + '…' : s.name %></p>
+          <div class="showcase-price">
+            <span class="price">₱<%= h.moneyRate(s.ratePhp) %></span>
+            <span class="per">/ 1000</span>
+          </div>
+          <a href="<%= user ? `/order/new?service=${s.id}` : '/register' %>" class="btn btn-primary btn-block">Order now</a>
+        </div>
+      <% }); %>
+    </div>
+    <% } else { %>
+      <p class="empty-note" data-reveal>Our catalog is being stocked — check back in a moment or <a href="/services">browse all services</a>.</p>
+    <% } %>
+    <div class="center" data-reveal><a href="/services" class="btn btn-outline">See all <%= stats.services.toLocaleString() %> services →</a></div>
+  </div>
+</section>
+
+<!-- ═══ COMPARISON ═══ -->
+<section class="section section-alt" id="compare">
+  <div class="container">
+    <div class="section-head" data-reveal>
+      <span class="section-eyebrow">The difference</span>
+      <h2>Other panels vs <span class="grad-text"><%= site.name %></span></h2>
+    </div>
+    <div class="compare" data-reveal>
+      <div class="compare-col compare-them card">
+        <h3>😕 Other panels</h3>
+        <ul>
+          <li>✖ Prices in USD + conversion fees</li>
+          <li>✖ Cards or crypto only</li>
+          <li>✖ No refunds on failed orders</li>
+          <li>✖ Support that never replies</li>
+          <li>✖ Confusing dashboards</li>
+        </ul>
+      </div>
+      <div class="compare-col compare-us card">
+        <h3>😎 <%= site.name %></h3>
+        <ul>
+          <li>✔ Straight peso pricing, no math needed</li>
+          <li>✔ GCash, Maya & BPI accepted</li>
+          <li>✔ Automatic refunds to your wallet</li>
+          <li>✔ 24/7 AI + human support</li>
+          <li>✔ Clean, mobile-friendly dashboard</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ TESTIMONIALS ═══ -->
+<section class="section" id="reviews">
+  <div class="container">
+    <div class="section-head" data-reveal>
+      <span class="section-eyebrow">Wall of love</span>
+      <h2>What our members <span class="grad-text">say</span></h2>
+    </div>
+    <div class="reviews-grid">
+      <% const reviews = [
+        ['J***a M.', 'Online seller', 'Legit! Nag-top up ako via GCash, na-approve agad tapos yung IG followers ko dumating within minutes. Sulit na sulit.', 5],
+        ['R***l T.', 'Content creator', 'I use it for my TikTok views every posting day. Prices are way cheaper than other panels I tried, and it\'s in pesos na!', 5],
+        ['K***n D.', 'Reseller', 'The API works perfectly with my own panel. Auto refunds on partials is a lifesaver — walang drama.', 5],
+        ['A***e P.', 'Small business', 'Boosted our FB page before our product launch. Support chat actually answers questions, kahit madaling araw.', 4.5],
+        ['M***o S.', 'Streamer', 'YouTube subs and views delivered smoothly. The dashboard is super clean and easy to use on mobile.', 5],
+      ]; %>
+      <% reviews.forEach(function(r, i) { %>
+        <div class="review card" data-reveal data-reveal-delay="<%= (i % 3) * 100 %>">
+          <div class="review-head">
+            <span class="avatar avatar-c<%= (i % 5) + 1 %>"><%= r[0][0] %></span>
+            <div>
+              <strong><%= r[0] %></strong>
+              <small><%= r[1] %></small>
+            </div>
+            <span class="verified" title="Verified member">✔</span>
+          </div>
+          <span class="stars">
+            <%= '★'.repeat(Math.floor(r[3])) %><%= r[3] % 1 ? '½' : '' %>
+          </span>
+          <p>“<%= r[2] %>”</p>
+        </div>
+      <% }); %>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ FAQ ═══ -->
+<section class="section section-alt" id="faq">
+  <div class="container container-narrow">
+    <div class="section-head" data-reveal>
+      <span class="section-eyebrow">Questions?</span>
+      <h2>Frequently asked <span class="grad-text">questions</span></h2>
+    </div>
+    <% const faqs = [
+      ['What is an SMM panel?', 'An SMM (Social Media Marketing) panel is a store for social media services — followers, likes, views, comments, and more. You pick a service, paste your link, and delivery is fully automated.'],
+      ['Is it safe? Do you need my password?', 'Never. We only ask for the public link of your profile, post, or video. Your account credentials stay with you — always.'],
+      ['How do I pay?', 'Add funds to your wallet by sending payment via GCash, Maya, or BPI transfer, then submit the reference number (and a screenshot if you like). Our team verifies it and credits your wallet — usually within minutes to a few hours.'],
+      ['How fast is delivery?', 'It depends on the service — many start within minutes. Each service shows its typical speed, and you can track live status from your dashboard.'],
+      ['What happens if my order fails or is only partially delivered?', 'Failed orders are refunded to your wallet automatically and in full. Partial deliveries refund the undelivered portion — no tickets needed.'],
+      ['What platforms do you support?', 'Instagram, TikTok, Facebook, YouTube, Twitter/X, Telegram, Spotify, Snapchat, Twitch, Discord and more — thousands of services across all major platforms.'],
+      ['Can I resell your services?', 'Yes! Generate an API key from your account settings and plug our standard SMM panel API into your own website or panel.'],
+      ['Is there a minimum deposit?', 'Deposits start at ₱50 — perfect for trying things out before going big.'],
+    ]; %>
+    <div class="faq-list">
+      <% faqs.forEach(function(f, i) { %>
+        <details class="faq-item card" data-reveal data-reveal-delay="<%= (i % 4) * 60 %>">
+          <summary><%= f[0] %><span class="faq-arrow" aria-hidden="true">▾</span></summary>
+          <div class="faq-body"><p><%= f[1] %></p></div>
+        </details>
+      <% }); %>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ FINAL CTA ═══ -->
+<section class="cta-band">
+  <div class="container cta-inner" data-reveal>
+    <h2>Ready to grow? Join the <%= site.name %> family today 🚀</h2>
+    <p>Free account · deposits from ₱50 · pay with GCash, Maya, or BPI</p>
+    <a href="/register" class="btn btn-white btn-lg">Create my free account</a>
+  </div>
+</section>
+
+</main>
+<%- include('partials/footer') %>

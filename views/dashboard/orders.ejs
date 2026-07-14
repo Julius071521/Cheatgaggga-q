@@ -1,0 +1,41 @@
+<%- include('../partials/head', { title }) %>
+<%- include('../partials/nav') %>
+<main class="container page">
+  <div class="page-head"><h1>My <span class="grad-text">orders</span></h1></div>
+  <%- include('../partials/dash-nav') %>
+
+  <% if (orders.length) { %>
+  <div class="table-wrap card" data-reveal>
+    <table class="table">
+      <thead><tr><th>ID</th><th>Service</th><th>Link</th><th class="num">Qty</th><th class="num">Charge</th><th class="num">Start</th><th class="num">Remains</th><th>Status</th><th>Date</th><th></th></tr></thead>
+      <tbody>
+        <% orders.forEach(function(o) { %>
+        <tr>
+          <td class="muted">#<%= o.id %></td>
+          <td><div class="svc-cell"><%- include('../partials/platform-badge', { platform: o.platform, size: 26 }) %><span class="svc-name"><%= o.service_name.length > 45 ? o.service_name.slice(0,45) + '…' : o.service_name %></span></div></td>
+          <td><a href="<%= o.link %>" target="_blank" rel="noopener nofollow" class="link-cell"><%= o.link.replace(/^https?:\/\//,'').slice(0, 28) %>…</a></td>
+          <td class="num"><%= o.quantity.toLocaleString() %></td>
+          <td class="num">₱<%= h.money(o.charge_php) %><% if (Number(o.refunded_php) > 0) { %><br><small class="refund">↩ ₱<%= h.money(o.refunded_php) %></small><% } %></td>
+          <td class="num"><%= o.start_count === null ? '—' : o.start_count.toLocaleString() %></td>
+          <td class="num"><%= o.remains === null ? '—' : o.remains.toLocaleString() %></td>
+          <td><span class="badge badge-<%= o.status %>"><%= h.statusLabel(o.status) %></span></td>
+          <td class="muted"><%= h.formatDate(o.created_at) %></td>
+          <td>
+            <% if (['pending','in_progress','processing'].includes(o.status)) { %>
+            <form method="post" action="/orders/<%= o.id %>/refresh" class="inline-form">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+              <button type="submit" class="btn btn-ghost btn-sm" title="Refresh status">⟳</button>
+            </form>
+            <% } %>
+          </td>
+        </tr>
+        <% }); %>
+      </tbody>
+    </table>
+  </div>
+  <%- include('../partials/pagination', { pagination, basePath: '/orders', query: {} }) %>
+  <% } else { %>
+    <p class="empty-note" data-reveal>No orders yet — <a href="/order/new">place your first order</a>! 🚀</p>
+  <% } %>
+</main>
+<%- include('../partials/footer') %>

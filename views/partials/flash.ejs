@@ -1,0 +1,8 @@
+<% if (flash) { %>
+  <div class="flash flash-<%= flash.type %>" role="alert">
+    <div class="container">
+      <span><%= flash.message %></span>
+      <button type="button" class="flash-close" aria-label="Dismiss">&times;</button>
+    </div>
+  </div>
+<% } %>

@@ -1,0 +1,18 @@
+<%- include('partials/head', { title }) %>
+<%- include('partials/nav') %>
+<main class="container container-narrow page">
+  <div class="page-head"><h1>Terms of <span class="grad-text">Service</span></h1></div>
+  <div class="card prose">
+    <p>By creating an account on <%= site.name %> (<%= site.domain %>) you agree to the terms below.</p>
+    <h3>1. Service</h3>
+    <p><%= site.name %> provides social media marketing services (followers, likes, views, and similar engagement) delivered automatically to the public links you submit. Delivery speeds and quantities are estimates, not guarantees.</p>
+    <h3>2. Wallet & payments</h3>
+    <p>Deposits are manual bank/e-wallet transfers verified by our staff. Wallet balance is non-transferable and used only to purchase services on this site. Failed orders are refunded to your wallet in full; partial deliveries refund the undelivered portion.</p>
+    <h3>3. Acceptable use</h3>
+    <p>You may only submit links you own or are authorized to promote. You are responsible for complying with each social platform's terms. We may suspend accounts used for fraud, abuse, or unlawful content.</p>
+    <h3>4. Liability</h3>
+    <p>Services are provided "as is". We are not affiliated with any social media platform and are not responsible for actions those platforms take on your accounts.</p>
+    <% if (site.supportEmail) { %><p>Questions? Contact <a href="mailto:<%= site.supportEmail %>"><%= site.supportEmail %></a>.</p><% } %>
+  </div>
+</main>
+<%- include('partials/footer') %>

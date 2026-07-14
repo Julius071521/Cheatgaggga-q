@@ -1,0 +1,59 @@
+<%- include('../partials/head', { title }) %>
+<%- include('../partials/nav') %>
+<main class="container page">
+  <div class="page-head">
+    <h1>Hi<%= user.name ? `, ${user.name.split(' ')[0]}` : '' %> 👋</h1>
+    <p>Here's how your account is doing.</p>
+  </div>
+  <%- include('../partials/dash-nav') %>
+
+  <div class="kpi-grid">
+    <div class="kpi card" data-reveal>
+      <span class="kpi-label">Wallet balance</span>
+      <span class="kpi-value">₱<%= h.money(user.balance) %></span>
+      <a href="/wallet" class="kpi-link">Add funds →</a>
+    </div>
+    <div class="kpi card" data-reveal data-reveal-delay="80">
+      <span class="kpi-label">Total orders</span>
+      <span class="kpi-value"><%= Number(counts.orders).toLocaleString() %></span>
+      <a href="/orders" class="kpi-link">View history →</a>
+    </div>
+    <div class="kpi card" data-reveal data-reveal-delay="160">
+      <span class="kpi-label">Active orders</span>
+      <span class="kpi-value"><%= Number(counts.active || 0).toLocaleString() %></span>
+    </div>
+    <div class="kpi card" data-reveal data-reveal-delay="240">
+      <span class="kpi-label">Total spent</span>
+      <span class="kpi-value">₱<%= h.money(counts.spent) %></span>
+    </div>
+  </div>
+
+  <div class="card section-card" data-reveal>
+    <div class="card-head">
+      <h2>Recent orders</h2>
+      <a href="/order/new" class="btn btn-primary btn-sm">＋ New order</a>
+    </div>
+    <% if (recentOrders.length) { %>
+    <div class="table-wrap">
+      <table class="table">
+        <thead><tr><th>ID</th><th>Service</th><th class="num">Qty</th><th class="num">Charge</th><th>Status</th><th>Date</th></tr></thead>
+        <tbody>
+          <% recentOrders.forEach(function(o) { %>
+          <tr>
+            <td class="muted">#<%= o.id %></td>
+            <td><div class="svc-cell"><%- include('../partials/platform-badge', { platform: o.platform, size: 26 }) %><span class="svc-name"><%= o.service_name.length > 55 ? o.service_name.slice(0,55) + '…' : o.service_name %></span></div></td>
+            <td class="num"><%= o.quantity.toLocaleString() %></td>
+            <td class="num">₱<%= h.money(o.charge_php) %></td>
+            <td><span class="badge badge-<%= o.status %>"><%= h.statusLabel(o.status) %></span></td>
+            <td class="muted"><%= h.formatDate(o.created_at) %></td>
+          </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+    <% } else { %>
+      <p class="empty-note">No orders yet — <a href="/order/new">place your first order</a> and watch the magic happen! ✨</p>
+    <% } %>
+  </div>
+</main>
+<%- include('../partials/footer') %>

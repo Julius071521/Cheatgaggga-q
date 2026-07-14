@@ -49,17 +49,9 @@ SMTP: EMAIL_HOST, EMAIL_PORT, EMAIL_SECURE, EMAIL_TLS_SERVERNAME, EMAIL_USER,
 Manual payments: GCASH_ACCOUNT_NUMBER, GCASH_ACCOUNT_NAME, MAYA_ACCOUNT_NUMBER,
   MAYA_ACCOUNT_NAME, BPI_ACCOUNT_NUMBER, BPI_ACCOUNT_NAME, BPI_ACCOUNT_TYPE
 Auth/security: JWT_SECRET, SESSION_SECRET, EMAIL_VERIFICATION_REQUIRED,
-  TURNSTILE_REQUIRED, TURNSTILE_SECRET_KEY
+  TURNSTILE_REQUIRED, TURNSTILE_SITE_KEY, TURNSTILE_SECRET_KEY
 Google OAuth: GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_CALLBACK_URL
-Hermes ops agent (Telegram): HERMES_AGENT_ENABLED, HERMES_AGENT_NAME,
-  HERMES_TELEGRAM_BOT_TOKEN, HERMES_TELEGRAM_CHAT_ID,
-  HERMES_TELEGRAM_WEBHOOK_SECRET, HERMES_TELEGRAM_AUTO_WEBHOOK
-Hermes bridge/firewall: HERMES_BRIDGE_ENABLED, HERMES_BRIDGE_TOKEN,
-  HERMES_BRIDGE_TRUSTED_IPS, HERMES_APP_FIREWALL_ENABLED,
-  HERMES_APP_FIREWALL_AUTO_BLOCK, HERMES_OWNER_IPS, HERMES_FIREWALL_TRUSTED_IPS
-OpenClaw site-help agent: OPENCLAW_AGENT_ENABLED, OPENCLAW_API_URL,
-  OPENCLAW_API_TOKEN, OPENCLAW_TIMEOUT_MS, OPENCLAW_TRUSTED_HOSTS,
-  OPENCLAW_REPLY_LIMIT, OPENCLAW_REPLY_WINDOW_MS
+Site: SITE_NAME, SITE_DOMAIN, BASE_URL, PORT, UPLOAD_DIR
 
 ════════════════════════════════════════════
 DESIGN SPEC (amazingsmm-style)
@@ -143,7 +135,7 @@ C. WALLET & MANUAL PAYMENTS (PHP)
   receipt screenshot upload (multer, images only, 5MB max, stored outside
   web root or with randomized names).
 - Admin reviews deposits (approve → credit wallet inside a DB transaction;
-  reject with reason). Email + Hermes Telegram notification on both events.
+  reject with reason). Email notification to the user on both events.
 - Full wallet ledger (transactions table) for every credit/debit.
 
 D. ORDERS
@@ -177,28 +169,9 @@ G. AI SUPPORT ASSISTANT
   router (AI_BASE_URL + /chat/completions, model AI_MODEL, bearer AI_API_KEY)
   — the key NEVER reaches the browser. System prompt embeds site knowledge
   (services, pricing model, payment steps, FAQ) and refuses off-topic use.
-  Rate-limit per user/IP. If OPENCLAW_AGENT_ENABLED=true, first try the
-  OpenClaw help endpoint (POST OPENCLAW_API_URL with bearer
-  OPENCLAW_API_TOKEN, timeout OPENCLAW_TIMEOUT_MS, max OPENCLAW_REPLY_LIMIT
-  replies per OPENCLAW_REPLY_WINDOW_MS per user) and fall back to the router.
+  Rate-limit per user/IP.
 
-H. HERMES OPS AGENT (Telegram)
-- When HERMES_AGENT_ENABLED=true: send Telegram messages (bot token + chat
-  id from env) for: new deposit submitted, deposit approved/rejected, order
-  failed/refunded, new user registered, low provider balance (check on
-  sync), and app errors. If HERMES_TELEGRAM_AUTO_WEBHOOK=true, register the
-  webhook on boot with the secret token; expose the webhook route validated
-  by HERMES_TELEGRAM_WEBHOOK_SECRET so the owner can run simple commands
-  (/stats, /pending, /approve <id>) from Telegram — only from
-  HERMES_TELEGRAM_CHAT_ID.
-- App firewall middleware when HERMES_APP_FIREWALL_ENABLED=true: track
-  suspicious activity (auth brute force, payload probes); IPs in
-  HERMES_OWNER_IPS / HERMES_FIREWALL_TRUSTED_IPS are always allowed; only
-  auto-block when HERMES_APP_FIREWALL_AUTO_BLOCK=true, otherwise just alert
-  via Telegram. Bridge endpoints (status/health, block/unblock) require
-  bearer HERMES_BRIDGE_TOKEN and a source IP in HERMES_BRIDGE_TRUSTED_IPS.
-
-I. SECURITY & QUALITY BASELINE
+H. SECURITY & QUALITY BASELINE
 - helmet, CORS locked to own origin, express-rate-limit, input validation
   (zod or express-validator) on every route, parameterized SQL only,
   CSRF protection on session forms, XSS-escaped EJS output by default,
@@ -206,7 +179,7 @@ I. SECURITY & QUALITY BASELINE
   double-checked server-side. Trust proxy configured for real client IPs.
 - Money math in integer centavos or DECIMAL — never binary floats.
 - Graceful degradation: if a provider or the AI router is down, the site
-  still works; failures alert Hermes.
+  still works; failures are logged and surfaced to the admin.
 
 DELIVERABLES
 - Complete runnable app: `npm install && npm run migrate && npm start`.
@@ -231,11 +204,10 @@ DELIVERABLES
     config/env.js          # validates + exports all env vars at boot
     db/ (pool.js, migrations/*.sql, migrate.js, seed.js)
     providers/ (smmApiClient.js, index.js)   # RKD + SMMWorld adapters
-    services/ (pricing.js, catalogSync.js, orders.js, wallet.js,
-               mailer.js, ai.js, openclaw.js, hermes/ (telegram.js, firewall.js, bridge.js))
-    middleware/ (auth.js, admin.js, rateLimit.js, turnstile.js, firewall.js, csrf.js)
-    routes/ (public.js, auth.js, dashboard.js, orders.js, wallet.js,
-             admin.js, api-v2.js, ai.js, hermes.js)
+    services/ (pricing.js, catalog.js, orders.js, wallet.js,
+               mailer.js, ai.js, stats.js)
+    middleware/ (auth.js, rateLimit.js, turnstile.js, csrf.js)
+    routes/ (public.js, auth.js, dashboard.js, admin.js, api.js, ai.js)
     views/ (layouts, partials, pages...)
   public/ (css/, js/, img/, uploads/ NOT here — keep uploads outside web root)
   ```
@@ -279,7 +251,7 @@ Tables (InnoDB, utf8mb4):
 ### Phase 4 — Wallet + manual payments (Day 4–5)
 - Add-funds page (env account details, copy buttons, instructions per method),
   deposit submission with receipt upload, admin approval queue,
-  transactional wallet credit + ledger, emails + Hermes alerts.
+  transactional wallet credit + ledger, email notifications.
 
 ### Phase 5 — Orders (Day 5–6)
 - Order form with live ₱ preview, atomic place-order (debit → provider add →
@@ -299,12 +271,9 @@ Tables (InnoDB, utf8mb4):
 - Admin panel (KPIs, users, deposits queue, orders, services manager,
   announcements)
 
-### Phase 8 — AI assistant + Hermes + OpenClaw (Day 10–12)
-- Chat widget + backend proxy (router first via OpenClaw when enabled,
-  fallback to AI_BASE_URL router), knowledge-grounded system prompt,
-  per-user rate limits, chat logging.
-- Hermes Telegram notifier + webhook commands + firewall middleware +
-  bridge endpoints (token + trusted-IP gated).
+### Phase 8 — AI assistant (Day 10–12)
+- Chat widget + backend proxy to the AI_BASE_URL router,
+  knowledge-grounded system prompt, per-user rate limits, chat logging.
 
 ### Phase 9 — Hardening + deploy (Day 12–14)
 - helmet/CSRF/validation sweep, upload security, error pages (404/500),

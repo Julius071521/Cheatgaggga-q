@@ -1,0 +1,60 @@
+<%- include('partials/head', { title }) %>
+<%- include('partials/nav') %>
+<main class="container page">
+  <div class="page-head" data-reveal>
+    <h1>Services & <span class="grad-text">Pricing</span></h1>
+    <p>All prices in Philippine pesos per 1000 units. Sign in to order.</p>
+  </div>
+
+  <form class="filter-bar card" method="get" action="/services" data-reveal>
+    <div class="filter-platforms">
+      <a href="/services<%= filter.q ? `?q=${encodeURIComponent(filter.q)}` : '' %>" class="pill <%= !filter.platform ? 'active' : '' %>">All</a>
+      <% platforms.forEach(function(p) { %>
+        <a href="/services?platform=<%= p.platform %><%= filter.q ? `&q=${encodeURIComponent(filter.q)}` : '' %>"
+           class="pill <%= filter.platform === p.platform ? 'active' : '' %>">
+          <%= h.platformLabel(p.platform) %> <small>(<%= p.cnt %>)</small>
+        </a>
+      <% }); %>
+    </div>
+    <div class="filter-search">
+      <% if (filter.platform) { %><input type="hidden" name="platform" value="<%= filter.platform %>"><% } %>
+      <input type="search" name="q" value="<%= filter.q %>" placeholder="Search services… (e.g. followers, likes)" maxlength="100">
+      <button type="submit" class="btn btn-primary btn-sm">Search</button>
+    </div>
+  </form>
+
+  <% if (services.length) { %>
+  <div class="table-wrap card" data-reveal>
+    <table class="table">
+      <thead>
+        <tr><th>ID</th><th>Service</th><th class="num">Rate / 1000</th><th class="num">Min</th><th class="num">Max</th><th>Refill</th><th></th></tr>
+      </thead>
+      <tbody>
+        <% services.forEach(function(s) { %>
+        <tr>
+          <td class="muted">#<%= s.id %></td>
+          <td>
+            <div class="svc-cell">
+              <%- include('partials/platform-badge', { platform: s.platform, size: 30 }) %>
+              <div>
+                <span class="svc-name"><%= s.name %></span>
+                <small class="muted"><%= s.category %></small>
+              </div>
+            </div>
+          </td>
+          <td class="num price">₱<%= h.moneyRate(s.ratePhp) %></td>
+          <td class="num"><%= s.min_qty.toLocaleString() %></td>
+          <td class="num"><%= s.max_qty.toLocaleString() %></td>
+          <td><%= s.refill ? '♻️ Yes' : '—' %></td>
+          <td><a class="btn btn-primary btn-sm" href="<%= user ? `/order/new?service=${s.id}` : '/login' %>">Order</a></td>
+        </tr>
+        <% }); %>
+      </tbody>
+    </table>
+  </div>
+  <%- include('partials/pagination', { pagination, basePath: '/services', query: { platform: filter.platform, q: filter.q } }) %>
+  <% } else { %>
+    <p class="empty-note" data-reveal>No services match your search<% if (filter.q || filter.platform) { %> — <a href="/services">clear filters</a><% } %>. The catalog refreshes regularly, so check back soon!</p>
+  <% } %>
+</main>
+<%- include('partials/footer') %>

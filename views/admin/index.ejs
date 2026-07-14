@@ -1,0 +1,53 @@
+<%- include('../partials/head', { title }) %>
+<%- include('../partials/nav') %>
+<main class="container page">
+  <div class="page-head"><h1>Admin <span class="grad-text">overview</span></h1></div>
+  <%- include('../partials/admin-nav') %>
+
+  <div class="kpi-grid kpi-grid-wide">
+    <div class="kpi card"><span class="kpi-label">Revenue (net of refunds)</span><span class="kpi-value">₱<%= h.money(kpi.revenue) %></span></div>
+    <div class="kpi card"><span class="kpi-label">Upstream cost</span><span class="kpi-value">$<%= Number(kpi.cost_usd).toFixed(2) %></span></div>
+    <div class="kpi card"><span class="kpi-label">Wallet liabilities</span><span class="kpi-value">₱<%= h.money(kpi.liabilities) %></span></div>
+    <div class="kpi card <%= Number(kpi.pending_deposits) > 0 ? 'kpi-alert' : '' %>">
+      <span class="kpi-label">Pending deposits</span><span class="kpi-value"><%= kpi.pending_deposits %></span>
+      <a href="/admin/deposits" class="kpi-link">Review →</a>
+    </div>
+    <div class="kpi card"><span class="kpi-label">Orders today</span><span class="kpi-value"><%= kpi.orders_today %></span></div>
+    <div class="kpi card"><span class="kpi-label">Total orders</span><span class="kpi-value"><%= Number(kpi.orders).toLocaleString() %></span></div>
+    <div class="kpi card"><span class="kpi-label">Users</span><span class="kpi-value"><%= Number(kpi.users).toLocaleString() %></span></div>
+    <div class="kpi card"><span class="kpi-label">New users (7d)</span><span class="kpi-value"><%= kpi.new_users %></span></div>
+  </div>
+
+  <div class="card section-card">
+    <h2>Providers</h2>
+    <div class="table-wrap">
+      <table class="table">
+        <thead><tr><th>Provider</th><th class="num">Upstream balance</th><th>Last synced</th></tr></thead>
+        <tbody>
+          <% if (providers.length) { providers.forEach(function(p) { %>
+          <tr>
+            <td><strong><%= p.name %></strong> <small class="muted">(<%= p.code %>)</small></td>
+            <td class="num"><%= p.balance_usd !== null ? `${Number(p.balance_usd).toFixed(2)} ${p.currency}` : '—' %></td>
+            <td class="muted"><%= h.formatDate(p.synced_at) %></td>
+          </tr>
+          <% }); } else { %>
+          <tr><td colspan="3" class="empty-note">No providers configured — set the API keys in .env, then sync from the Services tab.</td></tr>
+          <% } %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card section-card">
+    <h2>Announcement banner</h2>
+    <p class="muted">Shown at the top of the homepage. Leave blank to hide.</p>
+    <form method="post" action="/admin/announcement">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <label class="field">
+        <input type="text" name="announcement" value="<%= announcement %>" maxlength="300" placeholder="e.g. ⚡ Promo: 10% bonus on deposits this week!">
+      </label>
+      <button type="submit" class="btn btn-primary">Save announcement</button>
+    </form>
+  </div>
+</main>
+<%- include('../partials/footer') %>

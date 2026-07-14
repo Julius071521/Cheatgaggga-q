@@ -1,0 +1,16 @@
+<%- include('../partials/head', { title }) %>
+<%- include('../partials/nav') %>
+<main class="auth-wrap">
+  <div class="auth-card card" data-reveal>
+    <h1>Choose a new password</h1>
+    <form method="post" action="/reset/<%= token %>">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <label class="field">
+        <span>New password <small>(min. 8 characters)</small></span>
+        <input type="password" name="password" required minlength="8" autocomplete="new-password" placeholder="••••••••">
+      </label>
+      <button type="submit" class="btn btn-primary btn-block">Update password</button>
+    </form>
+  </div>
+</main>
+<%- include('../partials/footer') %>

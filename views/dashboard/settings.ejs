@@ -1,0 +1,59 @@
+<%- include('../partials/head', { title }) %>
+<%- include('../partials/nav') %>
+<main class="container page">
+  <div class="page-head"><h1>Account <span class="grad-text">settings</span></h1></div>
+  <%- include('../partials/dash-nav') %>
+
+  <div class="settings-grid">
+    <div class="card" data-reveal>
+      <h2>Profile</h2>
+      <p class="muted">Signed in as <strong><%= user.email %></strong><% if (user.google_id) { %> · linked to Google<% } %></p>
+      <form method="post" action="/settings/profile">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <label class="field">
+          <span>Display name</span>
+          <input type="text" name="name" value="<%= user.name %>" maxlength="100">
+        </label>
+        <button type="submit" class="btn btn-primary">Save profile</button>
+      </form>
+    </div>
+
+    <div class="card" data-reveal data-reveal-delay="80">
+      <h2>Password</h2>
+      <form method="post" action="/settings/password">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <% if (user.has_password) { %>
+        <label class="field">
+          <span>Current password</span>
+          <input type="password" name="current_password" autocomplete="current-password">
+        </label>
+        <% } else { %>
+          <p class="muted">You signed up with Google — set a password to also sign in with email.</p>
+        <% } %>
+        <label class="field">
+          <span>New password <small>(min. 8 characters)</small></span>
+          <input type="password" name="new_password" required minlength="8" autocomplete="new-password">
+        </label>
+        <button type="submit" class="btn btn-primary"><%= user.has_password ? 'Change password' : 'Set password' %></button>
+      </form>
+    </div>
+
+    <div class="card" data-reveal data-reveal-delay="160">
+      <h2>Reseller API</h2>
+      <p class="muted">Use our standard SMM panel API to resell services from your own site. Endpoint: <code>POST /api/v2</code> with <code>key</code> + <code>action</code> (<code>services</code>, <code>add</code>, <code>status</code>, <code>balance</code>). Prices are in PHP.</p>
+      <% if (user.api_key) { %>
+        <div class="pm-row">
+          <code class="api-key" id="api-key"><%= user.api_key %></code>
+          <button type="button" class="btn btn-ghost btn-sm copy-btn" data-copy="<%= user.api_key %>">Copy</button>
+        </div>
+      <% } else { %>
+        <p class="empty-note">No API key yet.</p>
+      <% } %>
+      <form method="post" action="/settings/api-key" class="mt-sm">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <button type="submit" class="btn btn-outline"><%= user.api_key ? 'Regenerate key' : 'Generate API key' %></button>
+      </form>
+    </div>
+  </div>
+</main>
+<%- include('../partials/footer') %>

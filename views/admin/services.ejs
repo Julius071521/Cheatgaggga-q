@@ -1,0 +1,61 @@
+<%- include('../partials/head', { title }) %>
+<%- include('../partials/nav') %>
+<main class="container page">
+  <div class="page-head"><h1>Service <span class="grad-text">catalog</span></h1></div>
+  <%- include('../partials/admin-nav') %>
+
+  <div class="filter-bar card">
+    <form class="filter-search" method="get" action="/admin/services">
+      <input type="search" name="q" value="<%= q %>" placeholder="Search services…" maxlength="100">
+      <button type="submit" class="btn btn-primary btn-sm">Search</button>
+    </form>
+    <div class="filter-actions">
+      <% if (providers.length) { providers.forEach(function(code) { %>
+      <form method="post" action="/admin/services/sync/<%= code %>" class="inline-form">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <button type="submit" class="btn btn-outline btn-sm">⟳ Sync <%= code %></button>
+      </form>
+      <% }); } else { %>
+        <span class="muted">No provider API keys configured in .env</span>
+      <% } %>
+    </div>
+  </div>
+
+  <% if (services.length) { %>
+  <div class="table-wrap card">
+    <table class="table">
+      <thead><tr><th>ID</th><th>Service</th><th>Provider</th><th class="num">Cost $/1k</th><th class="num">Sell ₱/1k</th><th class="num">Markup</th><th>On</th><th>Actions</th></tr></thead>
+      <tbody>
+        <% services.forEach(function(s) { %>
+        <tr class="<%= s.enabled ? '' : 'row-banned' %>">
+          <td class="muted">#<%= s.id %></td>
+          <td><div class="svc-cell"><%- include('../partials/platform-badge', { platform: s.platform, size: 26 }) %>
+            <div><span class="svc-name"><%= s.name.length > 50 ? s.name.slice(0,50) + '…' : s.name %></span>
+            <small class="muted"><%= s.category %> · <%= s.min_qty %>–<%= s.max_qty.toLocaleString() %></small></div></div></td>
+          <td><%= s.provider_code %> <small class="muted">#<%= s.provider_service_id %></small></td>
+          <td class="num"><%= Number(s.rate_usd).toFixed(4) %></td>
+          <td class="num price">₱<%= h.moneyRate(pricing.ratePhpPer1000(s)) %></td>
+          <td class="num"><%= s.markup_override !== null ? `×${Number(s.markup_override)}` : 'default' %></td>
+          <td><%= s.enabled ? '✅' : '🚫' %></td>
+          <td class="actions-cell">
+            <form method="post" action="/admin/services/<%= s.id %>/toggle" class="inline-form">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+              <button type="submit" class="btn btn-ghost btn-sm"><%= s.enabled ? 'Disable' : 'Enable' %></button>
+            </form>
+            <form method="post" action="/admin/services/<%= s.id %>/markup" class="inline-form">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+              <input type="number" name="markup" step="0.01" min="1" max="100" placeholder="×" class="input-sm input-xs" value="<%= s.markup_override !== null ? Number(s.markup_override) : '' %>">
+              <button type="submit" class="btn btn-outline btn-sm">Set</button>
+            </form>
+          </td>
+        </tr>
+        <% }); %>
+      </tbody>
+    </table>
+  </div>
+  <%- include('../partials/pagination', { pagination, basePath: '/admin/services', query: { q } }) %>
+  <% } else { %>
+    <p class="empty-note">No services yet — hit a sync button above to import from your providers.</p>
+  <% } %>
+</main>
+<%- include('../partials/footer') %>

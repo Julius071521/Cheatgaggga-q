@@ -1,0 +1,57 @@
+<%- include('../partials/head', { title }) %>
+<%- include('../partials/nav') %>
+<main class="container page">
+  <div class="page-head">
+    <h1>All <span class="grad-text">orders</span></h1>
+  </div>
+  <%- include('../partials/admin-nav') %>
+
+  <div class="filter-bar card">
+    <div class="filter-platforms">
+      <a href="/admin/orders" class="pill <%= !status ? 'active' : '' %>">All</a>
+      <% ['pending','in_progress','processing','completed','partial','canceled','failed'].forEach(function(s) { %>
+        <a href="/admin/orders?status=<%= s %>" class="pill <%= status === s ? 'active' : '' %>"><%= h.statusLabel(s) %></a>
+      <% }); %>
+    </div>
+    <form method="post" action="/admin/orders/sync" class="inline-form">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <button type="submit" class="btn btn-outline btn-sm">⟳ Sync open orders</button>
+    </form>
+  </div>
+
+  <% if (orders.length) { %>
+  <div class="table-wrap card">
+    <table class="table">
+      <thead><tr><th>ID</th><th>User</th><th>Service</th><th class="num">Qty</th><th class="num">Charge</th><th class="num">Cost $</th><th>Provider #</th><th>Status</th><th>Date</th><th></th></tr></thead>
+      <tbody>
+        <% orders.forEach(function(o) { %>
+        <tr>
+          <td class="muted">#<%= o.id %></td>
+          <td><%= o.email %></td>
+          <td><div class="svc-cell"><%- include('../partials/platform-badge', { platform: o.platform, size: 24 }) %><span class="svc-name"><%= o.service_name.length > 40 ? o.service_name.slice(0,40) + '…' : o.service_name %></span></div>
+            <% if (o.error) { %><small class="neg"><%= o.error.slice(0, 60) %></small><% } %></td>
+          <td class="num"><%= o.quantity.toLocaleString() %></td>
+          <td class="num">₱<%= h.money(o.charge_php) %><% if (Number(o.refunded_php) > 0) { %><br><small class="refund">↩ ₱<%= h.money(o.refunded_php) %></small><% } %></td>
+          <td class="num"><%= Number(o.cost_usd).toFixed(4) %></td>
+          <td class="muted"><%= o.provider_order_id || '—' %></td>
+          <td><span class="badge badge-<%= o.status %>"><%= h.statusLabel(o.status) %></span></td>
+          <td class="muted"><%= h.formatDate(o.created_at) %></td>
+          <td>
+            <% if (['pending','in_progress','processing'].includes(o.status) && o.provider_order_id) { %>
+            <form method="post" action="/admin/orders/<%= o.id %>/refresh" class="inline-form">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+              <button type="submit" class="btn btn-ghost btn-sm" title="Refresh">⟳</button>
+            </form>
+            <% } %>
+          </td>
+        </tr>
+        <% }); %>
+      </tbody>
+    </table>
+  </div>
+  <%- include('../partials/pagination', { pagination, basePath: '/admin/orders', query: { status } }) %>
+  <% } else { %>
+    <p class="empty-note">No orders found.</p>
+  <% } %>
+</main>
+<%- include('../partials/footer') %>

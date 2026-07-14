@@ -1,0 +1,16 @@
+<%
+// Usage: include('partials/pagination', { pagination, basePath: '/services', query: { q, platform } })
+const qs = (page) => {
+  const params = new URLSearchParams();
+  for (const [k, v] of Object.entries(query || {})) if (v) params.set(k, v);
+  params.set('page', page);
+  return `${basePath}?${params.toString()}`;
+};
+%>
+<% if (pagination.pages > 1) { %>
+<nav class="pagination" aria-label="Pages">
+  <% if (pagination.current > 1) { %><a class="page-btn" href="<%= qs(pagination.current - 1) %>">‹ Prev</a><% } %>
+  <span class="page-info">Page <%= pagination.current %> of <%= pagination.pages %> (<%= pagination.total.toLocaleString() %> items)</span>
+  <% if (pagination.current < pagination.pages) { %><a class="page-btn" href="<%= qs(pagination.current + 1) %>">Next ›</a><% } %>
+</nav>
+<% } %>

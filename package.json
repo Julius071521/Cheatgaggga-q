@@ -1,0 +1,29 @@
+{
+  "name": "apexboost-smm-panel",
+  "version": "1.0.0",
+  "description": "ApexBoost - SMM boosting panel (services resold from upstream SMM providers, PHP wallet with manual GCash/Maya/BPI payments)",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "migrate": "node src/db/migrate.js",
+    "seed": "node src/db/seed.js",
+    "sync:services": "node src/jobs/syncServices.js",
+    "sync:orders": "node src/jobs/syncOrders.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "dotenv": "^16.4.5",
+    "ejs": "^3.1.10",
+    "express": "^4.19.2",
+    "express-mysql-session": "^3.0.3",
+    "express-rate-limit": "^7.4.0",
+    "express-session": "^1.18.0",
+    "helmet": "^8.0.0",
+    "multer": "^1.4.5-lts.1",
+    "mysql2": "^3.11.0",
+    "nodemailer": "^6.9.14"
+  }
+}

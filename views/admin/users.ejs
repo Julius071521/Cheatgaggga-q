@@ -1,0 +1,53 @@
+<%- include('../partials/head', { title }) %>
+<%- include('../partials/nav') %>
+<main class="container page">
+  <div class="page-head"><h1>Manage <span class="grad-text">users</span></h1></div>
+  <%- include('../partials/admin-nav') %>
+
+  <form class="filter-bar card" method="get" action="/admin/users">
+    <div class="filter-search">
+      <input type="search" name="q" value="<%= q %>" placeholder="Search by email or name…" maxlength="100">
+      <button type="submit" class="btn btn-primary btn-sm">Search</button>
+    </div>
+  </form>
+
+  <% if (users.length) { %>
+  <div class="table-wrap card">
+    <table class="table">
+      <thead><tr><th>ID</th><th>Email</th><th>Name</th><th>Role</th><th class="num">Balance</th><th>Verified</th><th>Joined</th><th>Actions</th></tr></thead>
+      <tbody>
+        <% users.forEach(function(u) { %>
+        <tr class="<%= u.banned_at ? 'row-banned' : '' %>">
+          <td class="muted">#<%= u.id %></td>
+          <td><%= u.email %><% if (u.banned_at) { %> <span class="badge badge-failed">banned</span><% } %></td>
+          <td><%= u.name || '—' %></td>
+          <td><%= u.role %></td>
+          <td class="num price">₱<%= h.money(u.balance) %></td>
+          <td><%= u.email_verified_at ? '✔' : '—' %></td>
+          <td class="muted"><%= h.formatDate(u.created_at) %></td>
+          <td class="actions-cell">
+            <form method="post" action="/admin/users/<%= u.id %>/adjust" class="inline-form">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+              <input type="number" name="amount" step="0.01" placeholder="± ₱" class="input-sm" required>
+              <input type="text" name="note" placeholder="Note" maxlength="255" class="input-sm">
+              <button type="submit" class="btn btn-outline btn-sm">Adjust</button>
+            </form>
+            <% if (u.role !== 'admin') { %>
+            <form method="post" action="/admin/users/<%= u.id %>/ban" class="inline-form">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+              <% if (u.banned_at) { %><input type="hidden" name="unban" value="1"><% } %>
+              <button type="submit" class="btn <%= u.banned_at ? 'btn-success' : 'btn-danger' %> btn-sm"><%= u.banned_at ? 'Unban' : 'Ban' %></button>
+            </form>
+            <% } %>
+          </td>
+        </tr>
+        <% }); %>
+      </tbody>
+    </table>
+  </div>
+  <%- include('../partials/pagination', { pagination, basePath: '/admin/users', query: { q } }) %>
+  <% } else { %>
+    <p class="empty-note">No users found.</p>
+  <% } %>
+</main>
+<%- include('../partials/footer') %>

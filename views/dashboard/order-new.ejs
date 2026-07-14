@@ -1,0 +1,66 @@
+<%- include('../partials/head', { title }) %>
+<%- include('../partials/nav') %>
+<main class="container page">
+  <div class="page-head"><h1>Place a <span class="grad-text">new order</span></h1></div>
+  <%- include('../partials/dash-nav') %>
+
+  <div class="order-layout">
+    <form class="card order-form" method="post" action="/order/new" id="order-form"
+          data-preselected='<%- preselected ? JSON.stringify({ id: preselected.id, platform: preselected.platform }) : "null" %>'>
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+      <label class="field">
+        <span>Platform</span>
+        <select id="of-platform" required>
+          <option value="">— Choose a platform —</option>
+          <% platforms.forEach(function(p) { %>
+            <option value="<%= p %>" <%= preselected && preselected.platform === p ? 'selected' : '' %>><%= h.platformLabel(p) %></option>
+          <% }); %>
+        </select>
+      </label>
+
+      <label class="field">
+        <span>Service</span>
+        <select id="of-service" name="service_id" required disabled>
+          <option value="">— Choose a platform first —</option>
+        </select>
+      </label>
+
+      <div class="of-meta" id="of-meta" hidden>
+        <span id="of-rate"></span>
+        <span id="of-range"></span>
+        <span id="of-refill"></span>
+      </div>
+
+      <label class="field">
+        <span>Link <small>(profile / post / video URL)</small></span>
+        <input type="url" name="link" id="of-link" required maxlength="500" placeholder="https://instagram.com/yourprofile">
+      </label>
+
+      <label class="field">
+        <span>Quantity</span>
+        <input type="number" name="quantity" id="of-qty" required min="1" step="1" placeholder="1000">
+      </label>
+
+      <div class="of-total">
+        <span>Total charge</span>
+        <strong id="of-total">₱0.00</strong>
+      </div>
+
+      <button type="submit" class="btn btn-primary btn-lg btn-block" id="of-submit" disabled>Place order</button>
+      <p class="auth-fineprint">Your balance: <strong>₱<%= h.money(user.balance) %></strong> · <a href="/wallet">add funds</a></p>
+    </form>
+
+    <aside class="order-tips card">
+      <h3>💡 Quick tips</h3>
+      <ul>
+        <li>Make sure your account/post is <strong>public</strong> before ordering.</li>
+        <li>Don't order twice on the same link while an order is still running.</li>
+        <li>Failed orders are <strong>auto-refunded</strong> to your wallet in full.</li>
+        <li>Partial deliveries refund the undelivered portion automatically.</li>
+      </ul>
+    </aside>
+  </div>
+</main>
+<script src="/assets/js/order-form.js" defer></script>
+<%- include('../partials/footer') %>

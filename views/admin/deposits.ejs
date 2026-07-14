@@ -1,0 +1,51 @@
+<%- include('../partials/head', { title }) %>
+<%- include('../partials/nav') %>
+<main class="container page">
+  <div class="page-head"><h1>Deposit <span class="grad-text">queue</span></h1></div>
+  <%- include('../partials/admin-nav') %>
+
+  <div class="dash-nav">
+    <a href="/admin/deposits?status=pending" class="pill <%= status === 'pending' ? 'active' : '' %>">Pending</a>
+    <a href="/admin/deposits?status=approved" class="pill <%= status === 'approved' ? 'active' : '' %>">Approved</a>
+    <a href="/admin/deposits?status=rejected" class="pill <%= status === 'rejected' ? 'active' : '' %>">Rejected</a>
+  </div>
+
+  <% if (deposits.length) { %>
+  <div class="table-wrap card">
+    <table class="table">
+      <thead><tr><th>ID</th><th>User</th><th>Method</th><th class="num">Amount</th><th>Reference</th><th>Receipt</th><th>Date</th><% if (status === 'pending') { %><th>Actions</th><% } else { %><th>Note</th><% } %></tr></thead>
+      <tbody>
+        <% deposits.forEach(function(d) { %>
+        <tr>
+          <td class="muted">#<%= d.id %></td>
+          <td><%= d.email %></td>
+          <td><%= d.method.toUpperCase() %></td>
+          <td class="num price">₱<%= h.money(d.amount_php) %></td>
+          <td><code><%= d.reference_no %></code></td>
+          <td><% if (d.receipt_path) { %><a href="/receipt/<%= d.id %>" target="_blank" rel="noopener">View 🧾</a><% } else { %>—<% } %></td>
+          <td class="muted"><%= h.formatDate(d.created_at) %></td>
+          <% if (status === 'pending') { %>
+          <td class="actions-cell">
+            <form method="post" action="/admin/deposits/<%= d.id %>/approve" class="inline-form">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+              <button type="submit" class="btn btn-success btn-sm">✔ Approve</button>
+            </form>
+            <form method="post" action="/admin/deposits/<%= d.id %>/reject" class="inline-form">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+              <input type="text" name="note" placeholder="Reason" maxlength="500" class="input-sm">
+              <button type="submit" class="btn btn-danger btn-sm">✖ Reject</button>
+            </form>
+          </td>
+          <% } else { %>
+          <td class="muted"><%= d.admin_note || '—' %></td>
+          <% } %>
+        </tr>
+        <% }); %>
+      </tbody>
+    </table>
+  </div>
+  <% } else { %>
+    <p class="empty-note">No <%= status %> deposits. 🎉</p>
+  <% } %>
+</main>
+<%- include('../partials/footer') %>

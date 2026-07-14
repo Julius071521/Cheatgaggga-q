@@ -1,0 +1,20 @@
+<%- include('../partials/head', { title }) %>
+<%- include('../partials/nav') %>
+<main class="auth-wrap">
+  <div class="auth-card card" data-reveal>
+    <h1>Reset your password 🔑</h1>
+    <p class="auth-sub">Enter your email and we'll send you a reset link.</p>
+    <form method="post" action="/forgot">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <label class="field">
+        <span>Email</span>
+        <input type="email" name="email" required maxlength="190" autocomplete="email" placeholder="you@example.com">
+      </label>
+      <% if (site.turnstileSiteKey) { %><div class="cf-turnstile" data-sitekey="<%= site.turnstileSiteKey %>"></div><% } %>
+      <button type="submit" class="btn btn-primary btn-block">Send reset link</button>
+    </form>
+    <p class="auth-links"><a href="/login">← Back to sign in</a></p>
+  </div>
+</main>
+<% if (site.turnstileSiteKey) { %><script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script><% } %>
+<%- include('../partials/footer') %>
