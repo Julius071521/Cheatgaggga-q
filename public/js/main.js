@@ -63,6 +63,18 @@
     });
   });
 
+  // ── API key show/hide ────────────────────────────────────
+  var keyToggle = document.getElementById('api-key-toggle');
+  var keyEl = document.getElementById('api-key');
+  if (keyToggle && keyEl) {
+    var shown = false;
+    keyToggle.addEventListener('click', function () {
+      shown = !shown;
+      keyEl.textContent = shown ? keyEl.getAttribute('data-full') : keyEl.getAttribute('data-masked');
+      keyToggle.textContent = shown ? 'Hide' : 'Show';
+    });
+  }
+
   // ── Animated counters ────────────────────────────────────
   function animateCount(el) {
     var target = parseInt(el.getAttribute('data-count'), 10) || 0;

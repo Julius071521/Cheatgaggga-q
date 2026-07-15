@@ -38,6 +38,20 @@
     </div>
   </div>
 
+  <div class="card section-card <%= maintenance ? 'maint-on' : '' %>">
+    <div class="card-head">
+      <h2>🛠️ Maintenance mode <%= maintenance ? '— ACTIVE' : '' %></h2>
+    </div>
+    <p class="muted">When ON, only admins can access the site. All other logged-in users are signed out immediately and see a "Under maintenance" page.</p>
+    <form method="post" action="/admin/maintenance">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <input type="hidden" name="maintenance" value="<%= maintenance ? '0' : '1' %>">
+      <button type="submit" class="btn <%= maintenance ? 'btn-success' : 'btn-danger' %>">
+        <%= maintenance ? '✅ Turn OFF maintenance (go live)' : '🛠️ Turn ON maintenance mode' %>
+      </button>
+    </form>
+  </div>
+
   <div class="card section-card">
     <h2>Announcement banner</h2>
     <p class="muted">Shown at the top of the homepage. Leave blank to hide.</p>

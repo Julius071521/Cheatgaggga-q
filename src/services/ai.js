@@ -35,40 +35,55 @@ async function chat(sessionId, userId, history, userMessage) {
     { role: 'user', content: userMessage },
   ];
 
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 30000);
-  try {
-    const res = await fetch(`${env.AI_BASE_URL.replace(/\/$/, '')}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${env.AI_API_KEY}`,
-      },
-      body: JSON.stringify({ model: env.AI_MODEL, messages, max_tokens: 500, temperature: 0.4 }),
-      signal: controller.signal,
-    });
-    if (!res.ok) {
-      const text = await res.text();
-      throw new Error(`AI router HTTP ${res.status}: ${text.slice(0, 200)}`);
-    }
-    const json = await res.json();
-    const reply = json.choices && json.choices[0] && json.choices[0].message
-      ? String(json.choices[0].message.content || '').trim()
-      : '';
-    if (!reply) throw new Error('AI router returned an empty reply');
-
-    pool.query(
-      'INSERT INTO ai_chat_logs (user_id, session_id, role, content) VALUES (?, ?, ?, ?), (?, ?, ?, ?)',
-      [userId, sessionId, 'user', userMessage.slice(0, 4000), userId, sessionId, 'assistant', reply.slice(0, 4000)]
-    ).catch(() => {});
-
-    return reply;
-  } catch (err) {
-    console.warn('[ai] Chat failed:', err.message);
-    return "Sorry, I couldn't process that right now. Please try again in a moment, or email our support team.";
-  } finally {
-    clearTimeout(timer);
+  // Try the configured model; if it's rejected (e.g. an unknown model id like
+  // "gpt-5.5"), automatically retry once with a widely-available fallback.
+  const models = [env.AI_MODEL];
+  for (const fb of ['gpt-4o', 'gpt-4.1', 'gpt-4o-mini']) {
+    if (!models.includes(fb)) models.push(fb);
   }
+
+  let lastErr = null;
+  for (let i = 0; i < models.length; i++) {
+    const model = models[i];
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 30000);
+    try {
+      const res = await fetch(`${env.AI_BASE_URL.replace(/\/$/, '')}/chat/completions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${env.AI_API_KEY}` },
+        body: JSON.stringify({ model, messages, max_tokens: 500, temperature: 0.4 }),
+        signal: controller.signal,
+      });
+      const text = await res.text();
+      if (!res.ok) {
+        // Model/param errors (400/404/422) are worth retrying with a fallback model.
+        const retryable = [400, 404, 422].includes(res.status) && i < models.length - 1;
+        console.warn(`[ai] model "${model}" HTTP ${res.status}: ${text.slice(0, 200)}`);
+        lastErr = new Error(`HTTP ${res.status}`);
+        if (retryable) continue;
+        break;
+      }
+      const json = JSON.parse(text);
+      const reply = json.choices && json.choices[0] && json.choices[0].message
+        ? String(json.choices[0].message.content || '').trim() : '';
+      if (!reply) { lastErr = new Error('empty reply'); continue; }
+
+      if (i > 0) console.warn(`[ai] used fallback model "${model}" (configured AI_MODEL="${env.AI_MODEL}" failed)`);
+      pool.query(
+        'INSERT INTO ai_chat_logs (user_id, session_id, role, content) VALUES (?, ?, ?, ?), (?, ?, ?, ?)',
+        [userId, sessionId, 'user', userMessage.slice(0, 4000), userId, sessionId, 'assistant', reply.slice(0, 4000)]
+      ).catch(() => {});
+      return reply;
+    } catch (err) {
+      lastErr = err;
+      console.warn(`[ai] model "${model}" failed: ${err.message}`);
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  console.warn('[ai] All models failed:', lastErr && lastErr.message);
+  return "Sorry, I couldn't process that right now. Please try again in a moment, or email our support team.";
 }
 
 module.exports = { chat, enabled };

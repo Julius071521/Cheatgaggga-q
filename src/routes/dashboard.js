@@ -119,11 +119,15 @@ router.post('/order/new', async (req, res, next) => {
       return res.redirect(`/order/new?service=${service.id}`);
     }
 
-    const { orderCode, charge } = await orderService.placeOrder(req.user, service, link, quantity);
-    flash(req, 'success', `Order ${orderCode} placed — ₱${Number(charge).toFixed(2)} charged to your wallet.`);
+    const promoCode = String(req.body.promo_code || '').trim().slice(0, 50) || null;
+    const { orderCode, charge, discount } = await orderService.placeOrder(req.user, service, link, quantity, promoCode);
+    const savedNote = discount > 0 ? ` (promo saved ₱${Number(discount).toFixed(2)})` : '';
+    flash(req, 'success', `Order ${orderCode} placed — ₱${Number(charge).toFixed(2)} charged to your wallet${savedNote}.`);
     res.redirect('/orders');
   } catch (err) {
     if (err.message === 'Insufficient balance') { flash(req, 'error', 'Insufficient balance. Please add funds first.'); return res.redirect('/wallet'); }
+    // Promo validation errors are user-facing — show them on the order form.
+    if (/promo code/i.test(err.message)) { flash(req, 'error', err.message); return res.redirect(`/order/new?service=${req.body.service_id || ''}`); }
     if (err.orderId) { flash(req, 'error', err.message); return res.redirect('/orders'); }
     next(err);
   }
@@ -153,6 +157,29 @@ router.post('/orders/:id/refresh', async (req, res) => {
     flash(req, 'success', 'Order status refreshed.');
   } catch (err) {
     flash(req, 'error', 'Could not refresh the order right now. Please try again shortly.');
+  }
+  res.redirect('/orders');
+});
+
+// Raise a concern/ticket about an order (Cancel / Refill / Speed up / Other).
+router.post('/orders/:id/ticket', async (req, res) => {
+  try {
+    const orderId = clampInt(req.params.id, 1, 2147483647);
+    const [[order]] = await pool.query('SELECT * FROM orders WHERE id = ?', [orderId]);
+    if (!order || order.user_id !== req.user.id) return res.status(404).render('errors/404');
+
+    const allowed = ['Cancel', 'Refill', 'Speed up', 'Other'];
+    const requestType = allowed.includes(req.body.request_type) ? req.body.request_type : 'Other';
+    const message = String(req.body.message || '').trim().slice(0, 2000);
+    if (message.length < 3) { flash(req, 'error', 'Please describe your concern.'); return res.redirect('/orders'); }
+
+    await pool.query(
+      `INSERT INTO tickets (user_id, subject, order_id, request_type, message, status, priority, provider_order_id, api_provider)
+       VALUES (?, ?, ?, ?, ?, 'open', 'normal', ?, ?)`,
+      [req.user.id, `Order concern: ${requestType}`, order.order_id, requestType, message, order.provider_order_id, order.api_provider]);
+    flash(req, 'success', 'Your concern has been submitted — our team will take a look shortly.');
+  } catch (err) {
+    flash(req, 'error', 'Could not submit your concern right now. Please try again.');
   }
   res.redirect('/orders');
 });

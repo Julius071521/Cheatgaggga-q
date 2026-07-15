@@ -42,8 +42,13 @@
         <input type="number" name="quantity" id="of-qty" required min="1" step="1" placeholder="1000">
       </label>
 
+      <label class="field">
+        <span>Promo code <small>(optional)</small></span>
+        <input type="text" name="promo_code" maxlength="50" placeholder="Enter a coupon code" autocomplete="off" style="text-transform:uppercase">
+      </label>
+
       <div class="of-total">
-        <span>Total charge</span>
+        <span>Total charge <small class="muted">(before promo)</small></span>
         <strong id="of-total">₱0.00</strong>
       </div>
 

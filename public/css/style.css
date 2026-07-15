@@ -207,12 +207,13 @@ code { background: var(--surface-2); padding: 2px 7px; border-radius: 6px; font-
 }
 
 .float-icon { position: absolute; z-index: 1; opacity: 0.9; animation: floatY var(--float-dur, 7s) ease-in-out infinite alternate; will-change: transform; }
-.fi-1 { top: 8%; left: 2%; --float-dur: 6.5s; }
-.fi-2 { top: 86%; left: 3%; --float-dur: 8s; }
-.fi-3 { top: 10%; right: 3%; --float-dur: 7.2s; }
-.fi-4 { top: 78%; right: 2%; --float-dur: 9s; }
-.fi-5 { top: 20%; left: 48%; --float-dur: 10s; opacity: 0.55; }
-.fi-6 { top: 92%; left: 58%; --float-dur: 7.8s; opacity: 0.6; }
+/* Kept clear of the left-hand copy column so nothing overlaps the headline/badge. */
+.fi-1 { top: 3%; right: 4%; --float-dur: 6.5s; }
+.fi-2 { top: 84%; left: 2%; --float-dur: 8s; opacity: 0.5; }
+.fi-3 { top: 30%; right: 2%; --float-dur: 7.2s; }
+.fi-4 { top: 82%; right: 6%; --float-dur: 9s; }
+.fi-5 { top: 8%; left: 52%; --float-dur: 10s; opacity: 0.5; }
+.fi-6 { top: 92%; left: 60%; --float-dur: 7.8s; opacity: 0.55; }
 @keyframes floatY {
   from { transform: translateY(-12px) rotate(-5deg); }
   to { transform: translateY(14px) rotate(6deg); }
@@ -230,8 +231,11 @@ code { background: var(--surface-2); padding: 2px 7px; border-radius: 6px; font-
 @media (max-width: 960px) { .hero-inner { grid-template-columns: 1fr; } .hero { padding: 56px 0 70px; } }
 
 .hero-eyebrow {
+  position: relative; z-index: 3;
   display: inline-block; padding: 7px 15px; border-radius: 999px;
-  background: var(--primary-soft); color: var(--primary); font-weight: 600; font-size: 0.86rem; margin-bottom: 18px;
+  /* opaque tint so floating icons never bleed through the text */
+  background: linear-gradient(var(--primary-soft), var(--primary-soft)), var(--surface);
+  color: var(--primary); font-weight: 600; font-size: 0.86rem; margin-bottom: 18px;
 }
 .hero-title { font-size: clamp(2.1rem, 5vw, 3.5rem); font-weight: 800; letter-spacing: -0.02em; margin-bottom: 18px; }
 .hero-sub { font-size: 1.12rem; color: var(--text-soft); max-width: 34rem; margin-bottom: 22px; }
@@ -613,6 +617,29 @@ code { background: var(--surface-2); padding: 2px 7px; border-radius: 6px; font-
 .prose h3 { margin: 20px 0 8px; }
 .prose p { color: var(--text-soft); margin-bottom: 10px; }
 
+/* ── Admin: maintenance / promos / tickets / report ── */
+.maint-on { border-color: var(--warning); background: rgba(245, 158, 11, 0.06); }
+.promo-form { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; align-items: end; }
+.promo-form .field { margin-bottom: 0; }
+.promo-form > button { grid-column: 1 / -1; justify-self: start; }
+@media (max-width: 720px) { .promo-form { grid-template-columns: 1fr; } }
+
+.tickets-list { display: grid; gap: 14px; }
+.ticket-card { padding: 18px 20px; }
+.ticket-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.ticket-head strong { font-family: var(--font-head); }
+.ticket-head .badge { margin-left: 8px; }
+.ticket-meta { font-size: 0.86rem; margin: 6px 0; }
+.ticket-msg { background: var(--surface-2); border-radius: 10px; padding: 10px 14px; font-size: 0.92rem; margin: 8px 0; white-space: pre-wrap; }
+.ticket-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 12px; }
+
+.report-details { display: inline-block; }
+.report-details > summary { list-style: none; cursor: pointer; display: inline-flex; }
+.report-details > summary::-webkit-details-marker { display: none; }
+.report-form { display: grid; gap: 8px; padding: 12px; margin-top: 8px; min-width: 220px; position: absolute; z-index: 20; box-shadow: var(--shadow-lg); }
+.report-form textarea { width: 100%; padding: 8px 10px; border-radius: 8px; border: 1.5px solid var(--border); background: var(--bg); color: var(--text); font-family: var(--font-body); font-size: 0.85rem; resize: vertical; }
+.report-form textarea:focus { outline: none; border-color: var(--primary); }
+
 /* ── Chat widget ── */
 .chat-widget { position: fixed; right: 22px; bottom: 22px; z-index: 200; }
 .chat-fab {
@@ -624,6 +651,7 @@ code { background: var(--surface-2); padding: 2px 7px; border-radius: 6px; font-
 }
 .chat-fab:hover { transform: scale(1.1) rotate(6deg); }
 @keyframes fabIn { from { transform: scale(0); } to { transform: scale(1); } }
+.chat-panel[hidden] { display: none !important; }
 .chat-panel {
   position: absolute; right: 0; bottom: 72px;
   width: min(360px, calc(100vw - 44px)); height: 480px; max-height: calc(100vh - 130px);

@@ -20,13 +20,24 @@
           <td class="num"><%= o.remains == null ? '—' : Number(o.remains).toLocaleString() %></td>
           <td><span class="badge badge-<%= h.statusSlug(o.status) %>"><%= h.statusLabel(o.status) %></span></td>
           <td class="muted"><%= h.formatDate(o.created_at) %></td>
-          <td>
+          <td class="actions-cell">
             <% if (['Pending','In progress','Processing'].includes(o.status)) { %>
             <form method="post" action="/orders/<%= o.id %>/refresh" class="inline-form">
               <input type="hidden" name="_csrf" value="<%= csrfToken %>">
               <button type="submit" class="btn btn-ghost btn-sm" title="Refresh status">⟳</button>
             </form>
             <% } %>
+            <details class="report-details">
+              <summary class="btn btn-ghost btn-sm">Report</summary>
+              <form method="post" action="/orders/<%= o.id %>/ticket" class="report-form card">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                <select name="request_type" class="input-sm">
+                  <option>Refill</option><option>Cancel</option><option>Speed up</option><option>Other</option>
+                </select>
+                <textarea name="message" required minlength="3" maxlength="2000" rows="2" placeholder="Describe your concern…"></textarea>
+                <button type="submit" class="btn btn-primary btn-sm">Submit concern</button>
+              </form>
+            </details>
           </td>
         </tr>
         <% }); %>

@@ -62,6 +62,15 @@ class SmmClient {
   balance() {
     return this.call({ action: 'balance' });
   }
+
+  refill(providerOrderId) {
+    return this.call({ action: 'refill', order: providerOrderId });
+  }
+
+  cancel(providerOrderId) {
+    // Standard SMM v2 uses "orders" (comma list) for cancel.
+    return this.call({ action: 'cancel', orders: String(providerOrderId) });
+  }
 }
 
 module.exports = SmmClient;

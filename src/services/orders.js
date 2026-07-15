@@ -1,6 +1,7 @@
 'use strict';
 const pool = require('../db/pool');
 const pricing = require('./pricing');
+const promos = require('./promos');
 const { getClient } = require('../providers');
 const { applyBalanceChange, toUnits, unitsToStr } = require('./wallet');
 
@@ -27,10 +28,20 @@ function newOrderCode() {
 
 // Place an order: debit wallet + create the local order atomically, then send
 // it to the provider. On provider failure the charge is auto-refunded.
-async function placeOrder(user, service, link, quantity) {
+async function placeOrder(user, service, link, quantity, promoCode) {
   const q = pricing.quote(service, quantity);
   const orderCode = newOrderCode();
   const providerName = service.provider_code === 'smmworld' ? 'SMMWorld' : 'RKDPanel';
+
+  // Optional promo/coupon discount (validated up front; errors bubble to caller).
+  let promo = null;
+  let discount = 0;
+  if (promoCode) {
+    promo = await promos.findValid(promoCode);
+    if (promo) discount = promos.computeDiscount(promo, q.sellingPrice);
+  }
+  const finalCharge = promos.round4(Math.max(0, q.sellingPrice - discount));
+  const netProfit = promos.round4(finalCharge - q.apiCost);
 
   let orderId;
   const conn = await pool.getConnection();
@@ -40,18 +51,19 @@ async function placeOrder(user, service, link, quantity) {
       `INSERT INTO orders
          (order_id, user_id, service_id, service_name, url, quantity, charge, status, currency,
           api_cost, selling_price, markup_percent, net_profit, roi_percent, profit_margin_percent,
-          api_provider, original_charge, start_count, remains)
-       VALUES (?, ?, ?, ?, ?, ?, ?, 'Pending', ?, ?, ?, ?, ?, ?, ?, ?, ?, '0', ?)`,
+          api_provider, original_charge, discount_amount, coupon_code, start_count, remains)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 'Pending', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '0', ?)`,
       [
         orderCode, user.id, String(service.provider_service_id), String(service.name).slice(0, 255),
-        link, quantity, q.charge.toFixed(4), (require('../config/env').SITE_CURRENCY || 'PHP'),
+        link, quantity, finalCharge.toFixed(4), (require('../config/env').SITE_CURRENCY || 'PHP'),
         q.apiCost.toFixed(4), q.sellingPrice.toFixed(4), q.markupPercent.toFixed(2),
-        q.netProfit.toFixed(4), q.roiPercent.toFixed(2), q.profitMarginPercent.toFixed(2),
-        providerName, q.charge.toFixed(4), String(quantity),
+        netProfit.toFixed(4), q.roiPercent.toFixed(2), q.profitMarginPercent.toFixed(2),
+        providerName, q.sellingPrice.toFixed(4), discount.toFixed(4), promo ? promo.code : null, String(quantity),
       ]
     );
     orderId = result.insertId;
-    await applyBalanceChange(conn, user.id, -q.charge, 'order', `Order ${orderCode} — ${String(service.name).slice(0, 60)}`);
+    await applyBalanceChange(conn, user.id, -finalCharge, 'order', `Order ${orderCode} — ${String(service.name).slice(0, 60)}`);
+    if (promo) await promos.redeem(conn, promo, user.id, orderCode);
     await conn.commit();
   } catch (err) {
     await conn.rollback();
@@ -66,7 +78,7 @@ async function placeOrder(user, service, link, quantity) {
     const res = await client.addOrder({ service: service.provider_service_id, link, quantity });
     if (!res || res.order === undefined) throw new Error('Provider did not return an order id');
     await pool.query('UPDATE orders SET provider_order_id = ? WHERE id = ?', [String(res.order), orderId]);
-    return { orderId, orderCode, charge: q.charge };
+    return { orderId, orderCode, charge: finalCharge, discount };
   } catch (err) {
     await refundOrder(orderId, `Provider error: ${err.message}`);
     const e = new Error('The order could not be sent to the provider. Your balance was refunded — please try again later.');

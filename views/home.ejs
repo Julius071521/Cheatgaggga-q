@@ -38,7 +38,7 @@
         <a href="/register" class="btn btn-primary btn-lg btn-glow">Get started — it's free</a>
         <a href="/services" class="btn btn-outline btn-lg">Browse services</a>
       </div>
-      <p class="hero-proof">Trusted by <strong data-count="<%= Math.max(stats.users, 1) %>">0</strong>+ members · <strong data-count="<%= Math.max(stats.orders, 1) %>">0</strong>+ orders delivered</p>
+      <p class="hero-proof">Trusted by <strong data-count="<%= stats.users %>">0</strong>+ members · <strong data-count="<%= stats.orders %>">0</strong>+ orders delivered</p>
     </div>
 
     <div class="hero-visual" data-reveal data-reveal-delay="150">
@@ -79,19 +79,19 @@
 <section class="stats-strip">
   <div class="container stats-grid">
     <div class="stat" data-reveal>
-      <span class="stat-num" data-count="<%= Math.max(stats.orders, 1) %>">0</span>
+      <span class="stat-num" data-count="<%= stats.orders %>">0</span>
       <span class="stat-label">Total orders</span>
     </div>
     <div class="stat" data-reveal data-reveal-delay="80">
-      <span class="stat-num" data-count="<%= Math.max(stats.users, 1) %>">0</span>
+      <span class="stat-num" data-count="<%= stats.users %>">0</span>
       <span class="stat-label">Happy members</span>
     </div>
     <div class="stat" data-reveal data-reveal-delay="160">
-      <span class="stat-num" data-count="<%= Math.max(stats.services, 1) %>">0</span>
+      <span class="stat-num" data-count="<%= stats.services %>">0</span>
       <span class="stat-label">Services available</span>
     </div>
     <div class="stat" data-reveal data-reveal-delay="240">
-      <span class="stat-num" data-count="<%= Math.max(stats.completed, 1) %>">0</span>
+      <span class="stat-num" data-count="<%= stats.completed %>">0</span>
       <span class="stat-label">Orders completed</span>
     </div>
   </div>

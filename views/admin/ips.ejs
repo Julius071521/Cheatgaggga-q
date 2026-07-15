@@ -1,0 +1,43 @@
+<%- include('../partials/head', { title }) %>
+<%- include('../partials/nav') %>
+<main class="container page">
+  <div class="page-head"><h1>Blocked <span class="grad-text">IPs</span></h1></div>
+  <%- include('../partials/admin-nav') %>
+
+  <div class="card section-card">
+    <h2>Block an IP address</h2>
+    <form method="post" action="/admin/ips" class="filter-search">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <input type="text" name="ip" required maxlength="45" placeholder="e.g. 203.0.113.42">
+      <input type="text" name="reason" maxlength="255" placeholder="Reason (optional)">
+      <button type="submit" class="btn btn-danger btn-sm">Block IP</button>
+    </form>
+    <p class="auth-fineprint" style="text-align:left">Admins are never blocked, even if their IP is on this list.</p>
+  </div>
+
+  <% if (ips.length) { %>
+  <div class="table-wrap card">
+    <table class="table">
+      <thead><tr><th>IP</th><th>Reason</th><th>Blocked</th><th></th></tr></thead>
+      <tbody>
+        <% ips.forEach(function(x) { %>
+        <tr>
+          <td><code><%= x.ip %></code></td>
+          <td class="muted"><%= x.reason || '—' %></td>
+          <td class="muted"><%= h.formatDate(x.created_at) %></td>
+          <td>
+            <form method="post" action="/admin/ips/<%= x.id %>/unblock" class="inline-form">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+              <button type="submit" class="btn btn-ghost btn-sm">Unblock</button>
+            </form>
+          </td>
+        </tr>
+        <% }); %>
+      </tbody>
+    </table>
+  </div>
+  <% } else { %>
+    <p class="empty-note">No blocked IPs.</p>
+  <% } %>
+</main>
+<%- include('../partials/footer') %>

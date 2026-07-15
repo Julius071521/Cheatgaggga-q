@@ -1,0 +1,63 @@
+<%- include('../partials/head', { title }) %>
+<%- include('../partials/nav') %>
+<main class="container page">
+  <div class="page-head"><h1>Customer <span class="grad-text">concerns</span></h1></div>
+  <%- include('../partials/admin-nav') %>
+
+  <div class="dash-nav">
+    <a href="/admin/tickets" class="pill <%= !status ? 'active' : '' %>">All</a>
+    <% ['open','in_progress','resolved','closed'].forEach(function(s) { %>
+      <a href="/admin/tickets?status=<%= s %>" class="pill <%= status === s ? 'active' : '' %>"><%= h.statusLabel(s.replace('_',' ')) %></a>
+    <% }); %>
+  </div>
+
+  <% if (tickets.length) { %>
+  <div class="tickets-list">
+    <% tickets.forEach(function(t) { %>
+    <div class="card ticket-card">
+      <div class="ticket-head">
+        <div>
+          <strong>#<%= t.id %> · <%= t.subject || 'Concern' %></strong>
+          <% if (t.request_type) { %><span class="badge badge-tx-order"><%= t.request_type %></span><% } %>
+          <span class="badge badge-<%= h.statusSlug(t.status || 'open') %>"><%= h.statusLabel(t.status || 'open') %></span>
+        </div>
+        <span class="muted"><%= h.formatDate(t.created_at) %></span>
+      </div>
+      <p class="ticket-meta muted">
+        From <strong><%= t.username || t.email || ('user #' + t.user_id) %></strong>
+        <% if (t.order_id) { %> · order <code><%= t.order_id %></code><% } %>
+        <% if (t.provider_order_id) { %> · provider #<%= t.provider_order_id %><% } %>
+      </p>
+      <% if (t.message) { %><p class="ticket-msg"><%= String(t.message).slice(0, 400) %></p><% } %>
+      <% if (t.provider_action_status) { %>
+        <p class="muted"><small>Last action: <strong><%= t.provider_action_status %></strong> — <%= String(t.provider_action_response || '').slice(0,120) %></small></p>
+      <% } %>
+
+      <div class="ticket-actions">
+        <% ['speedup','cancel','refill'].forEach(function(a) { %>
+        <form method="post" action="/admin/tickets/<%= t.id %>/action" class="inline-form">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <input type="hidden" name="action" value="<%= a %>">
+          <button type="submit" class="btn btn-outline btn-sm">
+            <%= a === 'speedup' ? '⚡ Speed up' : (a === 'cancel' ? '✖ Cancel' : '♻️ Refill') %>
+          </button>
+        </form>
+        <% }); %>
+        <form method="post" action="/admin/tickets/<%= t.id %>/status" class="inline-form">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <select name="status" class="input-sm">
+            <% ['open','in_progress','resolved','closed'].forEach(function(s) { %>
+              <option value="<%= s %>" <%= (t.status||'open')===s ? 'selected':'' %>><%= h.statusLabel(s.replace('_',' ')) %></option>
+            <% }); %>
+          </select>
+          <button type="submit" class="btn btn-ghost btn-sm">Update</button>
+        </form>
+      </div>
+    </div>
+    <% }); %>
+  </div>
+  <% } else { %>
+    <p class="empty-note">No customer concerns<%= status ? ' with status "' + status + '"' : '' %> right now. 🎉</p>
+  <% } %>
+</main>
+<%- include('../partials/footer') %>

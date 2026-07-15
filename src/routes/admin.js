@@ -5,10 +5,11 @@ const wallet = require('../services/wallet');
 const mailer = require('../services/mailer');
 const catalog = require('../services/catalog');
 const orderService = require('../services/orders');
-const { allClients } = require('../providers');
+const { allClients, getClient } = require('../providers');
 const { setSetting, getSetting } = require('../services/stats');
 const { requireAuth, requireAdmin } = require('../middleware/auth');
-const { clampInt } = require('../utils/helpers');
+const { invalidate: invalidateGate } = require('../middleware/gate');
+const { clampInt, isValidHttpUrl } = require('../utils/helpers');
 
 const router = express.Router();
 router.use('/admin', requireAuth, requireAdmin);
@@ -33,7 +34,10 @@ router.get('/admin', async (req, res, next) => {
     `);
     const [providers] = await pool.query('SELECT * FROM providers ORDER BY code');
     const announcement = await getSetting('announcement', '');
-    res.render('admin/index', { title: 'Admin · Overview', kpi, providers, announcement });
+    const maintenance = ['1', 'true', 'on', 'yes'].includes(String(await getSetting('maintenance', 'off')).toLowerCase());
+    let openTickets = 0;
+    try { const [[t]] = await pool.query("SELECT COUNT(*) AS c FROM tickets WHERE LOWER(status) IN ('open','in_progress')"); openTickets = t.c; } catch (_) {}
+    res.render('admin/index', { title: 'Admin · Overview', kpi, providers, announcement, maintenance, openTickets });
   } catch (err) { next(err); }
 });
 
@@ -42,6 +46,170 @@ router.post('/admin/announcement', async (req, res, next) => {
     await setSetting('announcement', String(req.body.announcement || '').trim().slice(0, 300));
     flash(req, 'success', 'Announcement updated.');
     res.redirect('/admin');
+  } catch (err) { next(err); }
+});
+
+// ── Maintenance mode ──────────────────────────────────────
+router.post('/admin/maintenance', async (req, res, next) => {
+  try {
+    const on = req.body.maintenance === '1' || req.body.maintenance === 'on';
+    await setSetting('maintenance', on ? 'on' : 'off');
+    invalidateGate();
+    flash(req, 'success', on
+      ? 'Maintenance mode is ON — only admins can access the site; other users have been signed out.'
+      : 'Maintenance mode is OFF — the site is live again.');
+    res.redirect('/admin');
+  } catch (err) { next(err); }
+});
+
+// ── Promo / coupon codes ──────────────────────────────────
+router.get('/admin/promos', async (req, res, next) => {
+  try {
+    const [promos] = await pool.query('SELECT * FROM promos ORDER BY id DESC LIMIT 200');
+    res.render('admin/promos', { title: 'Admin · Promo Codes', promos });
+  } catch (err) { next(err); }
+});
+
+router.post('/admin/promos', async (req, res) => {
+  try {
+    const code = String(req.body.code || '').trim().toUpperCase().slice(0, 50);
+    const type = req.body.type === 'fixed' ? 'fixed' : 'percentage';
+    const value = Number(req.body.value);
+    const maxUses = clampInt(req.body.max_uses, 0, 1000000000);
+    const maxDiscount = req.body.max_discount === '' || req.body.max_discount == null ? null : Number(req.body.max_discount);
+    const expiresAt = String(req.body.expires_at || '').trim() || null;
+
+    if (!/^[A-Z0-9_-]{3,50}$/.test(code)) { flash(req, 'error', 'Code must be 3–50 characters (letters, numbers, - or _).'); return res.redirect('/admin/promos'); }
+    if (!Number.isFinite(value) || value <= 0) { flash(req, 'error', 'Enter a valid discount value.'); return res.redirect('/admin/promos'); }
+    if (type === 'percentage' && value > 100) { flash(req, 'error', 'Percentage discount cannot exceed 100.'); return res.redirect('/admin/promos'); }
+    if (maxDiscount != null && (!Number.isFinite(maxDiscount) || maxDiscount < 0)) { flash(req, 'error', 'Max discount must be a positive number or blank.'); return res.redirect('/admin/promos'); }
+
+    const [[dupe]] = await pool.query('SELECT id FROM promos WHERE UPPER(code) = ? LIMIT 1', [code]);
+    if (dupe) { flash(req, 'error', 'A promo with that code already exists.'); return res.redirect('/admin/promos'); }
+
+    await pool.query(
+      `INSERT INTO promos (code, type, value, max_uses, uses, expires_at, max_discount_amount, active)
+       VALUES (?, ?, ?, ?, 0, ?, ?, 1)`,
+      [code, type, value.toFixed(2), maxUses || 0, expiresAt, maxDiscount == null ? null : maxDiscount.toFixed(2)]);
+    flash(req, 'success', `Promo code ${code} created.`);
+    res.redirect('/admin/promos');
+  } catch (err) { flash(req, 'error', err.message); res.redirect('/admin/promos'); }
+});
+
+router.post('/admin/promos/:id/toggle', async (req, res, next) => {
+  try {
+    await pool.query('UPDATE promos SET active = 1 - COALESCE(active,1) WHERE id = ?', [clampInt(req.params.id, 1, 2147483647)]);
+    flash(req, 'success', 'Promo status updated.');
+    res.redirect('/admin/promos');
+  } catch (err) { next(err); }
+});
+
+router.post('/admin/promos/:id/delete', async (req, res, next) => {
+  try {
+    await pool.query('DELETE FROM promos WHERE id = ?', [clampInt(req.params.id, 1, 2147483647)]);
+    flash(req, 'success', 'Promo code deleted.');
+    res.redirect('/admin/promos');
+  } catch (err) { next(err); }
+});
+
+// ── Customer concerns (tickets) + quick provider actions ──
+router.get('/admin/tickets', async (req, res, next) => {
+  try {
+    const status = ['open', 'in_progress', 'resolved', 'closed'].includes(String(req.query.status || '').toLowerCase())
+      ? String(req.query.status).toLowerCase() : '';
+    const where = status ? 'WHERE LOWER(t.status) = ?' : '';
+    const params = status ? [status] : [];
+    const [tickets] = await pool.query(
+      `SELECT t.*, u.username, u.email FROM tickets t LEFT JOIN users u ON u.id = t.user_id
+       ${where} ORDER BY t.id DESC LIMIT 100`, params);
+    res.render('admin/tickets', { title: 'Admin · Customer Concerns', tickets, status });
+  } catch (err) { next(err); }
+});
+
+// Resolve the provider order id + provider code for a ticket (from the ticket
+// itself, or by looking up its linked order).
+async function resolveTicketProvider(ticket) {
+  let providerOrderId = ticket.provider_order_id;
+  let apiProvider = ticket.api_provider;
+  if (!providerOrderId && ticket.order_id) {
+    const [[order]] = await pool.query('SELECT provider_order_id, api_provider FROM orders WHERE order_id = ? OR id = ? LIMIT 1',
+      [ticket.order_id, /^\d+$/.test(String(ticket.order_id)) ? ticket.order_id : 0]);
+    if (order) { providerOrderId = order.provider_order_id; apiProvider = order.api_provider; }
+  }
+  const code = apiProvider === 'SMMWorld' ? 'smmworld' : 'rkd';
+  return { providerOrderId, code };
+}
+
+router.post('/admin/tickets/:id/action', async (req, res) => {
+  const action = String(req.body.action || '');
+  try {
+    const [[ticket]] = await pool.query('SELECT * FROM tickets WHERE id = ?', [clampInt(req.params.id, 1, 2147483647)]);
+    if (!ticket) { flash(req, 'error', 'Ticket not found.'); return res.redirect('/admin/tickets'); }
+
+    let statusText = '';
+    let response = '';
+    if (action === 'refill' || action === 'cancel') {
+      const { providerOrderId, code } = await resolveTicketProvider(ticket);
+      const client = getClient(code);
+      if (!providerOrderId || !client) throw new Error('No provider order linked to this ticket.');
+      const result = action === 'refill' ? await client.refill(providerOrderId) : await client.cancel(providerOrderId);
+      statusText = `${action}_sent`;
+      response = JSON.stringify(result).slice(0, 1000);
+    } else if (action === 'speedup') {
+      statusText = 'speedup_noted';
+      response = 'Speed-up requested from provider (manual follow-up).';
+    } else {
+      flash(req, 'error', 'Unknown action.'); return res.redirect('/admin/tickets');
+    }
+
+    await pool.query(
+      "UPDATE tickets SET provider_action_status = ?, provider_action_response = ?, status = 'in_progress', assigned_to = ? WHERE id = ?",
+      [statusText, response, req.user.id, ticket.id]);
+    flash(req, 'success', `Action "${action}" sent for ticket #${ticket.id}.`);
+  } catch (err) {
+    flash(req, 'error', `Action failed: ${err.message}`);
+  }
+  res.redirect('/admin/tickets');
+});
+
+router.post('/admin/tickets/:id/status', async (req, res, next) => {
+  try {
+    const status = ['open', 'in_progress', 'resolved', 'closed'].includes(req.body.status) ? req.body.status : 'open';
+    const note = String(req.body.internal_notes || '').trim().slice(0, 1000) || null;
+    await pool.query('UPDATE tickets SET status = ?, internal_notes = COALESCE(?, internal_notes), assigned_to = ? WHERE id = ?',
+      [status, note, req.user.id, clampInt(req.params.id, 1, 2147483647)]);
+    flash(req, 'success', 'Ticket updated.');
+    res.redirect('/admin/tickets');
+  } catch (err) { next(err); }
+});
+
+// ── IP blocklist ──────────────────────────────────────────
+router.get('/admin/ips', async (req, res, next) => {
+  try {
+    const [ips] = await pool.query('SELECT * FROM blocked_ips ORDER BY id DESC LIMIT 200');
+    res.render('admin/ips', { title: 'Admin · Blocked IPs', ips });
+  } catch (err) { next(err); }
+});
+
+router.post('/admin/ips', async (req, res) => {
+  try {
+    const ip = String(req.body.ip || '').trim().slice(0, 45);
+    const reason = String(req.body.reason || '').trim().slice(0, 255) || null;
+    if (!/^[0-9a-fA-F:.]{3,45}$/.test(ip)) { flash(req, 'error', 'Enter a valid IP address.'); return res.redirect('/admin/ips'); }
+    await pool.query('INSERT INTO blocked_ips (ip, reason, blocked_by) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE reason = VALUES(reason)',
+      [ip, reason, req.user.id]);
+    invalidateGate();
+    flash(req, 'success', `IP ${ip} blocked.`);
+    res.redirect('/admin/ips');
+  } catch (err) { flash(req, 'error', err.message); res.redirect('/admin/ips'); }
+});
+
+router.post('/admin/ips/:id/unblock', async (req, res, next) => {
+  try {
+    await pool.query('DELETE FROM blocked_ips WHERE id = ?', [clampInt(req.params.id, 1, 2147483647)]);
+    invalidateGate();
+    flash(req, 'success', 'IP unblocked.');
+    res.redirect('/admin/ips');
   } catch (err) { next(err); }
 });
 

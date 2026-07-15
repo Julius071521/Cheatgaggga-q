@@ -1,7 +1,10 @@
 <nav class="dash-nav" aria-label="Admin">
   <a href="/admin" class="pill <%= path === '/admin' ? 'active' : '' %>">Overview</a>
-  <a href="/admin/deposits" class="pill <%= path.startsWith('/admin/deposits') ? 'active' : '' %>">Deposits</a>
+  <a href="/admin/deposits" class="pill <%= path.startsWith('/admin/deposits') ? 'active' : '' %>">Add-funds</a>
   <a href="/admin/orders" class="pill <%= path.startsWith('/admin/orders') ? 'active' : '' %>">Orders</a>
+  <a href="/admin/tickets" class="pill <%= path.startsWith('/admin/tickets') ? 'active' : '' %>">Concerns</a>
+  <a href="/admin/promos" class="pill <%= path.startsWith('/admin/promos') ? 'active' : '' %>">Promos</a>
   <a href="/admin/services" class="pill <%= path.startsWith('/admin/services') ? 'active' : '' %>">Services</a>
   <a href="/admin/users" class="pill <%= path.startsWith('/admin/users') ? 'active' : '' %>">Users</a>
+  <a href="/admin/ips" class="pill <%= path.startsWith('/admin/ips') ? 'active' : '' %>">Blocked IPs</a>
 </nav>

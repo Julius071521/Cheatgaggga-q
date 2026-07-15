@@ -89,6 +89,10 @@ app.use((req, res, next) => {
   next();
 });
 
+// Maintenance-mode + IP-block gate runs after view locals so the
+// maintenance/blocked pages render with full context.
+app.use(require('./src/middleware/gate').gate);
+
 // ── Routes ────────────────────────────────────────────────
 app.use(require('./src/routes/api'));
 app.use(require('./src/routes/ai'));
@@ -107,6 +111,16 @@ app.use((err, req, res, next) => {
   res.status(500).render('errors/500');
 });
 
-app.listen(env.PORT, () => {
-  console.log(`[server] ${env.SITE_NAME} running on port ${env.PORT} (${env.BASE_URL})`);
-});
+// Run pending DB migrations on boot (idempotent + additive) so a cPanel
+// deploy is self-provisioning — no separate terminal step required.
+const { runMigrations } = require('./src/db/migrate');
+runMigrations()
+  .then((applied) => {
+    if (applied.length) console.log(`[server] Applied migrations: ${applied.join(', ')}`);
+  })
+  .catch((err) => console.error('[server] Auto-migration failed (continuing):', err.message))
+  .finally(() => {
+    app.listen(env.PORT, () => {
+      console.log(`[server] ${env.SITE_NAME} running on port ${env.PORT} (${env.BASE_URL})`);
+    });
+  });

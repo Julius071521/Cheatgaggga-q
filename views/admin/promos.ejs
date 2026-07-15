@@ -1,0 +1,63 @@
+<%- include('../partials/head', { title }) %>
+<%- include('../partials/nav') %>
+<main class="container page">
+  <div class="page-head"><h1>Promo <span class="grad-text">codes</span></h1></div>
+  <%- include('../partials/admin-nav') %>
+
+  <div class="card section-card">
+    <h2>Create a promo code</h2>
+    <form method="post" action="/admin/promos" class="promo-form">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <label class="field"><span>Code</span>
+        <input type="text" name="code" required maxlength="50" placeholder="e.g. WELCOME20" style="text-transform:uppercase"></label>
+      <label class="field"><span>Type</span>
+        <select name="type"><option value="percentage">Percentage (%)</option><option value="fixed">Fixed (₱)</option></select></label>
+      <label class="field"><span>Value</span>
+        <input type="number" name="value" required step="0.01" min="0.01" placeholder="20"></label>
+      <label class="field"><span>Max discount ₱ <small>(optional)</small></span>
+        <input type="number" name="max_discount" step="0.01" min="0" placeholder="e.g. 200"></label>
+      <label class="field"><span>Usage cap <small>(0 = unlimited)</small></span>
+        <input type="number" name="max_uses" step="1" min="0" value="0"></label>
+      <label class="field"><span>Expires at <small>(optional)</small></span>
+        <input type="datetime-local" name="expires_at"></label>
+      <button type="submit" class="btn btn-primary">Create promo</button>
+    </form>
+  </div>
+
+  <% if (promos.length) { %>
+  <div class="table-wrap card">
+    <table class="table">
+      <thead><tr><th>Code</th><th>Type</th><th class="num">Value</th><th class="num">Max ₱</th><th class="num">Uses</th><th>Expires</th><th>Active</th><th></th></tr></thead>
+      <tbody>
+        <% promos.forEach(function(p) { %>
+        <% const active = p.active == null ? true : Number(p.active) === 1;
+           const expired = p.expires_at && new Date(p.expires_at).getTime() < Date.now();
+           const capped = Number(p.max_uses) > 0 && Number(p.uses) >= Number(p.max_uses); %>
+        <tr class="<%= (!active || expired || capped) ? 'row-banned' : '' %>">
+          <td><code><%= p.code %></code></td>
+          <td><%= p.type === 'fixed' ? 'Fixed ₱' : 'Percent %' %></td>
+          <td class="num"><%= p.type === 'fixed' ? '₱' + h.money(p.value) : Number(p.value) + '%' %></td>
+          <td class="num"><%= p.max_discount_amount != null ? '₱' + h.money(p.max_discount_amount) : '—' %></td>
+          <td class="num"><%= p.uses %><%= Number(p.max_uses) > 0 ? ' / ' + p.max_uses : '' %></td>
+          <td class="muted"><%= p.expires_at ? h.formatDate(p.expires_at) : 'Never' %><% if (expired) { %> <span class="badge badge-failed">expired</span><% } %></td>
+          <td><%= active ? '✅' : '🚫' %></td>
+          <td class="actions-cell">
+            <form method="post" action="/admin/promos/<%= p.id %>/toggle" class="inline-form">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+              <button type="submit" class="btn btn-ghost btn-sm"><%= active ? 'Disable' : 'Enable' %></button>
+            </form>
+            <form method="post" action="/admin/promos/<%= p.id %>/delete" class="inline-form" onsubmit="return confirm('Delete promo <%= p.code %>?')">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+              <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+            </form>
+          </td>
+        </tr>
+        <% }); %>
+      </tbody>
+    </table>
+  </div>
+  <% } else { %>
+    <p class="empty-note">No promo codes yet — create one above.</p>
+  <% } %>
+</main>
+<%- include('../partials/footer') %>

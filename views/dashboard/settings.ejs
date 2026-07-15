@@ -43,9 +43,11 @@
       <p class="muted">Use our standard SMM panel API to resell services from your own site. Endpoint: <code>POST /api/v2</code> with <code>key</code> + <code>action</code> (<code>services</code>, <code>add</code>, <code>status</code>, <code>balance</code>). Prices are in PHP.</p>
       <% if (user.api_key) { %>
         <div class="pm-row">
-          <code class="api-key" id="api-key"><%= user.api_key %></code>
+          <code class="api-key" id="api-key" data-full="<%= user.api_key %>" data-masked="<%= user.api_key.slice(0,4) + '••••••••••••••••••••••••' + user.api_key.slice(-4) %>"><%= user.api_key.slice(0,4) %>••••••••••••••••••••••••<%= user.api_key.slice(-4) %></code>
+          <button type="button" class="btn btn-ghost btn-sm" id="api-key-toggle">Show</button>
           <button type="button" class="btn btn-ghost btn-sm copy-btn" data-copy="<%= user.api_key %>">Copy</button>
         </div>
+        <p class="auth-fineprint" style="text-align:left">Keep this key secret — anyone with it can place orders on your balance.</p>
       <% } else { %>
         <p class="empty-note">No API key yet.</p>
       <% } %>

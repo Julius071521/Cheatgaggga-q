@@ -1,0 +1,6 @@
+<%- include('../partials/head', { title: 'Access blocked' }) %>
+<main class="container page-error">
+  <h1 class="err-code">403</h1>
+  <p>Access from your network has been blocked. If you believe this is a mistake, please contact support<% if (site.supportEmail) { %> at <a href="mailto:<%= site.supportEmail %>"><%= site.supportEmail %></a><% } %>.</p>
+</main>
+<%- include('../partials/footer') %>
