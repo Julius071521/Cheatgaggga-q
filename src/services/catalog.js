@@ -52,6 +52,7 @@ async function syncProvider(code) {
   const [[before]] = await pool.query('SELECT COUNT(*) AS c FROM services WHERE provider_id = ? AND deleted = 0', [providerId]);
 
   let imported = 0;
+  let skipped = 0;
   const seenIds = [];
 
   for (const svc of list) {
@@ -65,31 +66,40 @@ async function syncProvider(code) {
     const name = String(svc.name || 'Unnamed service').slice(0, 255);
     const category = String(svc.category || '').slice(0, 190);
     const platform = detectPlatform(category, name);
-    const min = Math.max(1, parseInt(svc.min, 10) || 1);
-    const max = Math.max(min, parseInt(svc.max, 10) || min);
+    // Clamp quantities to a safe BIGINT range (guards against absurd/overflow values).
+    const CAP = 100000000000; // 100 billion
+    const min = Math.min(CAP, Math.max(1, parseInt(svc.min, 10) || 1));
+    const max = Math.min(CAP, Math.max(min, parseInt(svc.max, 10) || min));
 
-    await pool.query(
-      `INSERT INTO services
-         (provider_id, provider_service_id, platform, category, name, type, rate_usd,
-          min_qty, max_qty, refill, cancelable, dripfeed, deleted)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
-       ON DUPLICATE KEY UPDATE
-         platform = VALUES(platform), category = VALUES(category), name = VALUES(name),
-         type = VALUES(type), rate_usd = VALUES(rate_usd), min_qty = VALUES(min_qty),
-         max_qty = VALUES(max_qty), refill = VALUES(refill), cancelable = VALUES(cancelable),
-         dripfeed = VALUES(dripfeed), deleted = 0`,
-      [
-        providerId, providerServiceId, platform, category, name,
-        String(svc.type || 'Default').slice(0, 64), rate.toFixed(6),
-        min, max,
-        svc.refill === true || svc.refill === 'true' ? 1 : 0,
-        svc.cancel === true || svc.cancel === 'true' ? 1 : 0,
-        svc.dripfeed === true || svc.dripfeed === 'true' ? 1 : 0,
-      ]
-    );
-    imported += 1;
-    seenIds.push(providerServiceId);
+    // One bad row must never abort the whole sync — skip it and keep going.
+    try {
+      await pool.query(
+        `INSERT INTO services
+           (provider_id, provider_service_id, platform, category, name, type, rate_usd,
+            min_qty, max_qty, refill, cancelable, dripfeed, deleted)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
+         ON DUPLICATE KEY UPDATE
+           platform = VALUES(platform), category = VALUES(category), name = VALUES(name),
+           type = VALUES(type), rate_usd = VALUES(rate_usd), min_qty = VALUES(min_qty),
+           max_qty = VALUES(max_qty), refill = VALUES(refill), cancelable = VALUES(cancelable),
+           dripfeed = VALUES(dripfeed), deleted = 0`,
+        [
+          providerId, providerServiceId, platform, category, name,
+          String(svc.type || 'Default').slice(0, 64), rate.toFixed(6),
+          min, max,
+          svc.refill === true || svc.refill === 'true' ? 1 : 0,
+          svc.cancel === true || svc.cancel === 'true' ? 1 : 0,
+          svc.dripfeed === true || svc.dripfeed === 'true' ? 1 : 0,
+        ]
+      );
+      imported += 1;
+      seenIds.push(providerServiceId);
+    } catch (err) {
+      skipped += 1;
+      if (skipped <= 5) console.warn(`[catalog] skipped ${code} service ${providerServiceId}: ${err.message}`);
+    }
   }
+  if (skipped) console.warn(`[catalog] ${code}: skipped ${skipped} problematic service(s)`);
 
   // Anything the provider no longer offers gets soft-deleted (kept for order history).
   if (seenIds.length) {
