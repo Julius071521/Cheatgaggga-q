@@ -3,7 +3,7 @@
 <main class="container page">
   <div class="page-head" data-reveal>
     <h1>Services & <span class="grad-text">Pricing</span></h1>
-    <p>All prices in Philippine pesos per 1000 units. Sign in to order.</p>
+    <p>All prices in Philippine pesos per 1000 units.<%= user ? '' : ' Sign in to order.' %></p>
   </div>
 
   <form class="filter-bar card" method="get" action="/services" data-reveal>
@@ -11,8 +11,9 @@
       <a href="/services<%= filter.q ? `?q=${encodeURIComponent(filter.q)}` : '' %>" class="pill <%= !filter.platform ? 'active' : '' %>">All</a>
       <% platforms.forEach(function(p) { %>
         <a href="/services?platform=<%= p.platform %><%= filter.q ? `&q=${encodeURIComponent(filter.q)}` : '' %>"
-           class="pill <%= filter.platform === p.platform ? 'active' : '' %>">
-          <%= h.platformLabel(p.platform) %> <small>(<%= p.cnt %>)</small>
+           class="pill pill-platform <%= filter.platform === p.platform ? 'active' : '' %>">
+          <%- include('partials/platform-badge', { platform: p.platform, size: 18 }) %>
+          <span><%= h.platformLabel(p.platform) %></span> <small>(<%= p.cnt %>)</small>
         </a>
       <% }); %>
     </div>
@@ -23,29 +24,42 @@
     </div>
   </form>
 
+  <% if (filter.platform) { %>
+  <div class="platform-banner card">
+    <%- include('partials/platform-badge', { platform: filter.platform, size: 46 }) %>
+    <div>
+      <h2><%= h.platformLabel(filter.platform) %> services</h2>
+      <p class="muted"><%= pagination.total.toLocaleString() %> service<%= pagination.total === 1 ? '' : 's' %> available</p>
+    </div>
+  </div>
+  <% } %>
+
   <% if (services.length) { %>
   <div class="table-wrap card">
-    <table class="table">
+    <table class="table services-table">
       <thead>
         <tr><th>ID</th><th>Service</th><th class="num">Rate / 1000</th><th class="num">Min</th><th class="num">Max</th><th>Refill</th><th></th></tr>
       </thead>
       <tbody>
-        <% services.forEach(function(s) { %>
+        <% let lastCat = null; services.forEach(function(s) { %>
+          <% if (s.category && s.category !== lastCat) { lastCat = s.category; %>
+          <tr class="cat-row"><td colspan="7">
+            <span class="cat-badge"><%- include('partials/platform-badge', { platform: s.platform, size: 20 }) %></span>
+            <%= h.platformLabel(s.platform) %> · <%= s.category %>
+          </td></tr>
+          <% } %>
         <tr>
           <td class="muted">#<%= s.id %></td>
           <td>
             <div class="svc-cell">
-              <%- include('partials/platform-badge', { platform: s.platform, size: 30 }) %>
-              <div>
-                <span class="svc-name"><%= s.name %></span>
-                <small class="muted"><%= s.category %></small>
-              </div>
+              <%- include('partials/platform-badge', { platform: s.platform, size: 28 }) %>
+              <span class="svc-name"><%= s.name %></span>
             </div>
           </td>
           <td class="num price">₱<%= h.moneyRate(s.ratePhp) %></td>
-          <td class="num"><%= s.min_qty.toLocaleString() %></td>
-          <td class="num"><%= s.max_qty.toLocaleString() %></td>
-          <td><%= s.refill ? '♻️ Yes' : '—' %></td>
+          <td class="num"><%= Number(s.min_qty).toLocaleString() %></td>
+          <td class="num"><%= Number(s.max_qty) >= 100000000000 ? '∞' : Number(s.max_qty).toLocaleString() %></td>
+          <td><%= s.refill ? '♻️' : '—' %></td>
           <td><a class="btn btn-primary btn-sm" href="<%= user ? `/order/new?service=${s.id}` : '/login' %>">Order</a></td>
         </tr>
         <% }); %>

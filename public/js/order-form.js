@@ -37,10 +37,12 @@
     qtyInput.setCustomValidity(inRange ? '' : 'Quantity must be between ' + current.min + ' and ' + current.max);
   }
 
+  var guidance = document.getElementById('of-guidance');
   function selectService(id) {
     current = services.find(function (s) { return String(s.id) === String(id); }) || null;
     if (current) {
       meta.hidden = false;
+      if (guidance) guidance.hidden = false; // assistant guidance appears on select
       rateEl.textContent = '💰 ' + peso(current.ratePhp) + ' / 1000';
       rangeEl.textContent = '📦 Min ' + current.min.toLocaleString() + ' · Max ' + current.max.toLocaleString();
       refillEl.textContent = current.refill ? '♻️ Refill available' : '♻️ No refill';
@@ -49,6 +51,7 @@
       if (!qtyInput.value) qtyInput.value = current.min;
     } else {
       meta.hidden = true;
+      if (guidance) guidance.hidden = true;
     }
     updateTotal();
   }
@@ -108,5 +111,32 @@
 
   if (preselected && preselected.platform) {
     loadServices(preselected.platform, preselected.id);
+  }
+
+  // ── Confirmation modal before placing the order ──
+  var modal = document.getElementById('of-confirm');
+  var confirmBtn = document.getElementById('cf-confirm');
+  var cancelBtn = document.getElementById('cf-cancel');
+  if (modal && confirmBtn && cancelBtn) {
+    var confirmed = false;
+    form.addEventListener('submit', function (e) {
+      if (confirmed) return; // second pass — let it submit
+      e.preventDefault();
+      if (!current || submitBtn.disabled) return;
+      var qty = parseInt(qtyInput.value, 10) || 0;
+      document.getElementById('cf-service').textContent = current.name.length > 60 ? current.name.slice(0, 60) + '…' : current.name;
+      document.getElementById('cf-qty').textContent = qty.toLocaleString();
+      document.getElementById('cf-total').textContent = totalEl.textContent;
+      modal.hidden = false;
+      document.body.style.overflow = 'hidden';
+    });
+    function closeModal() { modal.hidden = true; document.body.style.overflow = ''; }
+    cancelBtn.addEventListener('click', closeModal);
+    modal.addEventListener('click', function (e) { if (e.target === modal) closeModal(); });
+    confirmBtn.addEventListener('click', function () {
+      confirmed = true;
+      closeModal();
+      form.submit();
+    });
   }
 })();

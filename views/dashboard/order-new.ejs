@@ -32,6 +32,16 @@
         <span id="of-refill"></span>
       </div>
 
+      <!-- Assistant guidance that appears once a service is chosen -->
+      <div class="of-guidance" id="of-guidance" hidden>
+        <div class="ofg-head"><span class="ofg-avatar">🤖</span> <strong><%= site.name %> Assistant</strong></div>
+        <ul>
+          <li>💡 <strong>Try a small test order first</strong> (e.g. 50–100) before ordering in bulk — this confirms the service works for your link.</li>
+          <li>⏳ <strong>Delivery time varies by service.</strong> Many start within minutes, but some can take <strong>5 days up to 1 month</strong> depending on the provider.</li>
+          <li>🛟 Occasionally an order can get <strong>stuck</strong> and take a while to fix even after you file a report — we appreciate your patience, and failed/partial orders are auto-refunded.</li>
+        </ul>
+      </div>
+
       <label class="field">
         <span>Link <small>(profile / post / video URL)</small></span>
         <input type="url" name="link" id="of-link" required maxlength="500" placeholder="https://instagram.com/yourprofile">
@@ -55,6 +65,23 @@
       <button type="submit" class="btn btn-primary btn-lg btn-block" id="of-submit" disabled>Place order</button>
       <p class="auth-fineprint">Your balance: <strong>₱<%= h.money(user.balance) %></strong> · <a href="/wallet">add funds</a></p>
     </form>
+
+    <!-- Confirmation modal -->
+    <div class="modal-overlay" id="of-confirm" hidden>
+      <div class="modal-card card">
+        <h3>Confirm your order</h3>
+        <div class="confirm-lines">
+          <div><span>Service</span><strong id="cf-service">—</strong></div>
+          <div><span>Quantity</span><strong id="cf-qty">—</strong></div>
+          <div><span>Total charge</span><strong id="cf-total" class="price">—</strong></div>
+        </div>
+        <p class="confirm-warn">⏳ Delivery time depends on the service — many start within minutes, but some can take <strong>5 days up to 1 month</strong>, and an order may occasionally get stuck even after a report. Failed/partial orders are auto-refunded.</p>
+        <div class="confirm-actions">
+          <button type="button" class="btn btn-ghost" id="cf-cancel">Cancel</button>
+          <button type="button" class="btn btn-primary" id="cf-confirm">Yes, place order ✅</button>
+        </div>
+      </div>
+    </div>
 
     <aside class="order-tips card">
       <h3>💡 Quick tips</h3>
