@@ -1,0 +1,24 @@
+<%- include('../partials/head', { title }) %>
+<%- include('../partials/nav') %>
+<main class="container page container-narrow">
+  <div class="page-head"><h1>🔔 <span class="grad-text">Notifications</span></h1></div>
+
+  <% if (feed.length) { %>
+  <div class="notif-list">
+    <% feed.forEach(function(n) { %>
+    <div class="card notif-item <%= n.unread ? 'notif-unread' : '' %>">
+      <div class="notif-icon"><%= n.scope === 'global' ? '📣' : (String(n.type).includes('deposit') ? '💰' : (String(n.type).includes('order') ? '🚀' : (String(n.type).includes('ticket') ? '📩' : '🔔'))) %></div>
+      <div class="notif-body">
+        <strong><%= n.title %></strong>
+        <% if (n.message) { %><p><%= n.message %></p><% } %>
+        <small class="muted"><%= h.formatDate(n.created_at) %><%= n.scope === 'global' ? ' · Announcement' : '' %></small>
+      </div>
+      <% if (n.url) { %><a href="<%= n.url %>" class="btn btn-ghost btn-sm">View</a><% } %>
+    </div>
+    <% }); %>
+  </div>
+  <% } else { %>
+    <p class="empty-note">No notifications yet — we'll let you know here about deposits, order updates, new promos and new services. 🔔</p>
+  <% } %>
+</main>
+<%- include('../partials/footer') %>

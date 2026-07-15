@@ -23,6 +23,10 @@
         <svg class="icon-moon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
       </button>
       <% if (user) { %>
+        <a href="/notifications" class="icon-btn notif-bell" aria-label="Notifications" title="Notifications">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>
+          <% if (notifCount > 0) { %><span class="notif-dot"><%= notifCount > 99 ? '99+' : notifCount %></span><% } %>
+        </a>
         <span class="nav-balance" title="Wallet balance">₱<%= h.money(user.balance) %></span>
         <form method="post" action="/logout" class="inline-form">
           <input type="hidden" name="_csrf" value="<%= csrfToken %>">

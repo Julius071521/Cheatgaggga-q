@@ -48,6 +48,9 @@ async function syncProvider(code) {
   const list = await client.services();
   if (!Array.isArray(list)) throw new Error(`Provider "${code}" returned an unexpected services payload`);
 
+  // Count enabled/visible services before, to detect genuinely new ones after.
+  const [[before]] = await pool.query('SELECT COUNT(*) AS c FROM services WHERE provider_id = ? AND deleted = 0', [providerId]);
+
   let imported = 0;
   const seenIds = [];
 
@@ -96,6 +99,17 @@ async function syncProvider(code) {
       [providerId, ...seenIds]
     );
   }
+
+  // Announce newly added services to all members (no provider identity exposed).
+  try {
+    const [[after]] = await pool.query('SELECT COUNT(*) AS c FROM services WHERE provider_id = ? AND deleted = 0', [providerId]);
+    const added = Number(after.c) - Number(before.c);
+    if (added > 0) {
+      const notifications = require('./notifications');
+      await notifications.postUpdate('service', `${added} new service${added > 1 ? 's' : ''} added ✨`,
+        'Fresh boosting services are now available. Check them out!', '/services');
+    }
+  } catch (_) { /* non-fatal */ }
 
   // Refresh the provider's upstream balance while we're here (best effort).
   try {

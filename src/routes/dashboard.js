@@ -7,6 +7,8 @@ const env = require('../config/env');
 const pool = require('../db/pool');
 const pricing = require('../services/pricing');
 const orderService = require('../services/orders');
+const mailer = require('../services/mailer');
+const notifications = require('../services/notifications');
 const { requireAuth } = require('../middleware/auth');
 const { randomToken, isValidHttpUrl, clampInt, PLATFORM_LABELS } = require('../utils/helpers');
 const { hashSecret, verifySecret } = require('../utils/password');
@@ -215,10 +217,17 @@ router.post('/wallet/deposit', (req, res, next) => {
       [req.user.id, reference]);
     if (dupe) return fail('You already submitted a deposit with that reference number.');
 
-    await pool.query(
+    const [depRes] = await pool.query(
       "INSERT INTO deposits (user_id, payment_method, amount, reference_id, status, receipt_path) VALUES (?, ?, ?, ?, 'Pending', ?)",
       [req.user.id, method, amount.toFixed(4), reference, req.file ? path.basename(req.file.path) : null]);
-    flash(req, 'success', 'Deposit submitted! We will verify your payment and credit your wallet shortly.');
+
+    // Auto email + in-app notification confirming the funds request.
+    const deposit = { id: depRes.insertId, payment_method: method, amount, reference_id: reference };
+    mailer.sendDepositReceived(req.user.email, deposit).catch(() => {});
+    notifications.notifyUser(req.user.id, 'deposit', 'Deposit request received ✅',
+      `We received your ${method.toUpperCase()} deposit of ₱${amount.toFixed(2)} (ref: ${reference}). We'll credit your wallet once verified.`).catch(() => {});
+
+    flash(req, 'success', 'Deposit submitted! We emailed you a confirmation and will credit your wallet once verified.');
     res.redirect('/wallet');
   } catch (err) { next(err); }
 });

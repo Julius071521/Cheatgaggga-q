@@ -93,6 +93,16 @@ app.use((req, res, next) => {
   next();
 });
 
+// Notification badge count for the signed-in user (skip static/asset paths).
+const notifications = require('./src/services/notifications');
+app.use(async (req, res, next) => {
+  res.locals.notifCount = 0;
+  if (req.user && req.method === 'GET' && !req.path.startsWith('/assets')) {
+    try { res.locals.notifCount = await notifications.unreadCount(req.user); } catch (_) {}
+  }
+  next();
+});
+
 // Maintenance-mode + IP-block gate runs after view locals so the
 // maintenance/blocked pages render with full context.
 app.use(require('./src/middleware/gate').gate);
@@ -100,6 +110,7 @@ app.use(require('./src/middleware/gate').gate);
 // ── Routes ────────────────────────────────────────────────
 app.use(require('./src/routes/api'));
 app.use(require('./src/routes/ai'));
+app.use(require('./src/routes/notifications'));
 app.use(require('./src/routes/public'));
 app.use(require('./src/routes/auth'));
 app.use(require('./src/routes/dashboard'));

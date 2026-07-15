@@ -7,6 +7,7 @@ const catalog = require('../services/catalog');
 const orderService = require('../services/orders');
 const { allClients, getClient } = require('../providers');
 const { setSetting, getSetting } = require('../services/stats');
+const notifications = require('../services/notifications');
 const { requireAuth, requireAdmin } = require('../middleware/auth');
 const { invalidate: invalidateGate } = require('../middleware/gate');
 const { clampInt, isValidHttpUrl } = require('../utils/helpers');
@@ -91,6 +92,8 @@ router.post('/admin/promos', async (req, res) => {
       `INSERT INTO promos (code, type, value, max_uses, uses, expires_at, max_discount_amount, active)
        VALUES (?, ?, ?, ?, 0, ?, ?, 1)`,
       [code, type, value.toFixed(2), maxUses || 0, expiresAt, maxDiscount == null ? null : maxDiscount.toFixed(2)]);
+    const off = type === 'fixed' ? `₱${value.toFixed(2)} off` : `${value}% off`;
+    notifications.postUpdate('promo', `New promo code: ${code}`, `Use code ${code} for ${off} on your next order!`, '/order/new').catch(() => {});
     flash(req, 'success', `Promo code ${code} created.`);
     res.redirect('/admin/promos');
   } catch (err) { flash(req, 'error', err.message); res.redirect('/admin/promos'); }
@@ -165,6 +168,8 @@ router.post('/admin/tickets/:id/action', async (req, res) => {
     await pool.query(
       "UPDATE tickets SET provider_action_status = ?, provider_action_response = ?, status = 'in_progress', assigned_to = ? WHERE id = ?",
       [statusText, response, req.user.id, ticket.id]);
+    if (ticket.user_id) notifications.notifyUser(ticket.user_id, 'ticket', 'Update on your order concern',
+      `Our team is processing your "${ticket.request_type || action}" request${ticket.order_id ? ' for order ' + ticket.order_id : ''}.`).catch(() => {});
     flash(req, 'success', `Action "${action}" sent for ticket #${ticket.id}.`);
   } catch (err) {
     flash(req, 'error', `Action failed: ${err.message}`);
@@ -176,8 +181,14 @@ router.post('/admin/tickets/:id/status', async (req, res, next) => {
   try {
     const status = ['open', 'in_progress', 'resolved', 'closed'].includes(req.body.status) ? req.body.status : 'open';
     const note = String(req.body.internal_notes || '').trim().slice(0, 1000) || null;
+    const ticketId = clampInt(req.params.id, 1, 2147483647);
     await pool.query('UPDATE tickets SET status = ?, internal_notes = COALESCE(?, internal_notes), assigned_to = ? WHERE id = ?',
-      [status, note, req.user.id, clampInt(req.params.id, 1, 2147483647)]);
+      [status, note, req.user.id, ticketId]);
+    if (['resolved', 'closed'].includes(status)) {
+      const [[tk]] = await pool.query('SELECT user_id, order_id FROM tickets WHERE id = ?', [ticketId]);
+      if (tk && tk.user_id) notifications.notifyUser(tk.user_id, 'ticket', 'Your concern was resolved ✅',
+        `Your order concern${tk.order_id ? ' for ' + tk.order_id : ''} has been marked ${status}.`).catch(() => {});
+    }
     flash(req, 'success', 'Ticket updated.');
     res.redirect('/admin/tickets');
   } catch (err) { next(err); }
@@ -276,6 +287,8 @@ router.post('/admin/deposits/:id/approve', async (req, res) => {
     const deposit = await wallet.approveDeposit(clampInt(req.params.id, 1, 2147483647), req.user.id, String(req.body.note || '').trim());
     const [[user]] = await pool.query('SELECT email FROM users WHERE id = ?', [deposit.user_id]);
     if (user) mailer.sendDepositResult(user.email, deposit, true);
+    notifications.notifyUser(deposit.user_id, 'deposit', 'Deposit approved 🎉',
+      `Your ${String(deposit.payment_method).toUpperCase()} deposit of ₱${Number(deposit.amount).toFixed(2)} was approved and added to your wallet.`).catch(() => {});
     flash(req, 'success', `Deposit #${deposit.id} approved — ₱${Number(deposit.amount).toFixed(2)} credited.`);
   } catch (err) { flash(req, 'error', err.message); }
   res.redirect('/admin/deposits');
@@ -287,6 +300,8 @@ router.post('/admin/deposits/:id/reject', async (req, res) => {
     const deposit = await wallet.rejectDeposit(clampInt(req.params.id, 1, 2147483647), req.user.id, note);
     const [[user]] = await pool.query('SELECT email FROM users WHERE id = ?', [deposit.user_id]);
     if (user) mailer.sendDepositResult(user.email, { ...deposit, admin_note: note }, false);
+    notifications.notifyUser(deposit.user_id, 'deposit', 'Deposit rejected',
+      `Your ${String(deposit.payment_method).toUpperCase()} deposit of ₱${Number(deposit.amount).toFixed(2)} was rejected.${note ? ' Reason: ' + note : ''}`).catch(() => {});
     flash(req, 'success', `Deposit #${deposit.id} rejected.`);
   } catch (err) { flash(req, 'error', err.message); }
   res.redirect('/admin/deposits');

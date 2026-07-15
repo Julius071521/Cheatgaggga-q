@@ -7,10 +7,27 @@ if (env.EMAIL_HOST && env.EMAIL_USER && env.EMAIL_PASS) {
   transporter = nodemailer.createTransport({
     host: env.EMAIL_HOST,
     port: env.EMAIL_PORT,
-    secure: env.EMAIL_SECURE,
+    secure: env.EMAIL_SECURE, // true for 465, false for 587/25 (STARTTLS)
+    requireTLS: !env.EMAIL_SECURE,
     auth: { user: env.EMAIL_USER, pass: env.EMAIL_PASS },
-    tls: env.EMAIL_TLS_SERVERNAME ? { servername: env.EMAIL_TLS_SERVERNAME } : undefined,
+    pool: true,
+    maxConnections: 3,
+    maxMessages: 50,
+    connectionTimeout: 20000,
+    greetingTimeout: 15000,
+    socketTimeout: 25000,
+    tls: {
+      servername: env.EMAIL_TLS_SERVERNAME || undefined,
+      // Some shared hosts present a hostname-mismatched cert; don't hard-fail delivery.
+      rejectUnauthorized: false,
+      minVersion: 'TLSv1.2',
+    },
   });
+
+  // Verify the SMTP connection on boot (non-blocking) so misconfig is obvious in logs.
+  transporter.verify()
+    .then(() => console.log(`[mailer] SMTP ready (${env.EMAIL_HOST}:${env.EMAIL_PORT})`))
+    .catch((err) => console.warn(`[mailer] SMTP verify failed (${env.EMAIL_HOST}:${env.EMAIL_PORT}): ${err.message}`));
 }
 
 function layout(title, bodyHtml) {
@@ -85,4 +102,26 @@ function sendDepositResult(to, deposit, approved) {
   return send(to, `${env.SITE_NAME} — deposit ${approved ? 'approved' : 'rejected'}`, title, body);
 }
 
-module.exports = { send, sendVerification, sendPasswordReset, sendDepositResult };
+function sendDepositReceived(to, deposit) {
+  const method = String(deposit.payment_method || deposit.method || 'payment').toUpperCase();
+  const amount = Number(deposit.amount != null ? deposit.amount : deposit.amount_php).toFixed(2);
+  const ref = deposit.reference_id || deposit.reference_no || '';
+  return send(to, `${env.SITE_NAME} — deposit request received`, 'We received your deposit request ✅',
+    `<p>Thanks! We've received your <b>${method}</b> deposit request of <b>₱${amount}</b> (ref: ${ref}).</p>
+     <p>Our team is verifying your payment now. Once approved, the amount is added to your wallet automatically and you'll get another email.</p>
+     ${button(`${env.BASE_URL}/wallet`, 'View my wallet')}
+     <p style="color:#6b7280;font-size:12px;">Most deposits are verified within minutes to a few hours during business time.</p>`);
+}
+
+function sendWelcome(to, username) {
+  return send(to, `Welcome to ${env.SITE_NAME}! 🚀`, `Welcome aboard, ${username || 'friend'}!`,
+    `<p>Your ${env.SITE_NAME} account is ready. Here's how to get started:</p>
+     <ol style="padding-left:18px;color:#374151;">
+       <li>Add funds via GCash, Maya, or BPI.</li>
+       <li>Pick a service and paste your public link.</li>
+       <li>Place your order — delivery is automatic. 🎉</li>
+     </ol>
+     ${button(`${env.BASE_URL}/dashboard`, 'Go to my dashboard')}`);
+}
+
+module.exports = { send, sendVerification, sendPasswordReset, sendDepositResult, sendDepositReceived, sendWelcome };

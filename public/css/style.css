@@ -683,3 +683,36 @@ code { background: var(--surface-2); padding: 2px 7px; border-radius: 6px; font-
   background: var(--bg); color: var(--text); font-size: 0.9rem;
 }
 .chat-input input:focus { outline: none; border-color: var(--primary); }
+
+/* Chat quick chips + report form */
+.chat-quick { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 4px; }
+.chat-chip {
+  border: 1.5px solid var(--border); background: var(--surface); color: var(--text);
+  border-radius: 999px; padding: 7px 12px; font-size: 0.82rem; font-weight: 500; cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, transform 0.12s;
+}
+.chat-chip:hover { border-color: var(--primary); color: var(--primary); transform: translateY(-1px); }
+.chat-link { color: #fff; text-decoration: underline; font-weight: 600; }
+.chat-msg.bot .chat-link { color: var(--primary); }
+.chat-report { display: grid; gap: 8px; background: var(--surface-2); border-radius: 12px; padding: 12px; margin-top: 4px; }
+.chat-report-sel, .chat-report-msg {
+  width: 100%; padding: 9px 11px; border-radius: 9px; border: 1.5px solid var(--border);
+  background: var(--surface); color: var(--text); font-family: var(--font-body); font-size: 0.85rem; resize: vertical;
+}
+.chat-report-sel:focus, .chat-report-msg:focus { outline: none; border-color: var(--primary); }
+.chat-report-submit { justify-self: start; }
+
+/* Notification bell + list */
+.notif-bell { position: relative; }
+.notif-dot {
+  position: absolute; top: -5px; right: -5px; min-width: 18px; height: 18px; padding: 0 4px;
+  border-radius: 999px; background: var(--danger); color: #fff; font-size: 0.66rem; font-weight: 700;
+  display: flex; align-items: center; justify-content: center; line-height: 1;
+}
+.notif-list { display: grid; gap: 12px; }
+.notif-item { display: flex; align-items: flex-start; gap: 14px; padding: 16px 18px; }
+.notif-item.notif-unread { border-color: var(--primary); background: var(--primary-soft); }
+.notif-icon { font-size: 1.4rem; flex-shrink: 0; }
+.notif-body { flex: 1; }
+.notif-body strong { font-family: var(--font-head); display: block; }
+.notif-body p { color: var(--text-soft); font-size: 0.92rem; margin: 4px 0; }
