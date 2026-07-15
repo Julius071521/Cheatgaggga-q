@@ -14,6 +14,9 @@ const pricing = require('./src/services/pricing');
 const ai = require('./src/services/ai');
 
 const app = express();
+// Changes on every boot/deploy so browsers always fetch fresh CSS/JS after a
+// Restart (cache-busting for the versioned ?v= asset URLs).
+const ASSET_VERSION = Date.now().toString(36);
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 app.set('trust proxy', 1);
@@ -83,6 +86,7 @@ app.use((req, res, next) => {
   };
   res.locals.h = helpers;
   res.locals.pricing = pricing;
+  res.locals.assetVersion = ASSET_VERSION;
   res.locals.path = req.path;
   res.locals.flash = req.session.flash || null;
   delete req.session.flash;
