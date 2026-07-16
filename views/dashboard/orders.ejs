@@ -27,6 +27,10 @@
               <button type="submit" class="btn btn-ghost btn-sm" title="Refresh status">⟳</button>
             </form>
             <% } %>
+            <% if (o.local_service_id) { %>
+            <a class="btn btn-ghost btn-sm" title="Order this again"
+               href="/order/new?service=<%= o.local_service_id %>&link=<%= encodeURIComponent(o.url) %>">🔁</a>
+            <% } %>
             <details class="report-details">
               <summary class="btn btn-ghost btn-sm">Report</summary>
               <form method="post" action="/orders/<%= o.id %>/ticket" class="report-form card">

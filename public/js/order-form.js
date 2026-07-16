@@ -174,6 +174,74 @@
     });
   }
 
+  // Quick quantity chips (Min · 100 · 500 · 1K · 5K · Max) within the range.
+  var qtyChips = document.getElementById('qty-chips');
+  function renderQtyChips() {
+    if (!qtyChips) return;
+    qtyChips.innerHTML = '';
+    if (!current) { qtyChips.hidden = true; return; }
+    var candidates = [current.min, 100, 500, 1000, 5000, 10000, current.max];
+    var seen = {};
+    var shown = 0;
+    candidates.forEach(function (v) {
+      if (v < current.min || v > current.max || seen[v]) return;
+      seen[v] = true;
+      if (shown >= 6) return;
+      shown++;
+      var chip = document.createElement('button');
+      chip.type = 'button';
+      chip.className = 'qty-chip';
+      chip.textContent = v === current.min ? 'Min ' + fmtQty(v)
+        : v === current.max ? 'Max ' + fmtQty(v)
+        : (v >= 1000 ? (v / 1000) + 'K' : String(v));
+      chip.addEventListener('click', function () {
+        qtyInput.value = v;
+        updateTotal();
+        qtyChips.querySelectorAll('.qty-chip').forEach(function (c) { c.classList.remove('active'); });
+        chip.classList.add('active');
+      });
+      qtyChips.appendChild(chip);
+    });
+    qtyChips.hidden = shown === 0;
+  }
+
+  // Warn (don't block) when the link doesn't match the chosen platform.
+  var linkInput = document.getElementById('of-link');
+  var linkWarn = document.getElementById('of-linkwarn');
+  var linkWarnPlat = document.getElementById('of-linkwarn-plat');
+  var PLATFORM_DOMAINS = {
+    instagram: ['instagram.com'], tiktok: ['tiktok.com'],
+    facebook: ['facebook.com', 'fb.com', 'fb.watch'], youtube: ['youtube.com', 'youtu.be'],
+    twitter: ['twitter.com', 'x.com'], telegram: ['t.me', 'telegram.me'],
+    spotify: ['spotify.com'], snapchat: ['snapchat.com'], twitch: ['twitch.tv'],
+    discord: ['discord.gg', 'discord.com'], linkedin: ['linkedin.com'],
+  };
+  function checkLink() {
+    if (!linkWarn) return;
+    var plat = platInput.value;
+    var domains = PLATFORM_DOMAINS[plat];
+    var val = (linkInput.value || '').trim();
+    var mismatch = false;
+    if (domains && val) {
+      try {
+        var host = new URL(val).hostname.toLowerCase().replace(/^www\./, '');
+        mismatch = !domains.some(function (d) { return host === d || host.endsWith('.' + d); });
+      } catch (e) { /* not a URL yet — the input's own validation handles it */ }
+    }
+    if (mismatch) {
+      // Use the pretty label from the active platform button ("TikTok", not "Tiktok").
+      var activeBtn = platGrid && platGrid.querySelector('.plat-btn.active span:last-child');
+      linkWarnPlat.textContent = activeBtn ? activeBtn.textContent : plat.charAt(0).toUpperCase() + plat.slice(1);
+      linkWarn.hidden = false;
+    } else {
+      linkWarn.hidden = true;
+    }
+  }
+  if (linkInput) {
+    linkInput.addEventListener('input', checkLink);
+    linkInput.addEventListener('blur', checkLink);
+  }
+
   function selectService(id) {
     current = services.find(function (s) { return String(s.id) === String(id); }) || null;
     serviceInput.value = current ? current.id : '';
@@ -192,6 +260,8 @@
       meta.hidden = true;
       if (guidance) guidance.hidden = true;
     }
+    renderQtyChips();
+    checkLink();
     updateTotal();
   }
 
@@ -225,6 +295,8 @@
       meta.hidden = true;
       if (guidance) guidance.hidden = true;
       closePanel();
+      renderQtyChips();
+      checkLink();
       updateTotal();
       loadServices(platInput.value);
     });

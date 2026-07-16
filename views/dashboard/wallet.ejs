@@ -52,6 +52,14 @@
           <span>Amount sent (₱)</span>
           <input type="number" name="amount" min="50" max="1000000" step="0.01" required placeholder="500.00">
         </label>
+        <% if (bonusTiers.length) { %>
+        <div class="qty-chips" id="dep-chips">
+          <% bonusTiers.forEach(function(t) { %>
+            <button type="button" class="qty-chip" data-amount="<%= t.min %>">₱<%= t.min.toLocaleString() %> <em>+<%= t.pct %>%</em></button>
+          <% }); %>
+        </div>
+        <% } %>
+        <p class="dep-preview" id="dep-preview" hidden data-tiers="<%= bonusTiers.map(function(t){ return t.min + ':' + t.pct; }).join(',') %>"></p>
         <label class="field">
           <span>Reference number</span>
           <input type="text" name="reference" required minlength="4" maxlength="100" placeholder="e.g. 1234 5678 9012">
@@ -112,4 +120,5 @@
     </div>
   </div>
 </main>
+<script src="/assets/js/wallet.js?v=<%= assetVersion %>" defer></script>
 <%- include('../partials/footer') %>

@@ -86,7 +86,10 @@ router.get('/order/new', async (req, res, next) => {
       const [[svc]] = await pool.query('SELECT * FROM services WHERE id = ? AND enabled = 1 AND deleted = 0', [selectedService]);
       if (svc) preselected = { ...svc, ratePhp: pricing.ratePhpPer1000(svc) };
     }
-    res.render('dashboard/order-new', { title: 'New Order', platforms: platforms.map((r) => r.platform), preselected });
+    // Optional link prefill (used by the "Reorder" button on My Orders).
+    const rawLink = String(req.query.link || '').slice(0, 500);
+    const prefillLink = isValidHttpUrl(rawLink) ? rawLink : '';
+    res.render('dashboard/order-new', { title: 'New Order', platforms: platforms.map((r) => r.platform), preselected, prefillLink });
   } catch (err) { next(err); }
 });
 
@@ -146,8 +149,17 @@ router.get('/orders', async (req, res, next) => {
     const [[{ total }]] = await pool.query('SELECT COUNT(*) AS total FROM orders WHERE user_id = ?', [req.user.id]);
     const pages = Math.max(1, Math.ceil(total / perPage));
     const current = Math.min(page, pages);
+    // local_service_id lets the "Reorder" button jump straight back into the
+    // order form with the same service preselected.
     const [orders] = await pool.query(
-      'SELECT * FROM orders WHERE user_id = ? ORDER BY id DESC LIMIT ? OFFSET ?',
+      `SELECT o.*, s.id AS local_service_id
+       FROM orders o
+       LEFT JOIN providers pr ON pr.code = IF(o.api_provider = 'SMMWorld', 'smmworld', 'rkd')
+       LEFT JOIN services s ON s.provider_id = pr.id
+            AND CONVERT(s.provider_service_id USING utf8mb4) COLLATE utf8mb4_bin =
+                CONVERT(o.service_id USING utf8mb4) COLLATE utf8mb4_bin
+            AND s.enabled = 1 AND s.deleted = 0
+       WHERE o.user_id = ? ORDER BY o.id DESC LIMIT ? OFFSET ?`,
       [req.user.id, perPage, (current - 1) * perPage]);
     res.render('dashboard/orders', { title: 'My Orders', orders, pagination: { current, pages, total } });
   } catch (err) { next(err); }

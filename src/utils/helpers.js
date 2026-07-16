@@ -65,24 +65,51 @@ function platformLabel(code) {
   return PLATFORM_LABELS[code] || 'Other';
 }
 
+// Fold "fancy" Mathematical Alphanumeric Symbols (bold/italic letters) back
+// to plain ASCII so text reads, searches, and truncates normally.
+function foldFancyUnicode(str) {
+  return Array.from(String(str)).map((ch) => {
+    const cp = ch.codePointAt(0);
+    if (cp >= 0x1d400 && cp <= 0x1d7cb) { // styled A-Z/a-z blocks (52 per style)
+      const idx = (cp - 0x1d400) % 52;
+      return String.fromCharCode(idx < 26 ? 65 + idx : 97 + (idx - 26));
+    }
+    if (cp >= 0x1d7ce && cp <= 0x1d7ff) { // styled digits (10 per style)
+      return String.fromCharCode(48 + ((cp - 0x1d7ce) % 10));
+    }
+    return ch;
+  }).join('');
+}
+
+// Code-point-safe truncation (a plain .slice can cut an emoji in half).
+function sliceSafe(str, max) {
+  return Array.from(String(str)).slice(0, max).join('');
+}
+
 // Providers decorate category names with dashes/emoji noise
 // ("----FACEBOOK SERVICES AREA----"). Strip it and fix SHOUTING CAPS.
 function tidyCategory(raw) {
-  let c = String(raw || '')
-    .replace(/^[\s\-–—=_~*#>|·.]+|[\s\-–—=_~*#>|·.]+$/g, '')
+  let c = foldFancyUnicode(String(raw || ''))
+    .replace(/[\uFFFD\u0000-\u001F]/g, '') // broken/mojibake + control chars
+    .replace(/\s*\|\s*/g, ' \u00b7 ')
+    .replace(/^[\s\-\u2013\u2014=_~*#>|\u00b7.]+|[\s\-\u2013\u2014=_~*#>|\u00b7.]+$/g, '')
     .replace(/\s{2,}/g, ' ')
     .trim();
   if (!c) return 'General';
   if (c.length > 3 && c === c.toUpperCase()) {
     c = c.toLowerCase().replace(/(^|\s|\/|\[|\()([a-z])/g, (m, pre, ch) => pre + ch.toUpperCase());
   }
-  return c.slice(0, 90);
+  return sliceSafe(c, 90);
 }
 
-// Some provider rows have junk names like "1" — give them a sane label,
-// and swap noisy " | " separators for a calmer " · ".
+// Some provider rows have junk names like "1" -- give them a sane label,
+// and swap noisy " | " separators for a calmer " - ".
 function tidyServiceName(raw, id) {
-  let n = String(raw || '').replace(/\s*\|\s*/g, ' · ').replace(/\s{2,}/g, ' ').trim();
+  let n = foldFancyUnicode(String(raw || ''))
+    .replace(/[\uFFFD\u0000-\u001F]/g, '')
+    .replace(/\s*\|\s*/g, ' \u00b7 ')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
   if (n.length < 4 || /^\d+$/.test(n)) n = `Service #${id}`;
   return n;
 }

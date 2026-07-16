@@ -63,13 +63,15 @@
 
       <label class="field">
         <span>Link <small>(profile / post / video URL)</small></span>
-        <input type="url" name="link" id="of-link" required maxlength="500" placeholder="https://instagram.com/yourprofile">
+        <input type="url" name="link" id="of-link" required maxlength="500" placeholder="https://instagram.com/yourprofile" value="<%= typeof prefillLink !== 'undefined' ? prefillLink : '' %>">
       </label>
+      <p class="link-warn" id="of-linkwarn" hidden>⚠️ This link doesn't look like a <strong id="of-linkwarn-plat"></strong> link — please double-check it before ordering.</p>
 
       <label class="field">
         <span>Quantity</span>
         <input type="number" name="quantity" id="of-qty" required min="1" step="1" placeholder="1000">
       </label>
+      <div class="qty-chips" id="qty-chips" hidden></div>
 
       <label class="field">
         <span>Promo code <small>(optional)</small></span>

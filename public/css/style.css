@@ -892,3 +892,25 @@ code { background: var(--surface-2); padding: 2px 7px; border-radius: 6px; font-
   .svc-list { max-height: 46vh; }
   .svc-trigger-price { display: none; }
 }
+
+/* ── Quick chips (quantity + deposit amounts), link warning, bonus preview ── */
+.qty-chips { display: flex; flex-wrap: wrap; gap: 8px; margin: -6px 0 16px; }
+.qty-chip {
+  border: 1.5px solid var(--border); border-radius: 999px; background: var(--surface);
+  color: var(--text); font: inherit; font-size: 0.82rem; font-weight: 700;
+  padding: 6px 14px; cursor: pointer; transition: border-color 0.15s, background 0.15s;
+}
+.qty-chip:hover { border-color: var(--primary); }
+.qty-chip.active { border-color: var(--primary); background: var(--primary-soft); color: var(--primary); }
+.qty-chip em { font-style: normal; color: var(--accent); font-weight: 800; margin-left: 2px; }
+
+.link-warn {
+  background: rgba(245, 158, 11, 0.14); border: 1px solid rgba(245, 158, 11, 0.4);
+  border-radius: 10px; padding: 9px 13px; font-size: 0.85rem; color: var(--text);
+  margin: -6px 0 16px; animation: fadeIn 0.2s ease;
+}
+
+.dep-preview {
+  background: var(--primary-soft); border-radius: 10px; padding: 9px 13px;
+  font-size: 0.86rem; margin: -6px 0 16px; animation: fadeIn 0.2s ease;
+}
