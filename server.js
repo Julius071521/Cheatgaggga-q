@@ -162,5 +162,8 @@ runMigrations()
   .finally(() => {
     app.listen(env.PORT, () => {
       console.log(`[server] ${env.SITE_NAME} running on port ${env.PORT} (${env.BASE_URL})`);
+      // AI Autopilot: background triage of reports + stuck-order watchdog.
+      try { require('./src/services/autopilot').startScheduler(); }
+      catch (err) { console.warn('[server] autopilot failed to start:', err.message); }
     });
   });

@@ -1,0 +1,96 @@
+<%- include('../partials/head', { title }) %>
+<%- include('../partials/nav') %>
+<main class="container page">
+  <div class="page-head"><h1>AI <span class="grad-text">Autopilot</span> 🤖</h1></div>
+  <%- include('../partials/admin-nav') %>
+
+  <div class="card section-card <%= on ? '' : 'maint-on' %>">
+    <div class="card-head">
+      <h2><%= on ? '🟢 Autopilot is ON' : '🔴 Autopilot is OFF' %></h2>
+    </div>
+    <p class="muted">
+      When ON, the AI is the first responder: it re-checks the live order status, sends
+      <strong>refill</strong>/<strong>cancel</strong> to the provider automatically, closes reports that are already
+      resolved, watches for <strong>stuck orders</strong>, and escalates anything that needs a human.
+      Every action is logged below and sent to your notifications.
+    </p>
+    <div class="ticket-actions">
+      <form method="post" action="/admin/autopilot/toggle" class="inline-form">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <input type="hidden" name="autopilot" value="<%= on ? '0' : '1' %>">
+        <button type="submit" class="btn <%= on ? 'btn-danger' : 'btn-success' %>">
+          <%= on ? '⏸ Turn OFF autopilot' : '▶️ Turn ON autopilot' %>
+        </button>
+      </form>
+      <form method="post" action="/admin/autopilot/run" class="inline-form">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <button type="submit" class="btn btn-outline">⚡ Run a pass now</button>
+      </form>
+    </div>
+    <p class="muted" style="margin-top:10px"><small>
+      Last 7 days: <strong><%= stats7.total || 0 %></strong> actions ·
+      <strong><%= stats7.done || 0 %></strong> handled automatically ·
+      <strong><%= stats7.escalated || 0 %></strong> escalated to you.
+    </small></p>
+  </div>
+
+  <div class="card section-card">
+    <div class="card-head"><h2>🚨 Needs your attention (<%= pending.length %>)</h2></div>
+    <% if (pending.length) { %>
+      <div class="tickets-list">
+        <% pending.forEach(function(p) { %>
+        <div class="card ticket-card">
+          <div class="ticket-head">
+            <div>
+              <strong><%= p.action.replace(/_/g, ' ') %></strong>
+              <% if (p.order_ref) { %><span class="badge badge-tx-order"><%= p.order_ref %></span><% } %>
+            </div>
+            <span class="muted"><%= h.formatDate(p.created_at) %></span>
+          </div>
+          <p class="ticket-msg"><%= p.detail %></p>
+          <p class="ticket-meta muted"><% if (p.username) { %>Customer: <strong><%= p.username %></strong><% } %></p>
+          <div class="ticket-actions">
+            <% if (p.ticket_id) { %><a class="btn btn-outline btn-sm" href="/admin/tickets">Open concerns</a><% } %>
+            <% if (p.order_ref) { %><a class="btn btn-outline btn-sm" href="/admin/orders">Open orders</a><% } %>
+            <form method="post" action="/admin/autopilot/ack/<%= p.id %>" class="inline-form">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+              <button type="submit" class="btn btn-primary btn-sm">✅ Mark handled</button>
+            </form>
+          </div>
+        </div>
+        <% }); %>
+      </div>
+    <% } else { %>
+      <p class="empty-note">Nothing needs you right now — the AI has it covered. 🎉</p>
+    <% } %>
+  </div>
+
+  <div class="card section-card">
+    <div class="card-head"><h2>📜 Recent AI activity</h2></div>
+    <% if (recent.length) { %>
+    <div class="table-wrap">
+      <table class="table">
+        <thead><tr><th>When</th><th>Action</th><th>Order / Ticket</th><th>Detail</th><th>Result</th></tr></thead>
+        <tbody>
+          <% recent.forEach(function(r) { %>
+          <tr>
+            <td class="muted"><%= h.formatDate(r.created_at) %></td>
+            <td><strong><%= r.action.replace(/_/g, ' ') %></strong></td>
+            <td class="muted"><%= r.order_ref || (r.ticket_id ? ('#' + r.ticket_id) : '—') %></td>
+            <td><%= String(r.detail || '').slice(0, 140) %></td>
+            <td>
+              <% if (r.outcome === 'done') { %><span class="badge badge-completed">auto</span>
+              <% } else if (r.acknowledged) { %><span class="badge badge-completed">handled</span>
+              <% } else { %><span class="badge badge-pending">needs admin</span><% } %>
+            </td>
+          </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+    <% } else { %>
+      <p class="empty-note">No autopilot activity yet — it will appear here as soon as a report comes in.</p>
+    <% } %>
+  </div>
+</main>
+<%- include('../partials/footer') %>

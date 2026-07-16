@@ -40,6 +40,11 @@ const env = {
   AI_MODEL: str('AI_MODEL', 'gpt-4o'),
   AI_BASE_URL: str('AI_BASE_URL', ''),
 
+  // AI Autopilot (auto-triage tickets, sync orders, flag stuck ones)
+  AUTOPILOT_ENABLED: bool('AUTOPILOT_ENABLED', true),
+  AUTOPILOT_INTERVAL_MINUTES: num('AUTOPILOT_INTERVAL_MINUTES', 10),
+  AUTOPILOT_STUCK_HOURS: num('AUTOPILOT_STUCK_HOURS', 48),
+
   // Upstream SMM providers (standard SMM panel API v2)
   RKD_API_KEY: str('RKD_API_KEY', ''),
   RKD_API_URL: str('RKD_API_URL', ''),

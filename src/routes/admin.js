@@ -63,6 +63,58 @@ router.post('/admin/maintenance', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// ── AI Autopilot ──────────────────────────────────────────
+const autopilot = require('../services/autopilot');
+
+router.get('/admin/autopilot', async (req, res, next) => {
+  try {
+    const on = await autopilot.isOn();
+    const [pending] = await pool.query(
+      `SELECT l.*, u.username FROM autopilot_log l LEFT JOIN users u ON u.id = l.user_id
+       WHERE l.outcome = 'needs_admin' AND l.acknowledged = 0 ORDER BY l.id DESC LIMIT 50`);
+    const [recent] = await pool.query(
+      `SELECT l.*, u.username FROM autopilot_log l LEFT JOIN users u ON u.id = l.user_id
+       ORDER BY l.id DESC LIMIT 100`);
+    const [[stats7]] = await pool.query(
+      `SELECT COUNT(*) AS total,
+              SUM(outcome = 'done') AS done,
+              SUM(outcome = 'needs_admin') AS escalated
+       FROM autopilot_log WHERE created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)`);
+    res.render('admin/autopilot', { title: 'Admin · AI Autopilot', on, pending, recent, stats7 });
+  } catch (err) { next(err); }
+});
+
+router.post('/admin/autopilot/toggle', async (req, res, next) => {
+  try {
+    const on = req.body.autopilot === '1' || req.body.autopilot === 'on';
+    await setSetting('autopilot', on ? 'on' : 'off');
+    flash(req, 'success', on
+      ? 'AI Autopilot is ON — new reports are triaged automatically and stuck orders are watched.'
+      : 'AI Autopilot is OFF — reports now wait for manual handling.');
+    res.redirect('/admin/autopilot');
+  } catch (err) { next(err); }
+});
+
+router.post('/admin/autopilot/ack/:id', async (req, res, next) => {
+  try {
+    await pool.query('UPDATE autopilot_log SET acknowledged = 1 WHERE id = ?', [clampInt(req.params.id, 1, 2147483647)]);
+    flash(req, 'success', 'Marked as handled.');
+    res.redirect('/admin/autopilot');
+  } catch (err) { next(err); }
+});
+
+router.post('/admin/autopilot/run', async (req, res) => {
+  try {
+    const r = await autopilot.tick();
+    flash(req, 'success', r
+      ? `Autopilot pass done — orders checked: ${r.synced ? r.synced.checked : 0}, tickets triaged: ${r.tickets}, stuck flagged: ${r.flagged}.`
+      : 'Autopilot is already running a pass — check back in a moment.');
+  } catch (err) {
+    flash(req, 'error', `Autopilot run failed: ${err.message}`);
+  }
+  res.redirect('/admin/autopilot');
+});
+
 // ── Promo / coupon codes ──────────────────────────────────
 router.get('/admin/promos', async (req, res, next) => {
   try {

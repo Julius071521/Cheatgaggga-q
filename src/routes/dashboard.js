@@ -175,10 +175,12 @@ router.post('/orders/:id/ticket', async (req, res) => {
     const message = String(req.body.message || '').trim().slice(0, 2000);
     if (message.length < 3) { flash(req, 'error', 'Please describe your concern.'); return res.redirect('/orders'); }
 
-    await pool.query(
+    const [tRes] = await pool.query(
       `INSERT INTO tickets (user_id, subject, order_id, request_type, message, status, priority, provider_order_id, api_provider)
        VALUES (?, ?, ?, ?, ?, 'open', 'normal', ?, ?)`,
       [req.user.id, `Order concern: ${requestType}`, order.order_id, requestType, message, order.provider_order_id, order.api_provider]);
+    // AI autopilot triages the new ticket right away (fire-and-forget).
+    require('../services/autopilot').handleTicket(tRes.insertId).catch(() => {});
     flash(req, 'success', 'Your concern has been submitted — our team will take a look shortly.');
   } catch (err) {
     flash(req, 'error', 'Could not submit your concern right now. Please try again.');

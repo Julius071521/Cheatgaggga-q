@@ -53,11 +53,14 @@ router.post('/ai/report', aiLimiter, express.json({ limit: '8kb' }), async (req,
       order = o || null;
     }
 
-    await pool.query(
+    const [tRes] = await pool.query(
       `INSERT INTO tickets (user_id, subject, order_id, request_type, message, status, priority, provider_order_id, api_provider)
        VALUES (?, ?, ?, ?, ?, 'open', 'normal', ?, ?)`,
       [req.user.id, `Order concern: ${requestType}`, order ? order.order_id : null, requestType, message,
         order ? order.provider_order_id : null, order ? order.api_provider : null]);
+
+    // AI autopilot triages the new report right away (fire-and-forget).
+    require('../services/autopilot').handleTicket(tRes.insertId).catch(() => {});
 
     notifications.notifyUser(req.user.id, 'ticket', 'Report submitted ✅',
       `We received your "${requestType}" report${order ? ' for ' + order.order_id : ''}. Our team will take a look shortly.`).catch(() => {});
