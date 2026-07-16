@@ -5,7 +5,7 @@ const pool = require('../db/pool');
 const env = require('../config/env');
 const telegram = require('./telegram');
 const { invalidate: invalidateGate } = require('../middleware/gate');
-const { getSetting } = require('./stats');
+const { getSetting, setSetting } = require('./stats');
 
 // ── Signatures ──────────────────────────────────────────────
 // Paths that only scanners/bots ever request on an SMM panel.
@@ -26,6 +26,23 @@ const CMDI = /(;|\|\||&&|`|\$\()\s*(cat|wget|curl|nc|bash|sh|python|perl|id|unam
 const BAD_UA = /(sqlmap|nikto|nmap|masscan|zgrab|nuclei|acunetix|netsparker|wpscan|dirbuster|gobuster|fuzz|hydra|semrushbot|petalbot|censys|paloalto)/i;
 
 const KIND_SCORE = { scanner: 40, sqli: 60, xss: 45, traversal: 55, cmdi: 60, bad_ua: 50, flood: 25, probe404: 12, brute: 30 };
+
+// Human labels for each threat type (shown in alerts / the panel).
+const KIND_LABEL = {
+  scanner: 'Scanning for hidden files/admin pages', sqli: 'SQL injection attempt',
+  xss: 'Cross-site scripting attempt', traversal: 'Path-traversal attempt',
+  cmdi: 'Command-injection attempt', bad_ua: 'Hacking tool / bad bot',
+  flood: 'Request flood (possible DoS)', probe404: 'Probing many URLs',
+  brute: 'Login brute-force attempt',
+};
+
+// Score → danger rating.
+function threatLevel(score) {
+  if (score >= 120) return { label: 'CRITICAL', emoji: '🔴' };
+  if (score >= 80) return { label: 'HIGH', emoji: '🟠' };
+  if (score >= 40) return { label: 'MEDIUM', emoji: '🟡' };
+  return { label: 'LOW', emoji: '🟢' };
+}
 
 // ── In-memory sliding windows (per IP) ──────────────────────
 const WINDOW_MS = 60 * 1000;
@@ -114,6 +131,9 @@ async function record(ip, kind, req, detail) {
   const [[rep]] = await pool.query('SELECT * FROM ip_reputation WHERE ip = ?', [ip]);
   if (!rep || rep.status === 'allowed' || rep.status === 'blocked') return;
 
+  // Feed the coordinated-attack detector (real attack kinds only, not soft signals).
+  if (!['probe404', 'flood'].includes(kind)) noteAttackForSurge(ip).catch(() => {});
+
   // Auto-block clear-cut attackers when enabled.
   if (rep.score >= env.SECURITY_AUTOBLOCK_SCORE && await autoBlockOn()) {
     await blockIp(ip, `Auto-blocked: ${kind} (score ${rep.score})`, null);
@@ -141,26 +161,88 @@ async function noteRequest(ip, req, statusCode) {
   if (total === env.SECURITY_FLOOD_THRESHOLD) await record(ip, 'flood', req, `${total} requests/min`);
 }
 
-// Send a Telegram alert with action buttons.
-async function alert(rep, kind, detail, autoBlocked) {
+// ── Geolocation (free, https, no key; cached once per IP) ───
+async function geolocate(ip, rep) {
+  if (!env.SECURITY_GEO_LOOKUP) return rep || {};
+  if (rep && rep.geo_done) return rep;
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 8000);
+    const geo = await fetch(`https://ipwho.is/${encodeURIComponent(ip)}?fields=success,country,country_code,city,connection,security`,
+      { signal: controller.signal }).then((r) => r.json()).finally(() => clearTimeout(timer));
+    const conn = geo && geo.connection ? geo.connection : {};
+    const sec = geo && geo.security ? geo.security : {};
+    const data = {
+      country: geo && geo.country ? String(geo.country).slice(0, 64) : null,
+      country_code: geo && geo.country_code ? String(geo.country_code).slice(0, 4) : null,
+      city: geo && geo.city ? String(geo.city).slice(0, 96) : null,
+      isp: conn.isp || conn.org ? String(conn.isp || conn.org).slice(0, 128) : null,
+      is_proxy: sec.proxy || sec.vpn || sec.tor ? 1 : 0,
+    };
+    await pool.query(
+      'UPDATE ip_reputation SET country = ?, country_code = ?, city = ?, isp = ?, is_proxy = ?, geo_done = 1 WHERE ip = ?',
+      [data.country, data.country_code, data.city, data.isp, data.is_proxy, ip]);
+    return Object.assign({}, rep, data, { geo_done: 1 });
+  } catch (_) {
+    await pool.query('UPDATE ip_reputation SET geo_done = 1 WHERE ip = ?', [ip]).catch(() => {});
+    return rep || {};
+  }
+}
+
+function flagEmoji(cc) {
+  if (!cc || cc.length !== 2) return '';
+  return String.fromCodePoint(...cc.toUpperCase().split('').map((c) => 0x1f1e6 + c.charCodeAt(0) - 65));
+}
+
+// ── "Under attack" detection (many distinct attacker IPs, fast) ─
+const attackWindow = []; // [{ ip, at }]
+async function noteAttackForSurge(ip) {
+  const now = Date.now();
+  const winMs = env.SECURITY_UNDER_ATTACK_WINDOW_MIN * 60 * 1000;
+  while (attackWindow.length && now - attackWindow[0].at > winMs) attackWindow.shift();
+  attackWindow.push({ ip, at: now });
+  const distinct = new Set(attackWindow.map((a) => a.ip)).size;
+  if (distinct < env.SECURITY_UNDER_ATTACK_IPS) return;
+
+  // Trip under-attack mode; alert once per window.
+  const lastRaw = await getSetting('under_attack_at', '0');
+  const last = Number(lastRaw) || 0;
+  await setSetting('under_attack_at', String(now));
+  if (now - last < winMs) return; // already alerted this window
+  const events = attackWindow.length;
+  await telegram.send(
+    `🔴🔴 <b>WEBSITE UNDER ATTACK</b> 🔴🔴\n\n` +
+    `<b>${distinct} different IPs</b> attacked in the last ${env.SECURITY_UNDER_ATTACK_WINDOW_MIN} min (${events} events).\n\n` +
+    `Open <b>Admin → Security</b> to review and block them. Turn on <b>auto-block</b> to have the site ban clear-cut attackers for you.`,
+  ).catch(() => {});
+}
+
+// Send a Telegram alert with action buttons + geo + threat level.
+async function alert(repIn, kind, detail, autoBlocked) {
   if (!telegram.enabled) return;
   const e = telegram.esc;
+  const rep = await geolocate(repIn.ip, repIn);
+  const lvl = threatLevel(rep.score);
   const recent = await pool.query(
-    'SELECT kind, path, created_at FROM security_events WHERE ip = ? ORDER BY id DESC LIMIT 4', [rep.ip]);
-  const lines = recent[0].map((r) => `• <code>${e(r.kind)}</code> ${e(String(r.path).slice(0, 48))}`).join('\n');
-  const head = autoBlocked ? '🛑 <b>Attacker auto-blocked</b>' : '🚨 <b>Suspicious activity detected</b>';
+    'SELECT DISTINCT kind, path FROM security_events WHERE ip = ? ORDER BY id DESC LIMIT 5', [rep.ip]);
+  const lines = recent[0].map((r) =>
+    `• <b>${e(KIND_LABEL[r.kind] || r.kind)}</b>\n   <code>${e(String(r.path || '').slice(0, 52))}</code>`).join('\n') || '—';
+  const loc = [rep.city, rep.country].filter(Boolean).join(', ') || 'Unknown location';
+  const flag = flagEmoji(rep.country_code);
+  const head = autoBlocked ? '🛑 <b>ATTACKER AUTO-BLOCKED</b>' : `${lvl.emoji} <b>${lvl.label} THREAT — action needed</b>`;
   const text =
     `${head}\n\n` +
     `<b>IP:</b> <code>${e(rep.ip)}</code>\n` +
-    `<b>Threat:</b> ${e(kind)} — ${e(detail || '')}\n` +
-    `<b>Score:</b> ${rep.score}  ·  <b>Events:</b> ${rep.events_count}\n` +
-    `<b>Agent:</b> ${e(String(rep.user_agent || '').slice(0, 60))}\n\n` +
-    `<b>Recent:</b>\n${lines}`;
+    `<b>Location:</b> ${flag} ${e(loc)}${rep.is_proxy ? '  ⚠️ <i>VPN/Proxy</i>' : ''}\n` +
+    `<b>Network:</b> ${e(String(rep.isp || 'Unknown').slice(0, 50))}\n` +
+    `<b>Danger:</b> ${lvl.emoji} ${lvl.label}  (score ${rep.score})\n` +
+    `<b>Device:</b> ${e(String(rep.user_agent || 'unknown').slice(0, 55))}\n\n` +
+    `<b>What they did (${rep.events_count} events):</b>\n${lines}`;
   const rows = autoBlocked
     ? [[{ text: '✅ Unblock', data: `alw:${rep.ip}` }, { text: '👁 Watch', data: `wch:${rep.ip}` }],
-       [{ text: 'ℹ️ Details', data: `inf:${rep.ip}` }]]
-    : [[{ text: '🚫 Block', data: `blk:${rep.ip}` }, { text: '✅ Allow', data: `alw:${rep.ip}` }],
-       [{ text: '👁 Watch', data: `wch:${rep.ip}` }, { text: 'ℹ️ Details', data: `inf:${rep.ip}` }]];
+       [{ text: 'ℹ️ Full details', data: `inf:${rep.ip}` }]]
+    : [[{ text: '🚫 Block now', data: `blk:${rep.ip}` }, { text: '✅ Allow', data: `alw:${rep.ip}` }],
+       [{ text: '👁 Watch', data: `wch:${rep.ip}` }, { text: 'ℹ️ Full details', data: `inf:${rep.ip}` }]];
   await telegram.sendButtons(text, rows);
 }
 
@@ -190,14 +272,23 @@ async function watchIp(ip) {
 }
 
 async function ipDetails(ip) {
-  const [[rep]] = await pool.query('SELECT * FROM ip_reputation WHERE ip = ?', [ip]);
+  let [[rep]] = await pool.query('SELECT * FROM ip_reputation WHERE ip = ?', [ip]);
+  if (rep && !rep.geo_done) rep = await geolocate(ip, rep);
   const [events] = await pool.query(
     'SELECT kind, method, path, detail, created_at FROM security_events WHERE ip = ? ORDER BY id DESC LIMIT 10', [ip]);
   const [[blocked]] = await pool.query('SELECT id FROM blocked_ips WHERE ip = ?', [ip]);
   return { rep, events, blocked: !!blocked };
 }
 
+// Is the site currently under a coordinated attack? (for the admin banner)
+async function underAttack() {
+  const at = Number(await getSetting('under_attack_at', '0')) || 0;
+  const winMs = env.SECURITY_UNDER_ATTACK_WINDOW_MIN * 60 * 1000;
+  return at > 0 && (Date.now() - at) < Math.max(winMs, 10 * 60 * 1000);
+}
+
 module.exports = {
   classify, record, noteRequest, isPrivateIp, isOn,
-  blockIp, allowIp, watchIp, ipDetails,
+  blockIp, allowIp, watchIp, ipDetails, underAttack,
+  threatLevel, geolocate, flagEmoji, KIND_LABEL,
 };

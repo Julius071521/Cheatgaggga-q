@@ -48,14 +48,19 @@ router.post('/telegram/webhook/:secret', express.json({ limit: '32kb' }), async 
       await telegram.answerCallback(cq.id, `👁 Watching ${ip}`);
     } else if (action === 'inf') {
       const { rep, events, blocked } = await security.ipDetails(ip);
+      const lvl = security.threatLevel(rep ? rep.score : 0);
       const lines = events.map((ev) =>
-        `• <code>${e(ev.kind)}</code> ${e(ev.method || '')} ${e(String(ev.path || '').slice(0, 44))}`).join('\n') || '—';
+        `• <b>${e(security.KIND_LABEL[ev.kind] || ev.kind)}</b> — <code>${e(ev.method || '')} ${e(String(ev.path || '').slice(0, 40))}</code>`).join('\n') || '—';
+      const loc = rep ? [rep.city, rep.country].filter(Boolean).join(', ') : '';
+      const flag = rep ? security.flagEmoji(rep.country_code) : '';
       const text =
         `ℹ️ <b>IP ${e(ip)}</b>\n` +
-        `Status: <b>${e(blocked ? 'blocked' : (rep && rep.status) || 'none')}</b>  ·  ` +
-        `Score: ${rep ? rep.score : 0}  ·  Events: ${rep ? rep.events_count : 0}\n` +
-        `Agent: ${e(String((rep && rep.user_agent) || '').slice(0, 70))}\n\n` +
-        `<b>Last events:</b>\n${lines}`;
+        `<b>Location:</b> ${flag} ${e(loc || 'Unknown')}${rep && rep.is_proxy ? '  ⚠️ VPN/Proxy' : ''}\n` +
+        `<b>Network:</b> ${e(String((rep && rep.isp) || 'Unknown').slice(0, 50))}\n` +
+        `<b>Status:</b> ${e(blocked ? '🚫 blocked' : (rep && rep.status) || 'flagged')}  ·  ` +
+        `<b>Danger:</b> ${lvl.emoji} ${lvl.label} (${rep ? rep.score : 0})  ·  Events: ${rep ? rep.events_count : 0}\n` +
+        `<b>Device:</b> ${e(String((rep && rep.user_agent) || '').slice(0, 60))}\n\n` +
+        `<b>Recent activity:</b>\n${lines}`;
       const rows = blocked
         ? [[{ text: '✅ Unblock', data: `alw:${ip}` }, { text: '👁 Watch', data: `wch:${ip}` }]]
         : [[{ text: '🚫 Block', data: `blk:${ip}` }, { text: '✅ Allow', data: `alw:${ip}` }, { text: '👁 Watch', data: `wch:${ip}` }]];

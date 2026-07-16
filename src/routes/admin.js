@@ -138,6 +138,8 @@ router.get('/admin/security', async (req, res, next) => {
     res.render('admin/security', {
       title: 'Admin · Security', enabled, autoBlock, threats, recent, stat, blockedCount: blk.c,
       telegramOn: require('../services/telegram').enabled,
+      underAttack: await security.underAttack(),
+      threatLevel: security.threatLevel, flagEmoji: security.flagEmoji, kindLabel: security.KIND_LABEL,
     });
   } catch (err) { next(err); }
 });
