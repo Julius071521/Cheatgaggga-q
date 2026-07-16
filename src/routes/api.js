@@ -10,7 +10,7 @@ const { isValidHttpUrl } = require('../utils/helpers');
 
 const router = express.Router();
 
-router.post('/api/v2', apiLimiter, express.urlencoded({ extended: false }), async (req, res) => {
+router.post('/api/v2', apiLimiter, express.urlencoded({ extended: false, limit: '16kb', parameterLimit: 200 }), async (req, res) => {
   try {
     const key = String(req.body.key || '');
     if (!key || key.length !== 64) return res.json({ error: 'Invalid API key' });

@@ -2,5 +2,6 @@
 .env.local
 .env.production
 node_modules/
-uploads/
+uploads/*
+!uploads/.htaccess
 *.log

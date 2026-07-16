@@ -4,6 +4,12 @@ const crypto = require('crypto');
 // Simple double-submit CSRF: token stored in session, echoed in forms/headers.
 const EXEMPT_PREFIXES = ['/api/v2'];
 
+// Constant-time compare so a token can't be guessed by measuring response time.
+function safeEqual(a, b) {
+  if (typeof a !== 'string' || typeof b !== 'string' || a.length !== b.length) return false;
+  try { return crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b)); } catch (_) { return false; }
+}
+
 function csrf(req, res, next) {
   if (!req.session.csrfToken) {
     req.session.csrfToken = crypto.randomBytes(24).toString('hex');
@@ -16,7 +22,7 @@ function csrf(req, res, next) {
   // multipart/form-data bodies are parsed later (multer), so those forms
   // send the token in the query string instead.
   const sent = (req.body && req.body._csrf) || req.get('x-csrf-token') || req.query._csrf;
-  if (!sent || sent !== req.session.csrfToken) {
+  if (!sent || !safeEqual(String(sent), req.session.csrfToken)) {
     if (req.accepts('json') && !req.accepts('html')) {
       return res.status(403).json({ error: 'Invalid CSRF token' });
     }

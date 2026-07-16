@@ -1,0 +1,27 @@
+# ============================================================================
+#  ApexBoost — uploads lockdown (payment receipts)
+#  Uploaded files are ONLY ever served through the app at /receipt/:id (which
+#  checks ownership). Nothing here should be reachable or executable directly.
+# ============================================================================
+
+# Deny ALL direct web access to this folder.
+<IfModule mod_authz_core.c>
+  Require all denied
+</IfModule>
+<IfModule !mod_authz_core.c>
+  Order allow,deny
+  Deny from all
+</IfModule>
+
+# Even if a rule above is bypassed, never execute anything here.
+Options -ExecCGI -Indexes
+RemoveHandler .php .phtml .php3 .php4 .php5 .php7 .php8 .pl .py .cgi .rb .sh .lua .jsp .asp .aspx
+RemoveType .php .phtml .php3 .php4 .php5 .php7 .php8 .pl .py .cgi .rb .sh .lua
+
+<IfModule mod_php.c>
+  php_flag engine off
+</IfModule>
+<IfModule mod_headers.c>
+  Header always set X-Content-Type-Options "nosniff"
+  Header always set Content-Disposition "attachment"
+</IfModule>

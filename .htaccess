@@ -1,0 +1,67 @@
+# ============================================================================
+#  ApexBoost — Apache / cPanel (Passenger) hardening
+#  Place this at your Application Root. If cPanel already generated an
+#  .htaccess here containing a "# DO NOT REMOVE. CLOUDLINUX PASSENGER..."
+#  block, KEEP that block and paste the rules below ABOVE it — they do not
+#  conflict (Passenger runs the Node app; these rules guard Apache/static).
+# ============================================================================
+
+# ── Never list a directory's contents, and no MultiViews guessing ──
+Options -Indexes -MultiViews
+
+# ── Force HTTPS (comment out only if you have not installed SSL yet) ──
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteCond %{HTTPS} off
+  RewriteCond %{HTTP:X-Forwarded-Proto} !https
+  RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [R=301,L]
+</IfModule>
+
+# ── Block ALL dotfiles (.env, .git, .htaccess itself, etc.) ──
+<FilesMatch "^\.">
+  <IfModule mod_authz_core.c>
+    Require all denied
+  </IfModule>
+  <IfModule !mod_authz_core.c>
+    Order allow,deny
+    Deny from all
+  </IfModule>
+</FilesMatch>
+
+# ── Block sensitive source / config / data files by extension & name ──
+<FilesMatch "(?i)\.(env|sql|log|lock|md|json|ejs|sh|ini|bak|old|swp|dist|example|lua)$|^(package(-lock)?\.json|server\.js|README|Dockerfile|yarn\.lock|pnpm-lock\.yaml)$">
+  <IfModule mod_authz_core.c>
+    Require all denied
+  </IfModule>
+  <IfModule !mod_authz_core.c>
+    Order allow,deny
+    Deny from all
+  </IfModule>
+</FilesMatch>
+
+# ── Block direct access to backend directories (belt & suspenders — these
+#    should sit above the web root anyway, but deny them if exposed) ──
+RedirectMatch 404 (?i)^/(src|uploads|node_modules|migrations|\.git|logs)(/|$)
+
+# ── Disable risky HTTP methods (TRACE/TRACK → cross-site tracing) ──
+<IfModule mod_rewrite.c>
+  RewriteCond %{REQUEST_METHOD} ^(TRACE|TRACK|DEBUG)$ [NC]
+  RewriteRule .* - [F]
+</IfModule>
+
+# ── Defense-in-depth security headers at the Apache layer ──
+<IfModule mod_headers.c>
+  Header always set X-Content-Type-Options "nosniff"
+  Header always set X-Frame-Options "DENY"
+  Header always set Referrer-Policy "strict-origin-when-cross-origin"
+  Header always set Permissions-Policy "geolocation=(), microphone=(), camera=(), payment=(), usb=(), interest-cohort=()"
+  Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains" env=HTTPS
+  # Do not leak the tech stack.
+  Header always unset X-Powered-By
+  Header always unset Server
+</IfModule>
+
+# ── Sane upload/body ceiling for anything Apache handles directly ──
+<IfModule mod_php.c>
+  php_flag engine off
+</IfModule>

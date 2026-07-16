@@ -23,8 +23,9 @@ async function refresh() {
 function invalidate() { cache.at = 0; }
 
 // Paths that must stay reachable even during maintenance / for everyone,
-// so an admin can still sign in and assets keep loading.
-const ALWAYS_ALLOW = [/^\/login/, /^\/logout/, /^\/forgot/, /^\/reset/, /^\/auth\/google/, /^\/assets/, /^\/ai\/chat/];
+// so an admin can still sign in and assets keep loading. NOTE: /ai/chat is
+// intentionally NOT here — maintenance must fully lock the site (no AI abuse).
+const ALWAYS_ALLOW = [/^\/login/, /^\/logout/, /^\/forgot/, /^\/reset/, /^\/auth\/google/, /^\/assets/];
 
 async function gate(req, res, next) {
   await refresh();

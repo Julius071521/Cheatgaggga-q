@@ -24,11 +24,19 @@ async function getUserByIdentifier(identifier) {
   return user || null;
 }
 
+// Only ever redirect to a same-site absolute path — never to //evil.com,
+// a full URL, or a backslash trick. Blocks open-redirect abuse after login.
+function safeDest(dest, fallback) {
+  if (typeof dest !== 'string') return fallback;
+  if (!dest.startsWith('/') || dest.startsWith('//') || dest.startsWith('/\\')) return fallback;
+  return dest;
+}
+
 function loginSession(req, user, res, fallback = '/dashboard') {
   req.session.regenerate((err) => {
     if (err) return res.status(500).render('errors/500');
     req.session.userId = user.id;
-    const dest = req.session.returnTo || fallback;
+    const dest = safeDest(req.session.returnTo, fallback);
     delete req.session.returnTo;
     req.session.save(() => res.redirect(dest));
   });

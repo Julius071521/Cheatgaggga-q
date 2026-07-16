@@ -22,23 +22,37 @@ app.set('views', path.join(__dirname, 'views'));
 app.set('trust proxy', 1);
 
 // ── Security headers ──────────────────────────────────────
+const isHttps = String(env.BASE_URL || '').startsWith('https');
+const cspDirectives = {
+  defaultSrc: ["'self'"],
+  scriptSrc: ["'self'", 'https://challenges.cloudflare.com'],
+  styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+  fontSrc: ["'self'", 'https://fonts.gstatic.com'],
+  imgSrc: ["'self'", 'data:'],
+  connectSrc: ["'self'"],
+  frameSrc: ['https://challenges.cloudflare.com'],
+  frameAncestors: ["'none'"], // clickjacking: nobody may embed our pages
+  objectSrc: ["'none'"],
+  baseUri: ["'self'"],
+  formAction: ["'self'", 'https://accounts.google.com'],
+  // Force any stray http:// asset/link up to https in production (downgrade guard).
+  ...(isHttps ? { upgradeInsecureRequests: [] } : {}),
+};
 app.use(helmet({
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", 'https://challenges.cloudflare.com'],
-      styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
-      fontSrc: ["'self'", 'https://fonts.gstatic.com'],
-      imgSrc: ["'self'", 'data:'],
-      connectSrc: ["'self'"],
-      frameSrc: ['https://challenges.cloudflare.com'],
-      objectSrc: ["'none'"],
-      baseUri: ["'self'"],
-      formAction: ["'self'", 'https://accounts.google.com'],
-    },
-  },
+  contentSecurityPolicy: { directives: cspDirectives },
   crossOriginEmbedderPolicy: false,
+  frameguard: { action: 'deny' }, // no framing at all (matches CSP frame-ancestors 'none')
+  hsts: isHttps ? { maxAge: 31536000, includeSubDomains: true, preload: true } : false,
+  referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
 }));
+
+// Headers helmet doesn't set: lock down powerful browser features + isolate origin.
+app.use((req, res, next) => {
+  res.setHeader('Permissions-Policy',
+    'geolocation=(), microphone=(), camera=(), payment=(), usb=(), magnetometer=(), gyroscope=(), interest-cohort=()');
+  res.setHeader('X-Permitted-Cross-Domain-Policies', 'none');
+  next();
+});
 
 app.use(generalLimiter);
 app.use(express.urlencoded({ extended: false, limit: '32kb' }));
@@ -99,6 +113,17 @@ app.use(async (req, res, next) => {
   res.locals.notifCount = 0;
   if (req.user && req.method === 'GET' && !req.path.startsWith('/assets')) {
     try { res.locals.notifCount = await notifications.unreadCount(req.user); } catch (_) {}
+  }
+  next();
+});
+
+// Never let browsers/proxies cache authenticated or private pages
+// (balance, orders, admin, API) — prevents stale/leaked data on shared devices.
+const PRIVATE_PATH = /^\/(dashboard|order|orders|wallet|settings|receipt|admin|notifications|api|ai)\b/;
+app.use((req, res, next) => {
+  if (req.user || PRIVATE_PATH.test(req.path)) {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+    res.setHeader('Pragma', 'no-cache');
   }
   next();
 });
