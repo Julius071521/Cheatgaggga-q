@@ -80,17 +80,21 @@ async function autoBlockOn() {
 }
 
 // Classify one request. Returns { kind, score, detail } or null.
-function classify(req) {
+// opts.scanPayload=false → only path + user-agent are inspected (used for
+// signed-in customers, so their chat/ticket/link content is never flagged).
+function classify(req, opts) {
+  const scanPayload = !opts || opts.scanPayload !== false;
   const path = String(req.originalUrl || req.url || '').slice(0, 500);
   const ua = String(req.get('user-agent') || '');
-  // Reconstruct a haystack from path + query + a little body for payload checks.
-  let body = '';
-  try { body = req.body && typeof req.body === 'object' ? JSON.stringify(req.body).slice(0, 1000) : ''; } catch (_) {}
-  const hay = decodeURIComponentSafe(path) + ' ' + decodeURIComponentSafe(body);
 
   if (!ua || ua.length < 4) return { kind: 'bad_ua', detail: 'empty/short user-agent' };
   if (BAD_UA.test(ua)) return { kind: 'bad_ua', detail: ua.slice(0, 80) };
   if (SCANNER_PATHS.some((re) => re.test(path))) return { kind: 'scanner', detail: path.slice(0, 90) };
+  if (!scanPayload) return null; // trusted user — stop at path/UA signals
+
+  let body = '';
+  try { body = req.body && typeof req.body === 'object' ? JSON.stringify(req.body).slice(0, 1000) : ''; } catch (_) {}
+  const hay = decodeURIComponentSafe(path) + ' ' + decodeURIComponentSafe(body);
   if (SQLI.test(hay)) return { kind: 'sqli', detail: 'SQL keywords in request' };
   if (TRAVERSAL.test(hay)) return { kind: 'traversal', detail: 'path traversal pattern' };
   if (CMDI.test(hay)) return { kind: 'cmdi', detail: 'command-injection pattern' };
@@ -104,7 +108,8 @@ function decodeURIComponentSafe(s) {
 
 // Record an event + roll it into the IP's reputation. Fires alert/auto-block
 // when the running score crosses the configured thresholds.
-async function record(ip, kind, req, detail) {
+async function record(ip, kind, req, detail, opts) {
+  const authed = !!(opts && opts.authed);
   const score = KIND_SCORE[kind] || 10;
   const path = String(req.originalUrl || req.url || '').slice(0, 255);
   const ua = String(req.get('user-agent') || '').slice(0, 255);
@@ -134,8 +139,9 @@ async function record(ip, kind, req, detail) {
   // Feed the coordinated-attack detector (real attack kinds only, not soft signals).
   if (!['probe404', 'flood'].includes(kind)) noteAttackForSurge(ip).catch(() => {});
 
-  // Auto-block clear-cut attackers when enabled.
-  if (rep.score >= env.SECURITY_AUTOBLOCK_SCORE && await autoBlockOn()) {
+  // Auto-block clear-cut attackers when enabled — but NEVER auto-block a
+  // signed-in customer (a human account is not an anonymous attacker).
+  if (!authed && rep.score >= env.SECURITY_AUTOBLOCK_SCORE && await autoBlockOn()) {
     await blockIp(ip, `Auto-blocked: ${kind} (score ${rep.score})`, null);
     await alert(rep, kind, detail, true);
     return;
@@ -280,6 +286,18 @@ async function ipDetails(ip) {
   return { rep, events, blocked: !!blocked };
 }
 
+// Housekeeping: drop old events + stale reputation so the tables stay small.
+async function purgeOld() {
+  const days = Math.max(1, env.SECURITY_EVENT_RETENTION_DAYS);
+  try {
+    await pool.query('DELETE FROM security_events WHERE created_at < DATE_SUB(NOW(), INTERVAL ? DAY)', [days]);
+    // Forget flagged (non-blocked, non-allowed) IPs we haven't seen in a while.
+    await pool.query(
+      `DELETE FROM ip_reputation WHERE (status IS NULL OR status = 'watch')
+         AND last_seen < DATE_SUB(NOW(), INTERVAL ? DAY)`, [days]);
+  } catch (err) { console.warn('[security] purge failed:', err.message); }
+}
+
 // Is the site currently under a coordinated attack? (for the admin banner)
 async function underAttack() {
   const at = Number(await getSetting('under_attack_at', '0')) || 0;
@@ -289,6 +307,6 @@ async function underAttack() {
 
 module.exports = {
   classify, record, noteRequest, isPrivateIp, isOn,
-  blockIp, allowIp, watchIp, ipDetails, underAttack,
+  blockIp, allowIp, watchIp, ipDetails, underAttack, purgeOld,
   threatLevel, geolocate, flagEmoji, KIND_LABEL,
 };

@@ -64,6 +64,9 @@ const env = {
   SECURITY_404_THRESHOLD: num('SECURITY_404_THRESHOLD', 15),
   SECURITY_FLOOD_THRESHOLD: num('SECURITY_FLOOD_THRESHOLD', 150),
   SECURITY_GEO_LOOKUP: bool('SECURITY_GEO_LOOKUP', true),
+  // Site is fronted by Cloudflare → trust CF-Connecting-IP for the real visitor.
+  TRUST_CF_CONNECTING_IP: bool('TRUST_CF_CONNECTING_IP', true),
+  SECURITY_EVENT_RETENTION_DAYS: num('SECURITY_EVENT_RETENTION_DAYS', 30),
   // "Under attack" mode: N distinct attacker IPs within the window trips it.
   SECURITY_UNDER_ATTACK_IPS: num('SECURITY_UNDER_ATTACK_IPS', 5),
   SECURITY_UNDER_ATTACK_WINDOW_MIN: num('SECURITY_UNDER_ATTACK_WINDOW_MIN', 5),

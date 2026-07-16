@@ -336,6 +336,8 @@ async function tick() {
       result.flagged = await flagStuckOrders();
       try { result.balanceAlerts = await checkProviderBalances(); }
       catch (err) { console.warn('[autopilot] balance pass failed:', err.message); }
+      try { await require('./security').purgeOld(); }
+      catch (err) { console.warn('[autopilot] security purge failed:', err.message); }
     }
     try { result.digest = await sendDailyDigest(); }
     catch (err) { console.warn('[autopilot] digest failed:', err.message); }

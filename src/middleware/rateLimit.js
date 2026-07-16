@@ -14,7 +14,7 @@ const aiLimiter = rateLimit({
   limit: 30,
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req) => (req.session && req.session.id) || req.ip,
+  keyGenerator: (req) => (req.session && req.session.id) || req.clientIp || req.ip,
   message: { error: 'Chat limit reached for now. Please try again later.' },
 });
 

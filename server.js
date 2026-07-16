@@ -20,6 +20,9 @@ const ASSET_VERSION = Date.now().toString(36);
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 app.set('trust proxy', 1);
+// Resolve the REAL visitor IP (Cloudflare CF-Connecting-IP) into req.clientIp
+// before any middleware reads it — otherwise everything sees the CF edge IP.
+app.use(require('./src/utils/clientip').attachClientIp);
 
 // ── Security headers ──────────────────────────────────────
 const isHttps = String(env.BASE_URL || '').startsWith('https');

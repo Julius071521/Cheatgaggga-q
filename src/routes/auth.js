@@ -138,7 +138,7 @@ router.post('/login', authLimiter, verifyTurnstile, async (req, res, next) => {
 
     if (!user || !(await verifySecret(password, user.password))) {
       // Feed failed logins to the Threat Radar (brute-force scoring).
-      try { require('../services/security').record(req.ip, 'brute', req, 'failed login'); } catch (_) {}
+      try { require('../services/security').record(req.clientIp || req.ip, 'brute', req, 'failed login'); } catch (_) {}
       flash(req, 'error', 'Incorrect username/email or password.');
       return res.redirect('/login');
     }

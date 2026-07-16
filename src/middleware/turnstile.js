@@ -12,7 +12,7 @@ async function verifyTurnstile(req, res, next) {
     const body = new URLSearchParams({
       secret: env.TURNSTILE_SECRET_KEY,
       response: token,
-      remoteip: req.ip,
+      remoteip: req.clientIp || req.ip,
     });
     const result = await fetch(VERIFY_URL, {
       method: 'POST',

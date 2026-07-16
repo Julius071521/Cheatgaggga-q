@@ -14,15 +14,18 @@ async function enabled() {
 const SKIP = /^\/(assets|telegram|favicon\.ico|robots\.txt)/;
 
 function threatRadar(req, res, next) {
-  const ip = req.ip;
+  const ip = req.clientIp || req.ip;
   if (SKIP.test(req.path) || security.isPrivateIp(ip)) return next();
 
   enabled().then((on) => {
     if (!on) return;
-    // Signature match on the request itself.
-    const hit = security.classify(req);
-    if (hit) security.record(ip, hit.kind, req, hit.detail).catch(() => {});
-    // Rate/scan behavior is judged once the response status is known.
+    // For signed-in customers, only trust unambiguous signals (scanner paths,
+    // hacking-tool user-agents) — never scan their request bodies/queries, so a
+    // customer typing "union select" or "<script>" in chat/tickets is never
+    // flagged. Anonymous visitors get the full payload inspection.
+    const authed = !!req.user;
+    const hit = security.classify(req, { scanPayload: !authed });
+    if (hit) security.record(ip, hit.kind, req, hit.detail, { authed }).catch(() => {});
     res.on('finish', () => { security.noteRequest(ip, req, res.statusCode).catch(() => {}); });
   }).catch(() => {});
 
