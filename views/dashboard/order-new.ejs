@@ -9,22 +9,41 @@
           data-preselected='<%- preselected ? JSON.stringify({ id: preselected.id, platform: preselected.platform }) : "null" %>'>
       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
 
-      <label class="field">
+      <div class="field">
         <span>Platform</span>
-        <select id="of-platform" required>
-          <option value="">— Choose a platform —</option>
+        <div class="plat-grid" id="plat-grid" role="group" aria-label="Choose a platform">
           <% platforms.forEach(function(p) { %>
-            <option value="<%= p %>" <%= preselected && preselected.platform === p ? 'selected' : '' %>><%= h.platformLabel(p) %></option>
+          <button type="button" class="plat-btn <%= preselected && preselected.platform === p ? 'active' : '' %>" data-platform="<%= p %>">
+            <%- include('../partials/platform-badge', { platform: p, size: 30 }) %>
+            <span><%= h.platformLabel(p) %></span>
+          </button>
           <% }); %>
-        </select>
-      </label>
+        </div>
+        <input type="hidden" id="of-platform" value="<%= preselected ? preselected.platform : '' %>">
+      </div>
 
-      <label class="field">
+      <div class="field">
         <span>Service</span>
-        <select id="of-service" name="service_id" required disabled>
-          <option value="">— Choose a platform first —</option>
-        </select>
-      </label>
+        <div class="svc-picker" id="svc-picker">
+          <button type="button" class="svc-trigger" id="svc-trigger" disabled aria-haspopup="listbox" aria-expanded="false">
+            <span class="svc-trigger-label" id="svc-trigger-label"><span class="muted">— Choose a platform first —</span></span>
+            <svg class="svc-chevron" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+          </button>
+          <div class="svc-panel" id="svc-panel" hidden>
+            <div class="svc-search">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.3-3.3"/></svg>
+              <input type="search" id="svc-search" placeholder="Search services… (e.g. followers, likes)" autocomplete="off">
+            </div>
+            <div class="svc-list" id="svc-list" role="listbox" tabindex="-1"></div>
+          </div>
+          <input type="hidden" name="service_id" id="of-service">
+        </div>
+      </div>
+
+      <!-- Platform icons the picker clones for each service row -->
+      <div id="pb-icons" hidden>
+        <% platforms.forEach(function(p) { %><span data-pb="<%= p %>"><%- include('../partials/platform-badge', { platform: p, size: 26 }) %></span><% }); %>
+      </div>
 
       <div class="of-meta" id="of-meta" hidden>
         <span id="of-rate"></span>

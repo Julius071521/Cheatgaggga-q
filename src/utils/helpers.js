@@ -65,6 +65,28 @@ function platformLabel(code) {
   return PLATFORM_LABELS[code] || 'Other';
 }
 
+// Providers decorate category names with dashes/emoji noise
+// ("----FACEBOOK SERVICES AREA----"). Strip it and fix SHOUTING CAPS.
+function tidyCategory(raw) {
+  let c = String(raw || '')
+    .replace(/^[\s\-–—=_~*#>|·.]+|[\s\-–—=_~*#>|·.]+$/g, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+  if (!c) return 'General';
+  if (c.length > 3 && c === c.toUpperCase()) {
+    c = c.toLowerCase().replace(/(^|\s|\/|\[|\()([a-z])/g, (m, pre, ch) => pre + ch.toUpperCase());
+  }
+  return c.slice(0, 90);
+}
+
+// Some provider rows have junk names like "1" — give them a sane label,
+// and swap noisy " | " separators for a calmer " · ".
+function tidyServiceName(raw, id) {
+  let n = String(raw || '').replace(/\s*\|\s*/g, ' · ').replace(/\s{2,}/g, ' ').trim();
+  if (n.length < 4 || /^\d+$/.test(n)) n = `Service #${id}`;
+  return n;
+}
+
 // Detect a platform code from free text (service name/category) — used for
 // existing orders that have no platform column.
 const PLATFORM_TEXT_KEYWORDS = [
@@ -107,4 +129,5 @@ module.exports = {
   toCents, centsToPhp, money, moneyRate, randomToken, sha256,
   isValidEmail, isValidHttpUrl, clampInt, formatDate,
   platformLabel, platformFromText, statusLabel, statusSlug, isAdminRole, PLATFORM_LABELS,
+  tidyCategory, tidyServiceName,
 };

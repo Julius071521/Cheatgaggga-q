@@ -3,8 +3,15 @@
   var form = document.getElementById('order-form');
   if (!form) return;
 
-  var platformSel = document.getElementById('of-platform');
-  var serviceSel = document.getElementById('of-service');
+  var platGrid = document.getElementById('plat-grid');
+  var platInput = document.getElementById('of-platform');
+  var trigger = document.getElementById('svc-trigger');
+  var triggerLabel = document.getElementById('svc-trigger-label');
+  var panel = document.getElementById('svc-panel');
+  var searchInput = document.getElementById('svc-search');
+  var listEl = document.getElementById('svc-list');
+  var serviceInput = document.getElementById('of-service');
+  var icons = document.getElementById('pb-icons');
   var qtyInput = document.getElementById('of-qty');
   var meta = document.getElementById('of-meta');
   var rateEl = document.getElementById('of-rate');
@@ -12,6 +19,7 @@
   var refillEl = document.getElementById('of-refill');
   var totalEl = document.getElementById('of-total');
   var submitBtn = document.getElementById('of-submit');
+  var guidance = document.getElementById('of-guidance');
 
   var services = [];
   var current = null;
@@ -21,7 +29,15 @@
   function peso(n) {
     return '₱' + n.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
+  function fmtQty(n) {
+    return Number(n) >= 100000000000 ? '∞' : Number(n).toLocaleString();
+  }
+  function iconFor(platform) {
+    var tpl = icons && icons.querySelector('[data-pb="' + platform + '"] .pbadge');
+    return tpl ? tpl.cloneNode(true) : null;
+  }
 
+  // ── Total / validity ──
   function updateTotal() {
     var qty = parseInt(qtyInput.value, 10);
     if (!current || !qty || qty < 1) {
@@ -37,14 +53,137 @@
     qtyInput.setCustomValidity(inRange ? '' : 'Quantity must be between ' + current.min + ' and ' + current.max);
   }
 
-  var guidance = document.getElementById('of-guidance');
+  // ── Service picker (custom searchable dropdown) ──
+  function closePanel() {
+    panel.hidden = true;
+    trigger.setAttribute('aria-expanded', 'false');
+  }
+  function openPanel() {
+    if (trigger.disabled) return;
+    panel.hidden = false;
+    trigger.setAttribute('aria-expanded', 'true');
+    searchInput.value = '';
+    filterList('');
+    setTimeout(function () { searchInput.focus(); }, 30);
+  }
+
+  function setTriggerLabel(svc) {
+    triggerLabel.innerHTML = '';
+    if (!svc) {
+      var hint = document.createElement('span');
+      hint.className = 'muted';
+      hint.textContent = platInput.value ? '— Choose a service —' : '— Choose a platform first —';
+      triggerLabel.appendChild(hint);
+      return;
+    }
+    var ic = iconFor(svc.platform);
+    if (ic) triggerLabel.appendChild(ic);
+    var name = document.createElement('span');
+    name.className = 'svc-trigger-name';
+    name.textContent = '#' + svc.id + ' · ' + svc.name;
+    triggerLabel.appendChild(name);
+    var price = document.createElement('span');
+    price.className = 'svc-trigger-price';
+    price.textContent = peso(svc.ratePhp) + '/1k';
+    triggerLabel.appendChild(price);
+  }
+
+  function renderList() {
+    listEl.innerHTML = '';
+    if (!services.length) {
+      var empty = document.createElement('div');
+      empty.className = 'svc-empty';
+      empty.textContent = 'No services for this platform yet — check back soon!';
+      listEl.appendChild(empty);
+      return;
+    }
+    var lastCat = null;
+    services.forEach(function (s) {
+      var cat = s.category || 'General';
+      if (cat !== lastCat) {
+        lastCat = cat;
+        var gh = document.createElement('div');
+        gh.className = 'svc-group';
+        gh.textContent = cat;
+        listEl.appendChild(gh);
+      }
+      var row = document.createElement('button');
+      row.type = 'button';
+      row.className = 'svc-row';
+      row.setAttribute('role', 'option');
+      row.setAttribute('data-id', s.id);
+      row.setAttribute('data-search', (s.name + ' ' + cat + ' #' + s.id).toLowerCase());
+
+      var ic = iconFor(s.platform);
+      if (ic) row.appendChild(ic);
+
+      var body = document.createElement('span');
+      body.className = 'svc-row-body';
+      var nm = document.createElement('span');
+      nm.className = 'svc-row-name';
+      nm.textContent = s.name;
+      var sub = document.createElement('span');
+      sub.className = 'svc-row-sub';
+      sub.textContent = '#' + s.id + ' · Min ' + fmtQty(s.min) + ' – Max ' + fmtQty(s.max) + (s.refill ? ' · ♻️ Refill' : '');
+      body.appendChild(nm);
+      body.appendChild(sub);
+      row.appendChild(body);
+
+      var pr = document.createElement('span');
+      pr.className = 'svc-row-price';
+      pr.textContent = peso(s.ratePhp);
+      var per = document.createElement('small');
+      per.textContent = '/1k';
+      pr.appendChild(per);
+      row.appendChild(pr);
+
+      row.addEventListener('click', function () { selectService(s.id); closePanel(); });
+      listEl.appendChild(row);
+    });
+  }
+
+  function filterList(q) {
+    var query = String(q || '').trim().toLowerCase();
+    listEl.querySelectorAll('.svc-row').forEach(function (r) {
+      r.hidden = query !== '' && r.getAttribute('data-search').indexOf(query) === -1;
+    });
+    // Hide category headers whose rows are all hidden.
+    listEl.querySelectorAll('.svc-group').forEach(function (g) {
+      var el = g.nextElementSibling;
+      var visible = false;
+      while (el && !el.classList.contains('svc-group')) {
+        if (el.classList.contains('svc-row') && !el.hidden) { visible = true; break; }
+        el = el.nextElementSibling;
+      }
+      g.hidden = !visible;
+    });
+    var any = listEl.querySelector('.svc-row:not([hidden])');
+    var oldMsg = listEl.querySelector('.svc-nomatch');
+    if (oldMsg) oldMsg.remove();
+    if (!any && services.length) {
+      var msg = document.createElement('div');
+      msg.className = 'svc-empty svc-nomatch';
+      msg.textContent = 'No match for "' + q + '" — try another keyword.';
+      listEl.appendChild(msg);
+    }
+  }
+
+  function markSelected() {
+    listEl.querySelectorAll('.svc-row').forEach(function (r) {
+      r.classList.toggle('selected', !!current && r.getAttribute('data-id') === String(current.id));
+    });
+  }
+
   function selectService(id) {
     current = services.find(function (s) { return String(s.id) === String(id); }) || null;
+    serviceInput.value = current ? current.id : '';
+    setTriggerLabel(current);
+    markSelected();
     if (current) {
       meta.hidden = false;
       if (guidance) guidance.hidden = false; // assistant guidance appears on select
       rateEl.textContent = '💰 ' + peso(current.ratePhp) + ' / 1000';
-      rangeEl.textContent = '📦 Min ' + current.min.toLocaleString() + ' · Max ' + current.max.toLocaleString();
+      rangeEl.textContent = '📦 Min ' + fmtQty(current.min) + ' · Max ' + fmtQty(current.max);
       refillEl.textContent = current.refill ? '♻️ Refill available' : '♻️ No refill';
       qtyInput.min = current.min;
       qtyInput.max = current.max;
@@ -57,59 +196,56 @@
   }
 
   function loadServices(platform, thenSelect) {
-    serviceSel.disabled = true;
-    serviceSel.innerHTML = '<option value="">Loading…</option>';
+    trigger.disabled = true;
+    triggerLabel.innerHTML = '<span class="muted">Loading services…</span>';
     fetch('/order/services.json?platform=' + encodeURIComponent(platform), { credentials: 'same-origin' })
       .then(function (r) { return r.json(); })
       .then(function (list) {
         services = list;
-        if (!list.length) {
-          serviceSel.innerHTML = '<option value="">No services for this platform yet</option>';
-          return;
-        }
-        var groups = {};
-        list.forEach(function (s) {
-          var g = s.category || 'Other';
-          (groups[g] = groups[g] || []).push(s);
-        });
-        serviceSel.innerHTML = '<option value="">— Choose a service —</option>';
-        Object.keys(groups).forEach(function (g) {
-          var og = document.createElement('optgroup');
-          og.label = g;
-          groups[g].forEach(function (s) {
-            var opt = document.createElement('option');
-            opt.value = s.id;
-            opt.textContent = '#' + s.id + ' · ' + s.name + ' — ' + peso(s.ratePhp) + '/1k';
-            og.appendChild(opt);
-          });
-          serviceSel.appendChild(og);
-        });
-        serviceSel.disabled = false;
-        if (thenSelect) {
-          serviceSel.value = String(thenSelect);
-          selectService(thenSelect);
-        }
+        renderList();
+        trigger.disabled = false;
+        if (thenSelect) selectService(thenSelect);
+        else setTriggerLabel(null);
       })
       .catch(function () {
-        serviceSel.innerHTML = '<option value="">Could not load services — refresh the page</option>';
+        triggerLabel.innerHTML = '<span class="muted">Could not load — refresh the page</span>';
       });
   }
 
-  platformSel.addEventListener('change', function () {
-    current = null;
-    meta.hidden = true;
-    updateTotal();
-    if (platformSel.value) loadServices(platformSel.value);
-    else {
-      serviceSel.disabled = true;
-      serviceSel.innerHTML = '<option value="">— Choose a platform first —</option>';
-    }
+  // ── Platform buttons ──
+  if (platGrid) {
+    platGrid.addEventListener('click', function (e) {
+      var btn = e.target.closest('.plat-btn');
+      if (!btn) return;
+      platGrid.querySelectorAll('.plat-btn').forEach(function (b) { b.classList.remove('active'); });
+      btn.classList.add('active');
+      platInput.value = btn.getAttribute('data-platform');
+      current = null;
+      serviceInput.value = '';
+      meta.hidden = true;
+      if (guidance) guidance.hidden = true;
+      closePanel();
+      updateTotal();
+      loadServices(platInput.value);
+    });
+  }
+
+  // ── Picker open/close wiring ──
+  trigger.addEventListener('click', function () {
+    if (panel.hidden) openPanel(); else closePanel();
+  });
+  searchInput.addEventListener('input', function () { filterList(searchInput.value); });
+  document.addEventListener('click', function (e) {
+    if (!panel.hidden && !e.target.closest('#svc-picker')) closePanel();
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && !panel.hidden) { closePanel(); trigger.focus(); }
   });
 
-  serviceSel.addEventListener('change', function () { selectService(serviceSel.value); });
   qtyInput.addEventListener('input', updateTotal);
 
   if (preselected && preselected.platform) {
+    platInput.value = preselected.platform;
     loadServices(preselected.platform, preselected.id);
   }
 

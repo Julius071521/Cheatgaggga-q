@@ -97,9 +97,11 @@ router.get('/order/services.json', async (req, res, next) => {
     const [services] = await pool.query(
       'SELECT id, name, category, min_qty, max_qty, rate_usd, markup_override, refill FROM services WHERE platform = ? AND enabled = 1 AND deleted = 0 ORDER BY category, rate_usd LIMIT 1000',
       [platform]);
+    const { tidyCategory, tidyServiceName } = require('../utils/helpers');
     res.json(services.map((s) => ({
-      id: s.id, name: s.name, category: s.category, min: s.min_qty, max: s.max_qty,
-      refill: !!s.refill, ratePhp: pricing.ratePhpPer1000(s),
+      id: s.id, name: tidyServiceName(s.name, s.id), category: tidyCategory(s.category),
+      min: Number(s.min_qty), max: Number(s.max_qty),
+      refill: !!s.refill, ratePhp: pricing.ratePhpPer1000(s), platform,
     })));
   } catch (err) { next(err); }
 });

@@ -42,10 +42,10 @@
       </thead>
       <tbody>
         <% let lastCat = null; services.forEach(function(s) { %>
-          <% if (s.category && s.category !== lastCat) { lastCat = s.category; %>
+          <% const tc = h.tidyCategory(s.category); if (tc !== lastCat) { lastCat = tc; %>
           <tr class="cat-row"><td colspan="7">
             <span class="cat-badge"><%- include('partials/platform-badge', { platform: s.platform, size: 20 }) %></span>
-            <%= h.platformLabel(s.platform) %> · <%= s.category %>
+            <%= h.platformLabel(s.platform) %> · <%= tc %>
           </td></tr>
           <% } %>
         <tr>
@@ -53,7 +53,7 @@
           <td>
             <div class="svc-cell">
               <%- include('partials/platform-badge', { platform: s.platform, size: 28 }) %>
-              <span class="svc-name"><%= s.name %></span>
+              <span class="svc-name"><%= h.tidyServiceName(s.name, s.id) %></span>
             </div>
           </td>
           <td class="num price">₱<%= h.moneyRate(s.ratePhp) %></td>
