@@ -115,6 +115,56 @@ router.post('/admin/autopilot/run', async (req, res) => {
   res.redirect('/admin/autopilot');
 });
 
+// ── Security · Threat Radar ────────────────────────────────
+const security = require('../services/security');
+
+router.get('/admin/security', async (req, res, next) => {
+  try {
+    const enabled = ['1', 'true', 'on', 'yes'].includes(String(await getSetting('security_enabled', 'on')).toLowerCase());
+    const autoBlock = ['1', 'true', 'on', 'yes'].includes(String(await getSetting('security_auto_block', 'off')).toLowerCase());
+    const [threats] = await pool.query(
+      `SELECT r.*, (SELECT COUNT(*) FROM blocked_ips b
+                    WHERE b.ip = CONVERT(r.ip USING utf8mb4) COLLATE utf8mb4_general_ci) AS is_blocked
+       FROM ip_reputation r
+       WHERE r.status IS NULL OR r.status <> 'allowed'
+       ORDER BY (r.status = 'blocked') DESC, r.score DESC, r.last_seen DESC LIMIT 60`);
+    const [recent] = await pool.query(
+      'SELECT * FROM security_events ORDER BY id DESC LIMIT 40');
+    const [[stat]] = await pool.query(`
+      SELECT COUNT(*) AS events24,
+             COUNT(DISTINCT ip) AS ips24
+      FROM security_events WHERE created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)`);
+    const [[blk]] = await pool.query('SELECT COUNT(*) AS c FROM blocked_ips');
+    res.render('admin/security', {
+      title: 'Admin · Security', enabled, autoBlock, threats, recent, stat, blockedCount: blk.c,
+      telegramOn: require('../services/telegram').enabled,
+    });
+  } catch (err) { next(err); }
+});
+
+router.post('/admin/security/toggle', async (req, res, next) => {
+  try {
+    const key = req.body.key === 'auto' ? 'security_auto_block' : 'security_enabled';
+    const on = req.body.value === '1';
+    await setSetting(key, on ? 'on' : 'off');
+    flash(req, 'success', `${key === 'auto' ? 'Auto-block' : 'Threat Radar'} turned ${on ? 'ON' : 'OFF'}.`);
+    res.redirect('/admin/security');
+  } catch (err) { next(err); }
+});
+
+router.post('/admin/security/ip', async (req, res, next) => {
+  try {
+    const ip = String(req.body.ip || '').trim().slice(0, 45);
+    const action = req.body.action;
+    if (!/^[0-9a-fA-F:.]{3,45}$/.test(ip)) { flash(req, 'error', 'Invalid IP.'); return res.redirect('/admin/security'); }
+    if (action === 'block') await security.blockIp(ip, 'Blocked from admin panel', req.user.id);
+    else if (action === 'allow') await security.allowIp(ip);
+    else if (action === 'watch') await security.watchIp(ip);
+    flash(req, 'success', `IP ${ip} ${action}ed.`);
+    res.redirect('/admin/security');
+  } catch (err) { next(err); }
+});
+
 // ── Promo / coupon codes ──────────────────────────────────
 router.get('/admin/promos', async (req, res, next) => {
   try {

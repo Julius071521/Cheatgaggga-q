@@ -2,7 +2,8 @@
 const crypto = require('crypto');
 
 // Simple double-submit CSRF: token stored in session, echoed in forms/headers.
-const EXEMPT_PREFIXES = ['/api/v2'];
+// /api/v2 uses api-key auth; /telegram/webhook is authed by its URL secret.
+const EXEMPT_PREFIXES = ['/api/v2', '/telegram/webhook'];
 
 // Constant-time compare so a token can't be guessed by measuring response time.
 function safeEqual(a, b) {

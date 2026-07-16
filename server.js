@@ -128,11 +128,17 @@ app.use((req, res, next) => {
   next();
 });
 
+// Threat Radar: watch every request for scanner/attacker behavior (fires
+// Telegram alerts + optional auto-block). Runs before the gate so a freshly
+// blocked IP is caught on its next request.
+app.use(require('./src/middleware/threatRadar'));
+
 // Maintenance-mode + IP-block gate runs after view locals so the
 // maintenance/blocked pages render with full context.
 app.use(require('./src/middleware/gate').gate);
 
 // ── Routes ────────────────────────────────────────────────
+app.use(require('./src/routes/telegram'));
 app.use(require('./src/routes/api'));
 app.use(require('./src/routes/ai'));
 app.use(require('./src/routes/notifications'));
@@ -165,5 +171,16 @@ runMigrations()
       // AI Autopilot: background triage of reports + stuck-order watchdog.
       try { require('./src/services/autopilot').startScheduler(); }
       catch (err) { console.warn('[server] autopilot failed to start:', err.message); }
+
+      // Telegram security bot: register the webhook so button presses reach us.
+      try {
+        const telegram = require('./src/services/telegram');
+        if (telegram.enabled && env.BASE_URL.startsWith('https') && env.TELEGRAM_WEBHOOK_SECRET) {
+          telegram.setWebhook(env.BASE_URL)
+            .then((r) => { if (r && r.ok) console.log('[telegram] webhook registered'); })
+            .catch(() => {});
+          telegram.send('🟢 <b>ApexBoost security is online.</b> You will get alerts here when scanners or attackers hit the site.').catch(() => {});
+        }
+      } catch (err) { console.warn('[server] telegram init failed:', err.message); }
     });
   });
