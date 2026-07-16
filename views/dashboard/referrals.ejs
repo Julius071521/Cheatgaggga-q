@@ -1,0 +1,122 @@
+<%- include('../partials/head', { title }) %>
+<%- include('../partials/nav') %>
+<main class="container page">
+  <div class="page-head">
+    <h1>Invite friends, <span class="grad-text">earn <%= info.commissionPercent %>%</span> 💸</h1>
+    <p>Every time someone you invited tops up, you instantly earn <strong><%= info.commissionPercent %>%</strong> of their deposit — use it for boosting or withdraw it to GCash/Maya.</p>
+  </div>
+  <%- include('../partials/dash-nav') %>
+
+  <div class="ref-stats">
+    <div class="card stat-tile" data-reveal>
+      <span class="stat-label">Invited members</span>
+      <strong class="stat-value"><%= info.invited %></strong>
+    </div>
+    <div class="card stat-tile" data-reveal data-reveal-delay="60">
+      <span class="stat-label">Total earned</span>
+      <strong class="stat-value price">₱<%= h.money(info.totalEarned) %></strong>
+    </div>
+    <div class="card stat-tile" data-reveal data-reveal-delay="120">
+      <span class="stat-label">Withdrawable now</span>
+      <strong class="stat-value price">₱<%= h.money(info.withdrawable) %></strong>
+    </div>
+  </div>
+
+  <div class="ref-layout">
+    <div class="card" data-reveal>
+      <h2>📣 Your referral link</h2>
+      <p class="muted">Share this link (or just your code) — anyone who signs up through it is yours forever.</p>
+      <div class="ref-link-row">
+        <input type="text" readonly value="<%= link %>" id="ref-link" class="ref-link-input" onclick="this.select()">
+        <button type="button" class="btn btn-primary btn-sm copy-btn" data-copy="<%= link %>">Copy link</button>
+      </div>
+      <p class="ref-code-row">Your code: <code class="ref-code"><%= code %></code>
+        <button type="button" class="btn btn-ghost btn-sm copy-btn" data-copy="<%= code %>">Copy</button>
+      </p>
+      <div class="of-guidance">
+        <div class="ofg-head"><span class="ofg-avatar">💡</span> <strong>How it works</strong></div>
+        <ul>
+          <li>1️⃣ A friend signs up using your link or code.</li>
+          <li>2️⃣ They add funds — the deposit gets approved.</li>
+          <li>3️⃣ You instantly receive <strong><%= info.commissionPercent %>%</strong> of their top-up, every single time. ♾️</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="card" data-reveal data-reveal-delay="100">
+      <h2>💸 Withdraw earnings</h2>
+      <% if (info.withdrawable >= info.minPayout) { %>
+      <form method="post" action="/referrals/payout">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <label class="field">
+          <span>Amount (₱) <small>— up to ₱<%= h.money(info.withdrawable) %></small></span>
+          <input type="number" name="amount" min="<%= info.minPayout %>" max="<%= info.withdrawable %>" step="0.01" required placeholder="<%= info.minPayout %>.00">
+        </label>
+        <label class="field">
+          <span>Send to</span>
+          <select name="method" required>
+            <option value="gcash">GCash</option>
+            <option value="paymaya">Maya</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>Account / mobile number</span>
+          <input type="text" name="account_number" required minlength="7" maxlength="20" placeholder="09XX XXX XXXX">
+        </label>
+        <label class="field">
+          <span>Account holder name</span>
+          <input type="text" name="account_name" required minlength="3" maxlength="100" placeholder="Juan Dela Cruz">
+        </label>
+        <button type="submit" class="btn btn-primary btn-block">Request payout</button>
+        <p class="auth-fineprint">Minimum ₱<%= h.money(info.minPayout) %> · processed by our team, usually within 24h. Or just spend it on boosts — it's already in your wallet!</p>
+      </form>
+      <% } else { %>
+        <p class="empty-note">Earn at least <strong>₱<%= h.money(info.minPayout) %></strong> in commissions to unlock withdrawals.<br>
+        <small class="muted">Your earnings are already in your wallet — you can use them for boosting anytime.</small></p>
+      <% } %>
+
+      <% if (info.payouts.length) { %>
+      <h3 class="mt">Payout history</h3>
+      <div class="table-wrap">
+        <table class="table table-compact">
+          <thead><tr><th class="num">Amount</th><th>To</th><th>Status</th><th>Date</th></tr></thead>
+          <tbody>
+            <% info.payouts.forEach(function(p) { %>
+            <tr>
+              <td class="num">₱<%= h.money(p.amount) %></td>
+              <td class="muted"><%= String(p.method).toUpperCase() %> ·<%= String(p.account_number).slice(-4) %></td>
+              <td><span class="badge badge-<%= h.statusSlug(p.status) %>"><%= h.statusLabel(p.status) %></span></td>
+              <td class="muted"><%= h.formatDate(p.created_at) %></td>
+            </tr>
+            <% }); %>
+          </tbody>
+        </table>
+      </div>
+      <% } %>
+    </div>
+  </div>
+
+  <div class="card section-card" data-reveal>
+    <h2>🧾 Commission history</h2>
+    <% if (info.recent.length) { %>
+    <div class="table-wrap">
+      <table class="table table-compact">
+        <thead><tr><th>Member</th><th class="num">Their top-up</th><th class="num">You earned</th><th>Date</th></tr></thead>
+        <tbody>
+          <% info.recent.forEach(function(c) { %>
+          <tr>
+            <td><%= c.referred_username || 'member' %></td>
+            <td class="num muted">₱<%= h.money(c.deposit_amount) %></td>
+            <td class="num pos">+₱<%= h.money(c.amount) %></td>
+            <td class="muted"><%= h.formatDate(c.created_at) %></td>
+          </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+    <% } else { %>
+      <p class="empty-note">No commissions yet — share your link and start earning! Every top-up of your invites pays you <strong><%= info.commissionPercent %>%</strong>, forever.</p>
+    <% } %>
+  </div>
+</main>
+<%- include('../partials/footer') %>

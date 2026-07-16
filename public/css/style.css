@@ -773,3 +773,44 @@ code { background: var(--surface-2); padding: 2px 7px; border-radius: 6px; font-
 .notif-body { flex: 1; }
 .notif-body strong { font-family: var(--font-head); display: block; }
 .notif-body p { color: var(--text-soft); font-size: 0.92rem; margin: 4px 0; }
+
+/* ── Growth: deposit bonus banner + referrals ── */
+.bonus-banner {
+  border: 1.5px dashed var(--primary); border-radius: 14px;
+  background: var(--primary-soft); padding: 14px 16px; margin-bottom: 16px;
+}
+.bonus-banner strong { font-family: var(--font-head); display: block; margin-bottom: 8px; }
+.bonus-tiers { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 6px; }
+.bonus-tier {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 999px;
+  padding: 5px 12px; font-size: 0.86rem; font-weight: 600; white-space: nowrap;
+}
+.bonus-tier em { font-style: normal; color: var(--primary); font-weight: 800; }
+
+.ref-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 24px; }
+@media (max-width: 720px) { .ref-stats { grid-template-columns: 1fr; } }
+.stat-tile { text-align: center; padding: 20px 14px; min-width: 0; }
+.stat-tile .stat-value {
+  display: block; font-family: var(--font-head); font-weight: 800; font-size: 1.7rem; margin-top: 4px;
+  overflow-wrap: anywhere;
+}
+
+.ref-layout { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 24px; align-items: start; margin-bottom: 24px; }
+@media (max-width: 920px) { .ref-layout { grid-template-columns: 1fr; } }
+.ref-layout > .card { min-width: 0; }
+.ref-link-row { display: flex; gap: 10px; margin: 12px 0; }
+.ref-link-input {
+  flex: 1; min-width: 0; border: 1.5px solid var(--border); border-radius: 10px;
+  padding: 10px 12px; font-size: 0.88rem; background: var(--surface-2); color: var(--text);
+}
+@media (max-width: 460px) { .ref-link-row { flex-direction: column; } .ref-link-row .btn { width: 100%; } }
+.ref-code-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; color: var(--text-soft); }
+.ref-code {
+  font-family: var(--font-head); font-weight: 800; font-size: 1.15rem; letter-spacing: 0.08em;
+  background: var(--primary-soft); color: var(--primary); border-radius: 8px; padding: 4px 10px;
+}
+.ref-invited {
+  background: var(--primary-soft); border-radius: 10px; padding: 10px 14px;
+  font-size: 0.9rem; margin-bottom: 14px;
+}
+.ref-invited code { font-weight: 700; }

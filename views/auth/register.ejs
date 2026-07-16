@@ -15,6 +15,10 @@
 
     <form method="post" action="/register">
       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <% if (typeof refCode !== 'undefined' && refCode) { %>
+        <input type="hidden" name="ref" value="<%= refCode %>">
+        <p class="ref-invited">🎉 You were invited by a member (code <code><%= refCode %></code>)</p>
+      <% } %>
       <label class="field">
         <span>Username</span>
         <input type="text" name="username" required minlength="3" maxlength="100" autocomplete="username" placeholder="juandelacruz">

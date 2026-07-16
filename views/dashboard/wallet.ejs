@@ -10,6 +10,17 @@
   <div class="wallet-layout">
     <div class="card" data-reveal>
       <h2>1️⃣ Send your payment</h2>
+      <% if (bonusTiers.length) { %>
+      <div class="bonus-banner">
+        <strong>🎁 Deposit bonus — bigger top-up, bigger bonus!</strong>
+        <div class="bonus-tiers">
+          <% bonusTiers.forEach(function(t) { %>
+            <span class="bonus-tier">₱<%= t.min.toLocaleString() %>+ <em>→ +<%= t.pct %>%</em></span>
+          <% }); %>
+        </div>
+        <small class="muted">The bonus is added automatically the moment your deposit is approved.</small>
+      </div>
+      <% } %>
       <p class="muted">Transfer any amount (min. ₱50) to one of our accounts:</p>
       <% if (methods.length) { %>
       <div class="pay-methods">
@@ -65,7 +76,7 @@
               <% deposits.forEach(function(d) { %>
               <tr>
                 <td><%= String(d.payment_method).toUpperCase() %></td>
-                <td class="num">₱<%= h.money(d.amount) %></td>
+                <td class="num">₱<%= h.money(d.amount) %><% if (d.bonus_amount && Number(d.bonus_amount) > 0) { %><br><small class="pos">+₱<%= h.money(d.bonus_amount) %> 🎁</small><% } %></td>
                 <td class="muted"><%= String(d.reference_id).slice(0, 14) %></td>
                 <td><span class="badge badge-<%= h.statusSlug(d.status) %>"><%= h.statusLabel(d.status) %></span>
                   <% if (String(d.status).toLowerCase() === 'rejected' && d.admin_note) { %><br><small class="muted"><%= d.admin_note %></small><% } %></td>

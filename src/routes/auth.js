@@ -56,7 +56,11 @@ async function sendVerifyEmail(user) {
 // ── Register ──────────────────────────────────────────────
 router.get('/register', (req, res) => {
   if (req.user) return res.redirect('/dashboard');
-  res.render('auth/register', { title: 'Create account' });
+  // Remember the inviter's referral code across the whole signup flow
+  // (also covers "Sign in with Google" after landing on ?ref=CODE).
+  const ref = String(req.query.ref || '').trim().toUpperCase();
+  if (/^[A-Z0-9]{4,20}$/.test(ref)) req.session.refCode = ref;
+  res.render('auth/register', { title: 'Create account', refCode: req.session.refCode || '' });
 });
 
 router.post('/register', authLimiter, verifyTurnstile, async (req, res, next) => {
@@ -74,12 +78,21 @@ router.post('/register', authLimiter, verifyTurnstile, async (req, res, next) =>
       [email, username.toLowerCase()]);
     if (existing) { flash(req, 'error', 'An account with that email or username already exists.'); return res.redirect('/login'); }
 
+    // Referral attribution (from the signup form or a saved ?ref= link).
+    let referredBy = null;
+    const refCode = String(req.body.ref || req.session.refCode || '').trim();
+    if (refCode) {
+      const referrer = await require('../services/referrals').findReferrerByCode(refCode);
+      if (referrer) referredBy = referrer.id;
+    }
+
     const hash = await hashSecret(password);
     const verified = env.EMAIL_VERIFICATION_REQUIRED ? 0 : 1;
     const [result] = await pool.query(
-      "INSERT INTO users (username, email, password, role, status, email_verified, balance) VALUES (?, ?, ?, 'user', 'Active', ?, 0)",
-      [username, email, hash, verified]
+      "INSERT INTO users (username, email, password, role, status, email_verified, balance, referred_by) VALUES (?, ?, ?, 'user', 'Active', ?, 0, ?)",
+      [username, email, hash, verified, referredBy]
     );
+    delete req.session.refCode;
 
     if (env.EMAIL_VERIFICATION_REQUIRED) {
       await sendVerifyEmail({ id: result.insertId, email });
@@ -242,11 +255,18 @@ router.get('/auth/google/callback', async (req, res) => {
         await pool.query('UPDATE users SET google_id = ?, email_verified = 1, avatar = COALESCE(avatar, ?) WHERE id = ?',
           [profile.sub, profile.picture || null, user.id]);
       } else {
+        // Referral attribution survives the OAuth round-trip via the session.
+        let referredBy = null;
+        if (req.session.refCode) {
+          const referrer = await require('../services/referrals').findReferrerByCode(req.session.refCode);
+          if (referrer) referredBy = referrer.id;
+        }
         const username = await uniqueUsername(profile.name || email.split('@')[0]);
         const [result] = await pool.query(
-          "INSERT INTO users (username, email, google_id, avatar, role, status, email_verified, balance) VALUES (?, ?, ?, ?, 'user', 'Active', 1, 0)",
-          [username, email, profile.sub, profile.picture || null]);
+          "INSERT INTO users (username, email, google_id, avatar, role, status, email_verified, balance, referred_by) VALUES (?, ?, ?, ?, 'user', 'Active', 1, 0, ?)",
+          [username, email, profile.sub, profile.picture || null, referredBy]);
         [[user]] = await pool.query('SELECT * FROM users WHERE id = ?', [result.insertId]);
+        delete req.session.refCode;
       }
     }
     if (String(user.status || 'Active').toLowerCase() !== 'active') {

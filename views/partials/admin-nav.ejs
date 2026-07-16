@@ -1,6 +1,7 @@
 <nav class="dash-nav" aria-label="Admin">
   <a href="/admin" class="pill <%= path === '/admin' ? 'active' : '' %>">Overview</a>
   <a href="/admin/deposits" class="pill <%= path.startsWith('/admin/deposits') ? 'active' : '' %>">Add-funds</a>
+  <a href="/admin/payouts" class="pill <%= path.startsWith('/admin/payouts') ? 'active' : '' %>">Payouts</a>
   <a href="/admin/orders" class="pill <%= path.startsWith('/admin/orders') ? 'active' : '' %>">Orders</a>
   <a href="/admin/tickets" class="pill <%= path.startsWith('/admin/tickets') ? 'active' : '' %>">Concerns</a>
   <a href="/admin/autopilot" class="pill <%= path.startsWith('/admin/autopilot') ? 'active' : '' %>">🤖 Autopilot</a>

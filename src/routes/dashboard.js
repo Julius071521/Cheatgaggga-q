@@ -7,6 +7,7 @@ const env = require('../config/env');
 const pool = require('../db/pool');
 const pricing = require('../services/pricing');
 const orderService = require('../services/orders');
+const wallet = require('../services/wallet');
 const mailer = require('../services/mailer');
 const notifications = require('../services/notifications');
 const { requireAuth } = require('../middleware/auth');
@@ -14,7 +15,7 @@ const { randomToken, isValidHttpUrl, clampInt, PLATFORM_LABELS } = require('../u
 const { hashSecret, verifySecret } = require('../utils/password');
 
 const router = express.Router();
-router.use(['/dashboard', '/order', '/orders', '/wallet', '/settings', '/receipt'], requireAuth);
+router.use(['/dashboard', '/order', '/orders', '/wallet', '/settings', '/receipt', '/referrals'], requireAuth);
 
 function flash(req, type, message) {
   req.session.flash = { type, message };
@@ -128,8 +129,8 @@ router.post('/order/new', async (req, res, next) => {
     res.redirect('/orders');
   } catch (err) {
     if (err.message === 'Insufficient balance') { flash(req, 'error', 'Insufficient balance. Please add funds first.'); return res.redirect('/wallet'); }
-    // Promo validation errors are user-facing — show them on the order form.
-    if (/promo code/i.test(err.message)) { flash(req, 'error', err.message); return res.redirect(`/order/new?service=${req.body.service_id || ''}`); }
+    // Promo validation + pause errors are user-facing — show them on the order form.
+    if (/promo code|temporarily paused/i.test(err.message)) { flash(req, 'error', err.message); return res.redirect(`/order/new?service=${req.body.service_id || ''}`); }
     if (err.orderId) { flash(req, 'error', err.message); return res.redirect('/orders'); }
     next(err);
   }
@@ -193,7 +194,10 @@ router.get('/wallet', async (req, res, next) => {
   try {
     const [deposits] = await pool.query('SELECT * FROM deposits WHERE user_id = ? ORDER BY id DESC LIMIT 20', [req.user.id]);
     const [transactions] = await pool.query('SELECT * FROM transactions WHERE user_id = ? ORDER BY id DESC LIMIT 30', [req.user.id]);
-    res.render('dashboard/wallet', { title: 'Wallet & Add Funds', deposits, transactions, methods: activeMethods() });
+    res.render('dashboard/wallet', {
+      title: 'Wallet & Add Funds', deposits, transactions, methods: activeMethods(),
+      bonusTiers: wallet.bonusTiers().slice().sort((a, b) => a.min - b.min),
+    });
   } catch (err) { next(err); }
 });
 
@@ -219,9 +223,17 @@ router.post('/wallet/deposit', (req, res, next) => {
       [req.user.id, reference]);
     if (dupe) return fail('You already submitted a deposit with that reference number.');
 
-    const [depRes] = await pool.query(
-      "INSERT INTO deposits (user_id, payment_method, amount, reference_id, status, receipt_path) VALUES (?, ?, ?, ?, 'Pending', ?)",
-      [req.user.id, method, amount.toFixed(4), reference, req.file ? path.basename(req.file.path) : null]);
+    let depRes;
+    try {
+      [depRes] = await pool.query(
+        "INSERT INTO deposits (user_id, payment_method, amount, reference_id, status, receipt_path) VALUES (?, ?, ?, ?, 'Pending', ?)",
+        [req.user.id, method, amount.toFixed(4), reference, req.file ? path.basename(req.file.path) : null]);
+    } catch (err) {
+      // reference_id is globally unique — a reference someone else already used
+      // must be rejected cleanly, never crash.
+      if (err && err.code === 'ER_DUP_ENTRY') return fail('That reference number was already used. Please double-check your receipt.');
+      throw err;
+    }
 
     // Auto email + in-app notification confirming the funds request.
     const deposit = { id: depRes.insertId, payment_method: method, amount, reference_id: reference };
@@ -244,6 +256,51 @@ router.get('/receipt/:id', async (req, res) => {
     if (!fs.existsSync(filePath)) return res.status(404).render('errors/404');
     res.sendFile(filePath);
   } catch (err) { res.status(404).render('errors/404'); }
+});
+
+// ── Referrals (invite & earn) ─────────────────────────────
+const referrals = require('../services/referrals');
+
+router.get('/referrals', async (req, res, next) => {
+  try {
+    const code = await referrals.ensureCode(req.user.id);
+    const info = await referrals.stats(req.user);
+    const link = `${env.BASE_URL.replace(/\/$/, '')}/register?ref=${code}`;
+    res.render('dashboard/referrals', { title: 'Invite & Earn', code, link, info });
+  } catch (err) { next(err); }
+});
+
+router.post('/referrals/payout', async (req, res, next) => {
+  try {
+    const info = await referrals.stats(req.user);
+    const amount = Math.round(Number(req.body.amount) * 100) / 100;
+    const method = ['gcash', 'paymaya'].includes(req.body.method) ? req.body.method : null;
+    const accountNumber = String(req.body.account_number || '').trim().slice(0, 50);
+    const accountName = String(req.body.account_name || '').trim().slice(0, 100);
+
+    if (!method) { flash(req, 'error', 'Please choose GCash or Maya for the payout.'); return res.redirect('/referrals'); }
+    if (!/^[0-9+\-\s]{7,20}$/.test(accountNumber)) { flash(req, 'error', 'Please enter a valid account/mobile number.'); return res.redirect('/referrals'); }
+    if (accountName.length < 3) { flash(req, 'error', 'Please enter the account holder name.'); return res.redirect('/referrals'); }
+    if (!Number.isFinite(amount) || amount < info.minPayout) {
+      flash(req, 'error', `Minimum payout is ₱${info.minPayout.toFixed(2)}.`); return res.redirect('/referrals');
+    }
+    if (amount > info.withdrawable) {
+      flash(req, 'error', `You can withdraw up to ₱${info.withdrawable.toFixed(2)} of referral earnings right now.`);
+      return res.redirect('/referrals');
+    }
+
+    await wallet.createPayoutRequest(req.user.id, amount, method, accountNumber, accountName);
+    notifications.notifyUser(req.user.id, 'payout', 'Payout request received 💸',
+      `We received your ₱${amount.toFixed(2)} payout request via ${method.toUpperCase()}. It will be processed by our team shortly.`).catch(() => {});
+    flash(req, 'success', `Payout request submitted! ₱${amount.toFixed(2)} is on hold and will be sent to your ${method === 'gcash' ? 'GCash' : 'Maya'} once processed.`);
+    res.redirect('/referrals');
+  } catch (err) {
+    if (err.message === 'Insufficient balance') {
+      flash(req, 'error', 'Your wallet balance is lower than the requested payout.');
+      return res.redirect('/referrals');
+    }
+    next(err);
+  }
 });
 
 // ── Settings ──────────────────────────────────────────────

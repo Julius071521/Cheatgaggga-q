@@ -1,0 +1,45 @@
+<%- include('../partials/head', { title }) %>
+<%- include('../partials/nav') %>
+<main class="container page">
+  <div class="page-head"><h1>Referral <span class="grad-text">payouts</span></h1></div>
+  <%- include('../partials/admin-nav') %>
+
+  <% if (payouts.length) { %>
+  <div class="tickets-list">
+    <% payouts.forEach(function(p) { %>
+    <div class="card ticket-card">
+      <div class="ticket-head">
+        <div>
+          <strong>#<%= p.id %> · ₱<%= h.money(p.amount) %> → <%= String(p.method).toUpperCase() %></strong>
+          <span class="badge badge-<%= h.statusSlug(p.status) %>"><%= h.statusLabel(p.status) %></span>
+        </div>
+        <span class="muted"><%= h.formatDate(p.created_at) %></span>
+      </div>
+      <p class="ticket-meta muted">
+        From <strong><%= p.username || p.email || ('user #' + p.user_id) %></strong>
+        · send to <code><%= p.account_number %></code> (<%= p.account_name %>)
+      </p>
+      <% if (p.admin_note) { %><p class="muted"><small>Note: <%= p.admin_note %></small></p><% } %>
+      <% if (p.status === 'Pending') { %>
+      <div class="ticket-actions">
+        <form method="post" action="/admin/payouts/<%= p.id %>/resolve" class="inline-form">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <input type="hidden" name="decision" value="paid">
+          <button type="submit" class="btn btn-primary btn-sm">✅ Mark paid (I sent it)</button>
+        </form>
+        <form method="post" action="/admin/payouts/<%= p.id %>/resolve" class="inline-form">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <input type="hidden" name="decision" value="reject">
+          <input type="text" name="note" class="input-sm" placeholder="Reason (optional)" maxlength="200">
+          <button type="submit" class="btn btn-outline btn-sm">✖ Reject & refund</button>
+        </form>
+      </div>
+      <% } %>
+    </div>
+    <% }); %>
+  </div>
+  <% } else { %>
+    <p class="empty-note">No payout requests yet. When members withdraw their referral earnings, they'll show up here.</p>
+  <% } %>
+</main>
+<%- include('../partials/footer') %>

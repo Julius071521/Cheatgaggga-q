@@ -29,6 +29,22 @@ function newOrderCode() {
 // Place an order: debit wallet + create the local order atomically, then send
 // it to the provider. On provider failure the charge is auto-refunded.
 async function placeOrder(user, service, link, quantity, promoCode) {
+  const env0 = require('../config/env');
+  // Optional guard: pause ordering on a provider whose upstream funds are
+  // critically low (below threshold), instead of failing after the debit.
+  if (env0.PROVIDER_BLOCK_ORDERS_BELOW_THRESHOLD && env0.PROVIDER_LOW_BALANCE_THRESHOLD_PHP > 0) {
+    try {
+      const [[prov]] = await pool.query('SELECT balance_usd FROM providers WHERE id = ?', [service.provider_id]);
+      if (prov && prov.balance_usd !== null &&
+          Number(prov.balance_usd) * env0.USD_TO_PHP_RATE < env0.PROVIDER_LOW_BALANCE_THRESHOLD_PHP) {
+        throw new Error('Ordering for this service is temporarily paused while we top up capacity. Please try again shortly.');
+      }
+    } catch (err) {
+      if (String(err.message).includes('temporarily paused')) throw err;
+      // A lookup failure must never block ordering.
+    }
+  }
+
   const q = pricing.quote(service, quantity);
   const orderCode = newOrderCode();
   const providerName = service.provider_code === 'smmworld' ? 'SMMWorld' : 'RKDPanel';

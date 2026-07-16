@@ -336,12 +336,18 @@ router.get('/admin/deposits', async (req, res, next) => {
 
 router.post('/admin/deposits/:id/approve', async (req, res) => {
   try {
-    const deposit = await wallet.approveDeposit(clampInt(req.params.id, 1, 2147483647), req.user.id, String(req.body.note || '').trim());
+    const { deposit, bonus, bonusPct, commission, referrerId } =
+      await wallet.approveDeposit(clampInt(req.params.id, 1, 2147483647), req.user.id, String(req.body.note || '').trim());
     const [[user]] = await pool.query('SELECT email FROM users WHERE id = ?', [deposit.user_id]);
     if (user) mailer.sendDepositResult(user.email, deposit, true);
+    const bonusLine = bonus > 0 ? ` + ₱${bonus.toFixed(2)} bonus (${bonusPct}%)` : '';
     notifications.notifyUser(deposit.user_id, 'deposit', 'Deposit approved 🎉',
-      `Your ${String(deposit.payment_method).toUpperCase()} deposit of ₱${Number(deposit.amount).toFixed(2)} was approved and added to your wallet.`).catch(() => {});
-    flash(req, 'success', `Deposit #${deposit.id} approved — ₱${Number(deposit.amount).toFixed(2)} credited.`);
+      `Your ${String(deposit.payment_method).toUpperCase()} deposit of ₱${Number(deposit.amount).toFixed(2)} was approved${bonusLine} and added to your wallet.`).catch(() => {});
+    if (referrerId && commission > 0) {
+      notifications.notifyUser(referrerId, 'commission', 'Referral commission earned 💰',
+        `You earned ₱${commission.toFixed(2)} because a member you invited topped up. Keep sharing your link!`).catch(() => {});
+    }
+    flash(req, 'success', `Deposit #${deposit.id} approved — ₱${Number(deposit.amount).toFixed(2)} credited${bonusLine}.`);
   } catch (err) { flash(req, 'error', err.message); }
   res.redirect('/admin/deposits');
 });
@@ -357,6 +363,31 @@ router.post('/admin/deposits/:id/reject', async (req, res) => {
     flash(req, 'success', `Deposit #${deposit.id} rejected.`);
   } catch (err) { flash(req, 'error', err.message); }
   res.redirect('/admin/deposits');
+});
+
+// ── Referral payouts ──────────────────────────────────────
+router.get('/admin/payouts', async (req, res, next) => {
+  try {
+    const [payouts] = await pool.query(
+      `SELECT p.*, u.username, u.email FROM payout_requests p LEFT JOIN users u ON u.id = p.user_id
+       ORDER BY (p.status = 'Pending') DESC, p.id DESC LIMIT 100`);
+    res.render('admin/payouts', { title: 'Admin · Referral Payouts', payouts });
+  } catch (err) { next(err); }
+});
+
+router.post('/admin/payouts/:id/resolve', async (req, res) => {
+  try {
+    const approve = req.body.decision === 'paid';
+    const note = String(req.body.note || '').trim();
+    const p = await wallet.resolvePayout(clampInt(req.params.id, 1, 2147483647), req.user.id, approve, note);
+    notifications.notifyUser(p.user_id, 'payout',
+      approve ? 'Payout sent 🎉' : 'Payout request rejected',
+      approve
+        ? `Your ₱${Number(p.amount).toFixed(2)} referral payout was sent to your ${String(p.method).toUpperCase()} (${p.account_number}).`
+        : `Your ₱${Number(p.amount).toFixed(2)} payout request was rejected and the amount was returned to your wallet.${note ? ' Reason: ' + note : ''}`).catch(() => {});
+    flash(req, 'success', `Payout #${p.id} marked ${approve ? 'Paid' : 'Rejected'}.`);
+  } catch (err) { flash(req, 'error', err.message); }
+  res.redirect('/admin/payouts');
 });
 
 // ── Orders ────────────────────────────────────────────────
