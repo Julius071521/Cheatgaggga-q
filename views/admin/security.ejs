@@ -44,6 +44,33 @@
   </div>
 
   <div class="card section-card">
+    <div class="card-head"><h2>☁️ Cloudflare edge</h2></div>
+    <% if (cfConfigured) { %>
+      <p class="muted">Connected ✅ — blocking an IP here also blocks it at the Cloudflare edge (before it reaches your server). <strong><%= cfEdgeBlocked %></strong> IP(s) currently blocked at the edge.</p>
+      <% if (cfThreats.length) { %>
+      <h3 class="mt">Recently blocked by Cloudflare (24h)</h3>
+      <div class="table-wrap">
+        <table class="table table-compact">
+          <thead><tr><th>IP</th><th>Country</th><th>Path</th><th>Rule</th></tr></thead>
+          <tbody>
+            <% cfThreats.forEach(function(t) { %>
+            <tr>
+              <td><code><%= t.clientIP %></code></td>
+              <td class="muted"><%= t.clientCountryName || '—' %></td>
+              <td class="muted"><%= String(t.clientRequestPath || '').slice(0, 40) %></td>
+              <td class="muted"><small><%= t.source || '' %></small></td>
+            </tr>
+            <% }); %>
+          </tbody>
+        </table>
+      </div>
+      <% } else { %><p class="empty-note">No edge blocks in the last 24h — quiet is good. 🟢</p><% } %>
+    <% } else { %>
+      <p class="muted">Not connected. Add <code>CLOUDFLARE_API_TOKEN</code> + <code>CLOUDFLARE_ZONE_ID</code> to block attackers at the Cloudflare edge and see what Cloudflare's firewall is stopping. Setup steps are in <code>CLOUDFLARE_SETUP.md</code>.</p>
+    <% } %>
+  </div>
+
+  <div class="card section-card">
     <div class="card-head"><h2>🎯 Flagged IPs</h2></div>
     <% if (threats.length) { %>
     <div class="table-wrap">

@@ -67,6 +67,10 @@ const env = {
   // Site is fronted by Cloudflare → trust CF-Connecting-IP for the real visitor.
   TRUST_CF_CONNECTING_IP: bool('TRUST_CF_CONNECTING_IP', true),
   SECURITY_EVENT_RETENTION_DAYS: num('SECURITY_EVENT_RETENTION_DAYS', 30),
+
+  // Cloudflare API (edge-level IP blocking + firewall event visibility).
+  CLOUDFLARE_API_TOKEN: str('CLOUDFLARE_API_TOKEN', ''),
+  CLOUDFLARE_ZONE_ID: str('CLOUDFLARE_ZONE_ID', ''),
   // "Under attack" mode: N distinct attacker IPs within the window trips it.
   SECURITY_UNDER_ATTACK_IPS: num('SECURITY_UNDER_ATTACK_IPS', 5),
   SECURITY_UNDER_ATTACK_WINDOW_MIN: num('SECURITY_UNDER_ATTACK_WINDOW_MIN', 5),

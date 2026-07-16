@@ -253,6 +253,8 @@ async function alert(repIn, kind, detail, autoBlocked) {
 }
 
 // ── IP actions (shared by Telegram buttons + the admin page) ──
+// Blocks apply both locally (the app gate) AND at the Cloudflare edge when the
+// CF API is configured — so attackers are stopped before they reach the server.
 async function blockIp(ip, reason, adminId) {
   await pool.query(
     'INSERT INTO blocked_ips (ip, reason, blocked_by) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE reason = VALUES(reason)',
@@ -261,6 +263,8 @@ async function blockIp(ip, reason, adminId) {
     `INSERT INTO ip_reputation (ip, status) VALUES (?, 'blocked')
      ON DUPLICATE KEY UPDATE status = 'blocked'`, [ip]);
   invalidateGate();
+  const cf = require('./cloudflare');
+  if (cf.configured) cf.edgeBlock(ip, reason).catch(() => {});
 }
 
 async function allowIp(ip) {
@@ -269,6 +273,8 @@ async function allowIp(ip) {
     `INSERT INTO ip_reputation (ip, status, score) VALUES (?, 'allowed', 0)
      ON DUPLICATE KEY UPDATE status = 'allowed', score = 0, alerted_at = NULL`, [ip]);
   invalidateGate();
+  const cf = require('./cloudflare');
+  if (cf.configured) cf.edgeUnblock(ip).catch(() => {});
 }
 
 async function watchIp(ip) {

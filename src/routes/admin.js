@@ -135,11 +135,19 @@ router.get('/admin/security', async (req, res, next) => {
              COUNT(DISTINCT ip) AS ips24
       FROM security_events WHERE created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)`);
     const [[blk]] = await pool.query('SELECT COUNT(*) AS c FROM blocked_ips');
+    const cloudflare = require('../services/cloudflare');
+    let cfThreats = [];
+    let cfEdgeBlocked = 0;
+    if (cloudflare.configured) {
+      try { cfThreats = await cloudflare.recentThreats(24, 15); } catch (_) {}
+      try { cfEdgeBlocked = (await cloudflare.listBlocked(100)).length; } catch (_) {}
+    }
     res.render('admin/security', {
       title: 'Admin · Security', enabled, autoBlock, threats, recent, stat, blockedCount: blk.c,
       telegramOn: require('../services/telegram').enabled,
       underAttack: await security.underAttack(),
       threatLevel: security.threatLevel, flagEmoji: security.flagEmoji, kindLabel: security.KIND_LABEL,
+      cfConfigured: cloudflare.configured, cfThreats, cfEdgeBlocked,
     });
   } catch (err) { next(err); }
 });
