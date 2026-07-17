@@ -74,9 +74,11 @@ async function listBlocked(limit = 50) {
 }
 
 // What Cloudflare's WAF blocked recently (GraphQL firewall events).
-async function recentThreats(hours = 24, limit = 20) {
+// The free plan rejects a window of 1 day or wider, so cap under 24h.
+async function recentThreats(hours = 23, limit = 20) {
   if (!configured) return [];
-  const since = new Date(Date.now() - hours * 3600 * 1000).toISOString();
+  const capped = Math.min(Math.max(1, hours), 23);
+  const since = new Date(Date.now() - (capped * 3600 - 300) * 1000).toISOString();
   const query = `query($zone:String!,$since:Time!,$limit:Int!){
     viewer{ zones(filter:{zoneTag:$zone}){
       firewallEventsAdaptive(limit:$limit, filter:{ datetime_geq:$since, action:"block" }, orderBy:[datetime_DESC]){

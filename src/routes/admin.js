@@ -139,7 +139,7 @@ router.get('/admin/security', async (req, res, next) => {
     let cfThreats = [];
     let cfEdgeBlocked = 0;
     if (cloudflare.configured) {
-      try { cfThreats = await cloudflare.recentThreats(24, 15); } catch (_) {}
+      try { cfThreats = await cloudflare.recentThreats(23, 15); } catch (_) {}
       try { cfEdgeBlocked = (await cloudflare.listBlocked(100)).length; } catch (_) {}
     }
     res.render('admin/security', {
