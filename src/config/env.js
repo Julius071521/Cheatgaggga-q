@@ -46,6 +46,8 @@ const env = {
   AUTOPILOT_STUCK_HOURS: num('AUTOPILOT_STUCK_HOURS', 48),
   AUTO_APPROVE_DEPOSITS_MAX_PHP: num('AUTO_APPROVE_DEPOSITS_MAX_PHP', 500),
   DAILY_DIGEST_HOUR: num('DAILY_DIGEST_HOUR', 8),
+  // Open orders still not delivered after this many days are auto-refunded.
+  AUTOPILOT_AUTOREFUND_DAYS: num('AUTOPILOT_AUTOREFUND_DAYS', 7),
 
   // Growth: deposit bonus tiers ("min:percent,...") + referral commission
   DEPOSIT_BONUS_TIERS: str('DEPOSIT_BONUS_TIERS', '500:5,1000:10,5000:50'),

@@ -124,6 +124,45 @@ async function refundOrder(orderId, errorMessage) {
   }
 }
 
+// Admin/watchdog refund: returns the still-unrefunded portion of an order's
+// charge to the wallet, marks it Canceled, and best-effort cancels it upstream.
+// Idempotent — a fully-refunded order is left untouched. Returns the refunded
+// amount (0 if nothing was owed).
+async function adminRefund(orderId, reason, adminId = null, markStuck = false) {
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+    const [[order]] = await conn.query('SELECT * FROM orders WHERE id = ? FOR UPDATE', [orderId]);
+    if (!order) { await conn.rollback(); return { refunded: 0, skipped: 'not found' }; }
+    const charge = toUnits(order.charge);
+    const already = toUnits(order.refund_amount || 0);
+    const owed = Math.max(0, charge - already);
+    if (owed <= 0) { await conn.rollback(); return { refunded: 0, skipped: 'already refunded' }; }
+
+    await applyBalanceChange(conn, order.user_id, Number(unitsToStr(owed)), 'refund',
+      `Refund for order ${order.order_id}${reason ? ' — ' + String(reason).slice(0, 80) : ''}`);
+    await conn.query(
+      `UPDATE orders SET status = 'Canceled', refund_amount = ?, refunded_at = NOW(),
+         ${markStuck ? 'stuck_refunded_at = NOW(),' : ''} admin_notes = ? WHERE id = ?`,
+      [unitsToStr(charge), String(reason || 'Refunded by admin').slice(0, 500), orderId]);
+    await conn.commit();
+
+    // Best-effort upstream cancel so we don't keep paying the provider for it.
+    if (order.provider_order_id) {
+      const code = order.api_provider === 'SMMWorld' ? 'smmworld' : 'rkd';
+      const client = getClient(code);
+      if (client) { try { await client.cancel(order.provider_order_id); } catch (_) { /* non-fatal */ } }
+    }
+    return { refunded: Number(unitsToStr(owed)), orderCode: order.order_id, userId: order.user_id };
+  } catch (err) {
+    await conn.rollback();
+    console.error(`[orders] adminRefund for ${orderId} failed:`, err.message);
+    throw err;
+  } finally {
+    conn.release();
+  }
+}
+
 // Apply a provider status payload to one order; issues partial/cancel refunds once.
 async function applyStatusUpdate(order, payload) {
   const status = mapProviderStatus(payload.status);
@@ -214,4 +253,4 @@ async function syncOpenOrders(limit = 200) {
   return { checked: orders.length, updated };
 }
 
-module.exports = { placeOrder, refundOrder, applyStatusUpdate, syncOrderById, syncOpenOrders, mapProviderStatus, OPEN_STATUSES };
+module.exports = { placeOrder, refundOrder, adminRefund, applyStatusUpdate, syncOrderById, syncOpenOrders, mapProviderStatus, OPEN_STATUSES };

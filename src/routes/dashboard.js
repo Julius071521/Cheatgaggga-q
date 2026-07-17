@@ -1,6 +1,7 @@
 'use strict';
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
 const express = require('express');
 const multer = require('multer');
 const env = require('../config/env');
@@ -48,6 +49,30 @@ function looksLikeImage(filePath) {
     fs.closeSync(fd);
     return MAGIC.some((m) => m.bytes.every((b, i) => buf[i] === b));
   } catch (_) { return false; }
+}
+
+// SHA-256 of a file's bytes — used to reject a reused receipt screenshot.
+function fileSha256(filePath) {
+  try { return crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex'); }
+  catch (_) { return null; }
+}
+
+// Reject obviously fake payment reference numbers before they reach an admin.
+// Normalizes spacing, checks a sane length, and blocks trivial patterns
+// (all-same digit, simple sequences). Real GCash/Maya refs are 10–15 chars.
+function validReference(raw) {
+  const ref = String(raw || '').replace(/[\s-]/g, '');
+  if (!/^[A-Za-z0-9]{7,40}$/.test(ref)) return { ok: false, msg: 'Enter the reference number exactly as shown on your receipt (letters/numbers only).' };
+  // All-same character (e.g. 0000000000000, aaaaaaa) is an obvious placeholder.
+  if (/^(.)\1+$/.test(ref)) return { ok: false, msg: 'That reference number looks invalid. Please copy it exactly from your receipt.' };
+  // A pure ascending/descending run (12345678, 98765432) — exact match only, so
+  // a real random reference that merely contains such a run is never rejected.
+  const asc = '01234567890123456789';
+  const desc = '98765432109876543210';
+  if (/^\d+$/.test(ref) && (asc.includes(ref) || desc.includes(ref))) {
+    return { ok: false, msg: 'That reference number looks invalid. Please copy it exactly from your receipt.' };
+  }
+  return { ok: true, ref };
 }
 
 const PAY_METHODS = [
@@ -229,19 +254,33 @@ router.post('/wallet/deposit', (req, res, next) => {
 
     if (!method) return fail('Please choose a payment method.');
     if (!Number.isFinite(amount) || amount < 50 || amount > 1000000) return fail('Amount must be between ₱50 and ₱1,000,000.');
-    if (reference.length < 4) return fail('Please enter the payment reference number.');
+    const refCheck = validReference(reference);
+    if (!refCheck.ok) return fail(refCheck.msg);
     if (req.file && !looksLikeImage(req.file.path)) return fail('That file is not a valid image.');
 
+    // Same reference already used by ANYONE (not just this user) is a red flag.
     const [[dupe]] = await pool.query(
-      "SELECT id FROM deposits WHERE user_id = ? AND reference_id = ? AND status <> 'Rejected'",
-      [req.user.id, reference]);
-    if (dupe) return fail('You already submitted a deposit with that reference number.');
+      "SELECT id, user_id FROM deposits WHERE reference_id = ? AND status <> 'Rejected'", [reference]);
+    if (dupe) return fail(dupe.user_id === req.user.id
+      ? 'You already submitted a deposit with that reference number.'
+      : 'That reference number was already used. Please double-check your receipt.');
+
+    // Same receipt SCREENSHOT reused across accounts = fraud. Fingerprint it.
+    let receiptHash = null;
+    if (req.file) {
+      receiptHash = fileSha256(req.file.path);
+      if (receiptHash) {
+        const [[dupImg]] = await pool.query(
+          "SELECT id FROM deposits WHERE receipt_hash = ? AND status <> 'Rejected' LIMIT 1", [receiptHash]);
+        if (dupImg) return fail('That receipt image was already submitted. Please upload the correct screenshot for this payment.');
+      }
+    }
 
     let depRes;
     try {
       [depRes] = await pool.query(
-        "INSERT INTO deposits (user_id, payment_method, amount, reference_id, status, receipt_path) VALUES (?, ?, ?, ?, 'Pending', ?)",
-        [req.user.id, method, amount.toFixed(4), reference, req.file ? path.basename(req.file.path) : null]);
+        "INSERT INTO deposits (user_id, payment_method, amount, reference_id, status, receipt_path, receipt_hash) VALUES (?, ?, ?, ?, 'Pending', ?, ?)",
+        [req.user.id, method, amount.toFixed(4), reference, req.file ? path.basename(req.file.path) : null, receiptHash]);
     } catch (err) {
       // reference_id is globally unique — a reference someone else already used
       // must be rejected cleanly, never crash.

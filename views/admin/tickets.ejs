@@ -34,15 +34,27 @@
       <% } %>
 
       <div class="ticket-actions">
-        <% ['speedup','cancel','refill'].forEach(function(a) { %>
+        <% var rt = String(t.request_type || '').toLowerCase();
+           var order = [
+             { a:'refill',  label:'♻️ Refill',  hot: rt.indexOf('refill') > -1 },
+             { a:'speedup', label:'⚡ Speed up', hot: rt.indexOf('speed') > -1 },
+             { a:'cancel',  label:'✖ Cancel',   hot: rt.indexOf('cancel') > -1 },
+           ];
+           order.forEach(function(b) { %>
         <form method="post" action="/admin/tickets/<%= t.id %>/action" class="inline-form">
           <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-          <input type="hidden" name="action" value="<%= a %>">
-          <button type="submit" class="btn btn-outline btn-sm">
-            <%= a === 'speedup' ? '⚡ Speed up' : (a === 'cancel' ? '✖ Cancel' : '♻️ Refill') %>
-          </button>
+          <input type="hidden" name="action" value="<%= b.a %>">
+          <button type="submit" class="btn btn-sm <%= b.hot ? 'btn-primary' : 'btn-outline' %>"><%= b.label %></button>
         </form>
         <% }); %>
+        <% if (t.order_id) { %>
+        <form method="post" action="/admin/tickets/<%= t.id %>/action" class="inline-form"
+              onsubmit="return confirm('Refund this order to the customer’s wallet? This cannot be undone.');">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <input type="hidden" name="action" value="refund">
+          <button type="submit" class="btn btn-sm <%= (rt.indexOf('stuck') > -1 || rt.indexOf('not complet') > -1 || rt.indexOf('refund') > -1) ? 'btn-danger' : 'btn-ghost' %>">💸 Refund</button>
+        </form>
+        <% } %>
         <form method="post" action="/admin/tickets/<%= t.id %>/status" class="inline-form">
           <input type="hidden" name="_csrf" value="<%= csrfToken %>">
           <select name="status" class="input-sm">

@@ -187,6 +187,41 @@ async function flagStuckOrders() {
   return stuck.length;
 }
 
+// Auto-refund orders still undelivered after AUTOPILOT_AUTOREFUND_DAYS.
+async function autoRefundStuckOrders() {
+  const days = Math.max(1, env.AUTOPILOT_AUTOREFUND_DAYS);
+  const [stuck] = await pool.query(
+    `SELECT id, order_id, user_id, service_name, charge FROM orders
+      WHERE status IN ('Pending', 'In progress', 'Processing')
+        AND stuck_refunded_at IS NULL
+        AND created_at < DATE_SUB(NOW(), INTERVAL ? DAY)
+      ORDER BY id ASC LIMIT 20`, [days]);
+
+  let refunded = 0;
+  for (const o of stuck) {
+    try {
+      const r = await orderService.adminRefund(o.id, `Auto-refunded: undelivered after ${days} days`, null, true);
+      if (r.refunded > 0) {
+        refunded += 1;
+        notifications.notifyUser(o.user_id, 'order', 'Order refunded automatically 💸',
+          `Your order ${o.order_id} didn't complete within ${days} days, so we refunded ₱${r.refunded.toFixed(2)} to your wallet. Sorry for the wait — feel free to try again.`).catch(() => {});
+        await log({ order_ref: o.order_id, user_id: o.user_id, action: 'auto_refund_stuck', outcome: 'done',
+          detail: `Auto-refunded ₱${r.refunded.toFixed(2)} — order ${o.order_id} undelivered after ${days} days.` });
+      } else {
+        // Nothing owed (already refunded) — just mark so we stop re-checking it.
+        await pool.query('UPDATE orders SET stuck_refunded_at = NOW() WHERE id = ?', [o.id]);
+      }
+    } catch (err) {
+      console.warn(`[autopilot] auto-refund for order ${o.id} failed:`, err.message);
+    }
+  }
+  if (refunded) {
+    await notifyAdmins('💸 Stuck orders auto-refunded',
+      `${refunded} order(s) undelivered after ${days} days were auto-refunded to customers.`);
+  }
+  return refunded;
+}
+
 // ── Deposit auto-approval (small amounts with a receipt) ────
 // Safety gates: amount ≤ threshold, has an uploaded receipt, reference not
 // used by any OTHER user, account active. Anything suspicious escalates.
@@ -334,6 +369,8 @@ async function tick() {
     if (Date.now() - lastWatchdogAt > 60 * 60 * 1000) {
       lastWatchdogAt = Date.now();
       result.flagged = await flagStuckOrders();
+      try { result.autoRefunded = await autoRefundStuckOrders(); }
+      catch (err) { console.warn('[autopilot] auto-refund pass failed:', err.message); }
       try { result.balanceAlerts = await checkProviderBalances(); }
       catch (err) { console.warn('[autopilot] balance pass failed:', err.message); }
       try { await require('./security').purgeOld(); }
@@ -358,7 +395,7 @@ function startScheduler() {
 }
 
 module.exports = {
-  isOn, handleTicket, processPendingTickets, flagStuckOrders,
+  isOn, handleTicket, processPendingTickets, flagStuckOrders, autoRefundStuckOrders,
   processPendingDeposits, checkProviderBalances, sendDailyDigest,
   tick, startScheduler,
 };

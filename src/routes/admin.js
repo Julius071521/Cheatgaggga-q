@@ -263,6 +263,7 @@ router.post('/admin/tickets/:id/action', async (req, res) => {
 
     let statusText = '';
     let response = '';
+    let newStatus = 'in_progress';
     if (action === 'refill' || action === 'cancel') {
       const { providerOrderId, code } = await resolveTicketProvider(ticket);
       const client = getClient(code);
@@ -270,6 +271,19 @@ router.post('/admin/tickets/:id/action', async (req, res) => {
       const result = action === 'refill' ? await client.refill(providerOrderId) : await client.cancel(providerOrderId);
       statusText = `${action}_sent`;
       response = JSON.stringify(result).slice(0, 1000);
+    } else if (action === 'refund') {
+      // Refund the linked order straight from the concern.
+      const [[order]] = await pool.query('SELECT id FROM orders WHERE order_id = ? OR id = ? LIMIT 1',
+        [ticket.order_id, /^\d+$/.test(String(ticket.order_id)) ? ticket.order_id : 0]);
+      if (!order) throw new Error('No order linked to this ticket to refund.');
+      const r = await orderService.adminRefund(order.id, `Refund from concern #${ticket.id}`, req.user.id);
+      if (r.refunded > 0 && r.userId) {
+        notifications.notifyUser(r.userId, 'order', 'Order refunded 💸',
+          `Your order ${r.orderCode} was refunded ₱${r.refunded.toFixed(2)} to your wallet.`).catch(() => {});
+      }
+      statusText = 'refunded';
+      response = r.refunded > 0 ? `Refunded ₱${r.refunded.toFixed(2)}` : (r.skipped || 'nothing to refund');
+      newStatus = 'resolved';
     } else if (action === 'speedup') {
       statusText = 'speedup_noted';
       response = 'Speed-up requested from provider (manual follow-up).';
@@ -278,11 +292,11 @@ router.post('/admin/tickets/:id/action', async (req, res) => {
     }
 
     await pool.query(
-      "UPDATE tickets SET provider_action_status = ?, provider_action_response = ?, status = 'in_progress', assigned_to = ? WHERE id = ?",
-      [statusText, response, req.user.id, ticket.id]);
+      'UPDATE tickets SET provider_action_status = ?, provider_action_response = ?, status = ?, assigned_to = ? WHERE id = ?',
+      [statusText, response, newStatus, req.user.id, ticket.id]);
     if (ticket.user_id) notifications.notifyUser(ticket.user_id, 'ticket', 'Update on your order concern',
       `Our team is processing your "${ticket.request_type || action}" request${ticket.order_id ? ' for order ' + ticket.order_id : ''}.`).catch(() => {});
-    flash(req, 'success', `Action "${action}" sent for ticket #${ticket.id}.`);
+    flash(req, 'success', action === 'refund' ? `${response} for ticket #${ticket.id}.` : `Action "${action}" sent for ticket #${ticket.id}.`);
   } catch (err) {
     flash(req, 'error', `Action failed: ${err.message}`);
   }
