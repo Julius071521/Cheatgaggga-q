@@ -15,7 +15,10 @@ const SKIP = /^\/(assets|telegram|favicon\.ico|robots\.txt)/;
 
 function threatRadar(req, res, next) {
   const ip = req.clientIp || req.ip;
-  if (SKIP.test(req.path) || security.isPrivateIp(ip)) return next();
+  // Skip assets/webhooks, local IPs, and our own Cloudflare front-end. If the
+  // resolved IP is still a Cloudflare edge IP, CF-Connecting-IP wasn't present
+  // — analysing it would just flag Cloudflare, so we skip it entirely.
+  if (SKIP.test(req.path) || security.isSkippableIp(ip)) return next();
 
   enabled().then((on) => {
     if (!on) return;

@@ -72,6 +72,40 @@ function isPrivateIp(ip) {
   return /^(127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|::1|fc|fd|fe80)/i.test(ip) || ip === '::ffff:127.0.0.1';
 }
 
+// Cloudflare's own edge IPs (published ranges). When the site is behind
+// Cloudflare, req.ip is one of these — recording/blocking it would flag or ban
+// Cloudflare itself (i.e. everyone). We NEVER treat these as attackers; the
+// real visitor is in CF-Connecting-IP (see utils/clientip).
+const CF_V4 = [
+  ['173.245.48.0', 20], ['103.21.244.0', 22], ['103.22.200.0', 22], ['103.31.4.0', 22],
+  ['141.101.64.0', 18], ['108.162.192.0', 18], ['190.93.240.0', 20], ['188.114.96.0', 20],
+  ['197.234.240.0', 22], ['198.41.128.0', 17], ['162.158.0.0', 15], ['104.16.0.0', 13],
+  ['104.24.0.0', 14], ['172.64.0.0', 13], ['131.0.72.0', 22],
+];
+const CF_V6_PREFIXES = ['2400:cb00', '2606:4700', '2803:f800', '2405:b500', '2405:8100', '2a06:98c', '2c0f:f248'];
+
+function ip4ToInt(ip) {
+  const p = ip.split('.');
+  if (p.length !== 4) return null;
+  return ((+p[0] << 24) + (+p[1] << 16) + (+p[2] << 8) + (+p[3])) >>> 0;
+}
+function isCloudflareIp(ip) {
+  if (!ip) return false;
+  const s = String(ip).toLowerCase().replace(/^::ffff:/, '');
+  if (s.includes(':')) return CF_V6_PREFIXES.some((pre) => s.startsWith(pre));
+  const n = ip4ToInt(s);
+  if (n === null) return false;
+  return CF_V4.some(([base, bits]) => {
+    const mask = bits === 0 ? 0 : (0xffffffff << (32 - bits)) >>> 0;
+    return (n & mask) === (ip4ToInt(base) & mask);
+  });
+}
+
+// Any IP we must never flag/block: local, or our own front-end (Cloudflare).
+function isSkippableIp(ip) {
+  return isPrivateIp(ip) || isCloudflareIp(ip);
+}
+
 async function isOn() {
   return ['1', 'true', 'on', 'yes'].includes(String(await getSetting('security_enabled', 'on')).toLowerCase());
 }
@@ -109,6 +143,8 @@ function decodeURIComponentSafe(s) {
 // Record an event + roll it into the IP's reputation. Fires alert/auto-block
 // when the running score crosses the configured thresholds.
 async function record(ip, kind, req, detail, opts) {
+  // Never record our own front-end (Cloudflare) or local IPs as attackers.
+  if (isSkippableIp(ip)) return;
   const authed = !!(opts && opts.authed);
   const score = KIND_SCORE[kind] || 10;
   const path = String(req.originalUrl || req.url || '').slice(0, 255);
@@ -256,6 +292,8 @@ async function alert(repIn, kind, detail, autoBlocked) {
 // Blocks apply both locally (the app gate) AND at the Cloudflare edge when the
 // CF API is configured — so attackers are stopped before they reach the server.
 async function blockIp(ip, reason, adminId) {
+  // Refuse to block Cloudflare/local IPs — that would ban our own front-end.
+  if (isSkippableIp(ip)) { console.warn(`[security] refused to block infrastructure IP ${ip}`); return { skipped: 'infrastructure ip' }; }
   await pool.query(
     'INSERT INTO blocked_ips (ip, reason, blocked_by) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE reason = VALUES(reason)',
     [ip, String(reason || 'Blocked').slice(0, 255), adminId]);
@@ -301,7 +339,28 @@ async function purgeOld() {
     await pool.query(
       `DELETE FROM ip_reputation WHERE (status IS NULL OR status = 'watch')
          AND last_seen < DATE_SUB(NOW(), INTERVAL ? DAY)`, [days]);
+    await cleanInfraIps();
   } catch (err) { console.warn('[security] purge failed:', err.message); }
+}
+
+// Remove any Cloudflare/local IPs that an older version wrongly recorded or
+// blocked — so past mistakes clear themselves after upgrading.
+async function cleanInfraIps() {
+  try {
+    const [reps] = await pool.query('SELECT ip FROM ip_reputation');
+    const bad = reps.map((r) => r.ip).filter(isSkippableIp);
+    for (const ip of bad) {
+      await pool.query('DELETE FROM ip_reputation WHERE ip = ?', [ip]);
+      await pool.query('DELETE FROM security_events WHERE ip = ?', [ip]);
+    }
+    const [blk] = await pool.query('SELECT ip FROM blocked_ips');
+    const badBlk = blk.map((r) => r.ip).filter(isSkippableIp);
+    for (const ip of badBlk) await pool.query('DELETE FROM blocked_ips WHERE ip = ?', [ip]);
+    if (bad.length || badBlk.length) {
+      console.log(`[security] cleaned ${bad.length} flagged + ${badBlk.length} blocked infrastructure IP(s)`);
+      require('../middleware/gate').invalidate();
+    }
+  } catch (err) { console.warn('[security] cleanInfraIps failed:', err.message); }
 }
 
 // Is the site currently under a coordinated attack? (for the admin banner)
@@ -312,7 +371,7 @@ async function underAttack() {
 }
 
 module.exports = {
-  classify, record, noteRequest, isPrivateIp, isOn,
-  blockIp, allowIp, watchIp, ipDetails, underAttack, purgeOld,
+  classify, record, noteRequest, isPrivateIp, isCloudflareIp, isSkippableIp, isOn,
+  blockIp, allowIp, watchIp, ipDetails, underAttack, purgeOld, cleanInfraIps,
   threatLevel, geolocate, flagEmoji, KIND_LABEL,
 };

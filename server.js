@@ -175,6 +175,11 @@ runMigrations()
       try { require('./src/services/autopilot').startScheduler(); }
       catch (err) { console.warn('[server] autopilot failed to start:', err.message); }
 
+      // One-time cleanup of any Cloudflare/local IPs wrongly recorded by an
+      // older version (so past mistakes clear on upgrade).
+      try { require('./src/services/security').cleanInfraIps(); }
+      catch (err) { console.warn('[server] infra-ip cleanup failed:', err.message); }
+
       // Telegram security bot: register the webhook so button presses reach us.
       try {
         const telegram = require('./src/services/telegram');
