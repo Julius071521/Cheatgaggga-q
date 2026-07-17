@@ -940,3 +940,17 @@ code { background: var(--surface-2); padding: 2px 7px; border-radius: 6px; font-
 .order-code { font-size: 0.82rem; font-weight: 700; background: var(--primary-soft); color: var(--primary); border-radius: 6px; padding: 2px 7px; }
 .prov-ref { font-size: 0.76rem; color: var(--text-soft); margin-top: 4px; }
 .prov-ref strong { color: var(--text); font-family: var(--font-head); }
+
+/* ── Two-factor authentication ── */
+.twofa-card.twofa-on { border-color: var(--accent); }
+.twofa-key { background: var(--surface-2); border-radius: 12px; padding: 14px; margin: 12px 0; }
+.twofa-key .api-key { font-size: 1.05rem; letter-spacing: 0.12em; }
+
+/* ── Drip-feed order box ── */
+.dripfeed-box { border: 1.5px dashed var(--border); border-radius: 12px; padding: 12px 14px; margin-bottom: 16px; }
+.drip-toggle { display: flex; align-items: flex-start; gap: 9px; cursor: pointer; font-size: 0.9rem; }
+.drip-toggle input { margin-top: 3px; flex-shrink: 0; }
+.drip-fields { margin-top: 12px; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.drip-fields .field { margin-bottom: 0; }
+.drip-fields .drip-note { grid-column: 1 / -1; margin: 0; font-size: 0.82rem; }
+@media (max-width: 520px) { .drip-fields { grid-template-columns: 1fr; } }

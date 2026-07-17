@@ -38,7 +38,47 @@
       </form>
     </div>
 
-    <div class="card" data-reveal data-reveal-delay="160">
+    <div class="card twofa-card <%= twofaEnabled ? 'twofa-on' : '' %>" id="twofa" data-reveal data-reveal-delay="160">
+      <h2>🔐 Two-factor authentication <%= twofaEnabled ? '— ON' : '' %></h2>
+      <% if (twofaEnabled) { %>
+        <p class="muted">Your account is protected. You'll be asked for a code from your authenticator app at each login.</p>
+        <form method="post" action="/settings/2fa/disable" onsubmit="return confirm('Turn off two-factor protection?');">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <label class="field">
+            <span>Enter a current code to turn it off</span>
+            <input type="text" name="code" required inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="123456">
+          </label>
+          <button type="submit" class="btn btn-danger">Turn off 2FA</button>
+        </form>
+      <% } else if (pending2fa) { %>
+        <p class="muted">Add this account to <strong>Google Authenticator</strong>, Authy, or Microsoft Authenticator, then enter the code it shows to finish.</p>
+        <div class="twofa-key">
+          <span class="muted">Setup key (tap Copy, then "Enter a setup key" in your app):</span>
+          <div class="pm-row">
+            <code class="api-key"><%= pending2fa.secret.match(/.{1,4}/g).join(' ') %></code>
+            <button type="button" class="btn btn-ghost btn-sm copy-btn" data-copy="<%= pending2fa.secret %>">Copy</button>
+          </div>
+          <p class="auth-fineprint" style="text-align:left">Account name: <strong><%= site.name %> (<%= user.email %>)</strong> · Type: Time-based</p>
+        </div>
+        <form method="post" action="/settings/2fa/enable">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <label class="field">
+            <span>Enter the 6-digit code from your app</span>
+            <input type="text" name="code" required inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="123456" autofocus>
+          </label>
+          <button type="submit" class="btn btn-primary">Confirm &amp; enable</button>
+          <button type="submit" formaction="/settings/2fa/cancel" formnovalidate class="btn btn-ghost">Cancel</button>
+        </form>
+      <% } else { %>
+        <p class="muted">Add a second layer of security. After your password, login will also require a 6-digit code from your phone — so a stolen password isn't enough. <strong>Strongly recommended for admins.</strong></p>
+        <form method="post" action="/settings/2fa/start">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <button type="submit" class="btn btn-primary">Enable two-factor</button>
+        </form>
+      <% } %>
+    </div>
+
+    <div class="card" data-reveal data-reveal-delay="240">
       <h2>Reseller API</h2>
       <p class="muted">Use our standard SMM panel API to resell services from your own site. Endpoint: <code>POST /api/v2</code> with <code>key</code> + <code>action</code> (<code>services</code>, <code>add</code>, <code>status</code>, <code>balance</code>). Prices are in PHP.</p>
       <% if (user.api_key) { %>

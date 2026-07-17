@@ -47,8 +47,11 @@ class SmmClient {
     return this.call({ action: 'services' });
   }
 
-  addOrder({ service, link, quantity }) {
-    return this.call({ action: 'add', service, link, quantity });
+  addOrder({ service, link, quantity, runs, interval }) {
+    const params = { action: 'add', service, link, quantity };
+    // Drip-feed: split the delivery into `runs` batches every `interval` minutes.
+    if (runs && interval) { params.runs = runs; params.interval = interval; }
+    return this.call(params);
   }
 
   orderStatus(providerOrderId) {

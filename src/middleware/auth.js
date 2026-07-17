@@ -10,7 +10,7 @@ async function attachUser(req, res, next) {
     try {
       const [[user]] = await pool.query(
         `SELECT id, username, email, balance, role, status, google_id, avatar, api_key,
-                email_verified, (password IS NOT NULL AND password <> '') AS has_password
+                email_verified, totp_enabled, (password IS NOT NULL AND password <> '') AS has_password
          FROM users WHERE id = ?`,
         [req.session.userId]
       );

@@ -7,6 +7,7 @@ const verifyTurnstile = require('../middleware/turnstile');
 const { authLimiter } = require('../middleware/rateLimit');
 const { randomToken, isValidEmail } = require('../utils/helpers');
 const { hashSecret, verifySecret, sha256 } = require('../utils/password');
+const totp = require('../utils/totp');
 
 const router = express.Router();
 
@@ -40,6 +41,20 @@ function loginSession(req, user, res, fallback = '/dashboard') {
     delete req.session.returnTo;
     req.session.save(() => res.redirect(dest));
   });
+}
+
+// After the password/Google factor passes: if the account has 2FA on, hold the
+// login and ask for the authenticator code first; otherwise sign in normally.
+function proceedLogin(req, user, res) {
+  if (user.totp_enabled) {
+    req.session.regenerate((err) => {
+      if (err) return res.status(500).render('errors/500');
+      req.session.pending2faUser = user.id;
+      req.session.save(() => res.redirect('/login/2fa'));
+    });
+    return;
+  }
+  loginSession(req, user, res);
 }
 
 async function sendVerifyEmail(user) {
@@ -151,6 +166,29 @@ router.post('/login', authLimiter, verifyTurnstile, async (req, res, next) => {
       flash(req, 'error', 'Please verify your email first — we just sent you a fresh link.');
       return res.redirect('/login');
     }
+    proceedLogin(req, user, res);
+  } catch (err) { next(err); }
+});
+
+// ── Two-factor challenge (after the password/Google step) ─
+router.get('/login/2fa', (req, res) => {
+  if (req.user) return res.redirect('/dashboard');
+  if (!req.session.pending2faUser) return res.redirect('/login');
+  res.render('auth/twofa', { title: 'Two-factor verification' });
+});
+
+router.post('/login/2fa', authLimiter, async (req, res, next) => {
+  try {
+    const pendingId = req.session.pending2faUser;
+    if (!pendingId) return res.redirect('/login');
+    const [[user]] = await pool.query('SELECT * FROM users WHERE id = ? LIMIT 1', [pendingId]);
+    if (!user || !user.totp_enabled) { delete req.session.pending2faUser; return res.redirect('/login'); }
+    if (!totp.verify(user.totp_secret, req.body.code)) {
+      try { require('../services/security').record(req.clientIp || req.ip, 'brute', req, 'bad 2FA code'); } catch (_) {}
+      flash(req, 'error', 'Incorrect code. Please try again.');
+      return res.redirect('/login/2fa');
+    }
+    delete req.session.pending2faUser;
     loginSession(req, user, res);
   } catch (err) { next(err); }
 });
@@ -275,7 +313,7 @@ router.get('/auth/google/callback', async (req, res) => {
       flash(req, 'error', 'This account has been suspended. Contact support.');
       return res.redirect('/login');
     }
-    loginSession(req, user, res);
+    proceedLogin(req, user, res);
   } catch (err) {
     console.warn('[auth] Google OAuth failed:', err.message);
     flash(req, 'error', 'Google sign-in failed. Please try again.');

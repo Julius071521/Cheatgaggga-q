@@ -118,18 +118,67 @@ router.get('/order/new', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// ── Mass order (many links at once) ───────────────────────
+router.get('/order/mass', async (req, res, next) => {
+  try {
+    const [platforms] = await pool.query(
+      "SELECT DISTINCT platform FROM services WHERE enabled = 1 AND deleted = 0 ORDER BY platform");
+    res.render('dashboard/order-mass', { title: 'Mass Order', platforms: platforms.map((r) => r.platform) });
+  } catch (err) { next(err); }
+});
+
+router.post('/order/mass', async (req, res, next) => {
+  try {
+    const serviceId = clampInt(req.body.service_id, 1, 2147483647);
+    const quantity = clampInt(req.body.quantity, 1, 100000000);
+    const rawLinks = String(req.body.links || '').split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+    // Unique, valid links, capped so one submit can't fire thousands of orders.
+    const links = [...new Set(rawLinks)].filter((l) => isValidHttpUrl(l)).slice(0, 50);
+
+    if (!serviceId || !quantity) { flash(req, 'error', 'Pick a service and quantity.'); return res.redirect('/order/mass'); }
+    if (!links.length) { flash(req, 'error', 'Enter at least one valid link (http:// or https://), one per line.'); return res.redirect('/order/mass'); }
+
+    const [[service]] = await pool.query(
+      `SELECT s.*, p.code AS provider_code FROM services s JOIN providers p ON p.id = s.provider_id
+       WHERE s.id = ? AND s.enabled = 1 AND s.deleted = 0`, [serviceId]);
+    if (!service) { flash(req, 'error', 'That service is no longer available.'); return res.redirect('/order/mass'); }
+    if (quantity < service.min_qty || quantity > service.max_qty) {
+      flash(req, 'error', `Quantity must be between ${service.min_qty} and ${service.max_qty}.`); return res.redirect('/order/mass');
+    }
+
+    let placed = 0;
+    let failed = 0;
+    let spent = 0;
+    let stopped = false;
+    for (const link of links) {
+      try {
+        const r = await orderService.placeOrder(req.user, service, link, quantity, null);
+        placed += 1; spent += Number(r.charge);
+      } catch (err) {
+        failed += 1;
+        if (err.message === 'Insufficient balance') { stopped = true; break; } // stop early — no funds left
+      }
+    }
+    const msg = `${placed} order${placed === 1 ? '' : 's'} placed (₱${spent.toFixed(2)})`
+      + (failed ? ` · ${failed} failed` : '')
+      + (stopped ? ' · stopped: insufficient balance' : '');
+    flash(req, placed ? 'success' : 'error', placed ? msg : 'No orders were placed. ' + (stopped ? 'Insufficient balance.' : 'Please try again.'));
+    res.redirect(placed ? '/orders' : '/order/mass');
+  } catch (err) { next(err); }
+});
+
 router.get('/order/services.json', async (req, res, next) => {
   try {
     const platform = Object.prototype.hasOwnProperty.call(PLATFORM_LABELS, String(req.query.platform)) ? String(req.query.platform) : null;
     if (!platform) return res.json([]);
     const [services] = await pool.query(
-      'SELECT id, name, category, min_qty, max_qty, rate_usd, markup_override, refill FROM services WHERE platform = ? AND enabled = 1 AND deleted = 0 ORDER BY category, rate_usd LIMIT 1000',
+      'SELECT id, name, category, min_qty, max_qty, rate_usd, markup_override, refill, dripfeed FROM services WHERE platform = ? AND enabled = 1 AND deleted = 0 ORDER BY category, rate_usd LIMIT 1000',
       [platform]);
     const { tidyCategory, tidyServiceName } = require('../utils/helpers');
     res.json(services.map((s) => ({
       id: s.id, name: tidyServiceName(s.name, s.id), category: tidyCategory(s.category),
       min: Number(s.min_qty), max: Number(s.max_qty),
-      refill: !!s.refill, ratePhp: pricing.ratePhpPer1000(s), platform,
+      refill: !!s.refill, dripfeed: !!s.dripfeed, ratePhp: pricing.ratePhpPer1000(s), platform,
     })));
   } catch (err) { next(err); }
 });
@@ -153,7 +202,9 @@ router.post('/order/new', async (req, res, next) => {
     }
 
     const promoCode = String(req.body.promo_code || '').trim().slice(0, 50) || null;
-    const { orderCode, charge, discount } = await orderService.placeOrder(req.user, service, link, quantity, promoCode);
+    const dripOpts = (service.dripfeed && req.body.dripfeed === 'on')
+      ? { runs: req.body.runs, interval: req.body.interval } : {};
+    const { orderCode, charge, discount } = await orderService.placeOrder(req.user, service, link, quantity, promoCode, dripOpts);
     const savedNote = discount > 0 ? ` (promo saved ₱${Number(discount).toFixed(2)})` : '';
     flash(req, 'success', `Order ${orderCode} placed — ₱${Number(charge).toFixed(2)} charged to your wallet${savedNote}.`);
     res.redirect('/orders');
@@ -357,7 +408,64 @@ router.post('/referrals/payout', async (req, res, next) => {
 });
 
 // ── Settings ──────────────────────────────────────────────
-router.get('/settings', (req, res) => res.render('dashboard/settings', { title: 'Account Settings' }));
+const totp = require('../utils/totp');
+
+router.get('/settings', (req, res) => {
+  // A pending 2FA setup (secret generated, not yet confirmed) lives in session.
+  const pending = req.session.pending2fa || null;
+  res.render('dashboard/settings', {
+    title: 'Account Settings',
+    twofaEnabled: !!req.user.totp_enabled,
+    pending2fa: pending,
+  });
+});
+
+// Start 2FA setup: generate a secret, stash it in the session, show the key.
+router.post('/settings/2fa/start', (req, res) => {
+  if (req.user.totp_enabled) { flash(req, 'error', 'Two-factor is already enabled.'); return res.redirect('/settings'); }
+  const secret = totp.generateSecret();
+  req.session.pending2fa = {
+    secret,
+    otpauth: totp.otpauthUrl(secret, req.user.email || req.user.username, env.SITE_NAME || 'ApexBoost'),
+  };
+  res.redirect('/settings#twofa');
+});
+
+// Confirm 2FA: verify a code from the authenticator app, then enable.
+router.post('/settings/2fa/enable', async (req, res, next) => {
+  try {
+    const pending = req.session.pending2fa;
+    if (!pending || !pending.secret) { flash(req, 'error', 'Start the 2FA setup first.'); return res.redirect('/settings'); }
+    if (!totp.verify(pending.secret, req.body.code)) {
+      flash(req, 'error', 'That code is incorrect or expired. Make sure your phone time is correct and try again.');
+      return res.redirect('/settings#twofa');
+    }
+    await pool.query('UPDATE users SET totp_secret = ?, totp_enabled = 1 WHERE id = ?', [pending.secret, req.user.id]);
+    delete req.session.pending2fa;
+    flash(req, 'success', 'Two-factor authentication is now ON. You will be asked for a code at each login. 🔐');
+    res.redirect('/settings');
+  } catch (err) { next(err); }
+});
+
+// Cancel a pending (unconfirmed) 2FA setup.
+router.post('/settings/2fa/cancel', (req, res) => {
+  delete req.session.pending2fa;
+  res.redirect('/settings');
+});
+
+// Disable 2FA — requires a valid current code so a hijacked session can't do it.
+router.post('/settings/2fa/disable', async (req, res, next) => {
+  try {
+    if (!req.user.totp_enabled) return res.redirect('/settings');
+    const [[u]] = await pool.query('SELECT totp_secret FROM users WHERE id = ?', [req.user.id]);
+    if (!u || !totp.verify(u.totp_secret, req.body.code)) {
+      flash(req, 'error', 'Enter a valid current 2FA code to turn it off.'); return res.redirect('/settings');
+    }
+    await pool.query('UPDATE users SET totp_secret = NULL, totp_enabled = 0 WHERE id = ?', [req.user.id]);
+    flash(req, 'success', 'Two-factor authentication turned off.');
+    res.redirect('/settings');
+  } catch (err) { next(err); }
+});
 
 router.post('/settings/profile', async (req, res, next) => {
   try {

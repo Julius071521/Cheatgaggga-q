@@ -73,6 +73,25 @@
       </label>
       <div class="qty-chips" id="qty-chips" hidden></div>
 
+      <!-- Drip-feed: appears only for services that support it -->
+      <div class="dripfeed-box" id="dripfeed-box" hidden>
+        <label class="drip-toggle">
+          <input type="checkbox" name="dripfeed" id="of-drip" value="on">
+          <span>💧 <strong>Drip-feed</strong> — deliver gradually (more natural, safer for the account)</span>
+        </label>
+        <div class="drip-fields" id="drip-fields" hidden>
+          <label class="field">
+            <span>Runs <small>(how many batches, 2–100)</small></span>
+            <input type="number" name="runs" id="of-runs" min="2" max="100" step="1" placeholder="10">
+          </label>
+          <label class="field">
+            <span>Interval <small>(minutes between batches, 1–1440)</small></span>
+            <input type="number" name="interval" id="of-interval" min="1" max="1440" step="1" placeholder="60">
+          </label>
+          <p class="muted drip-note" id="of-drip-note"></p>
+        </div>
+      </div>
+
       <label class="field">
         <span>Promo code <small>(optional)</small></span>
         <input type="text" name="promo_code" maxlength="50" placeholder="Enter a coupon code" autocomplete="off" style="text-transform:uppercase">

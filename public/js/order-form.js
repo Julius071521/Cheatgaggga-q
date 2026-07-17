@@ -242,6 +242,13 @@
     linkInput.addEventListener('blur', checkLink);
   }
 
+  var dripBox = document.getElementById('dripfeed-box');
+  var dripToggle = document.getElementById('of-drip');
+  var dripFields = document.getElementById('drip-fields');
+  if (dripToggle && dripFields) {
+    dripToggle.addEventListener('change', function () { dripFields.hidden = !dripToggle.checked; });
+  }
+
   function selectService(id) {
     current = services.find(function (s) { return String(s.id) === String(id); }) || null;
     serviceInput.value = current ? current.id : '';
@@ -259,6 +266,12 @@
     } else {
       meta.hidden = true;
       if (guidance) guidance.hidden = true;
+    }
+    // Drip-feed box only for services that support it.
+    if (dripBox) {
+      var supports = !!(current && current.dripfeed);
+      dripBox.hidden = !supports;
+      if (!supports && dripToggle) { dripToggle.checked = false; if (dripFields) dripFields.hidden = true; }
     }
     renderQtyChips();
     checkLink();

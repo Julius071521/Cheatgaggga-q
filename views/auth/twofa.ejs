@@ -1,0 +1,21 @@
+<%- include('../partials/head', { title }) %>
+<%- include('../partials/nav') %>
+<main class="auth-wrap">
+  <div class="auth-card card" data-reveal>
+    <h1>Two-factor 🔐</h1>
+    <p class="auth-sub">Enter the 6-digit code from your authenticator app to finish signing in.</p>
+
+    <form method="post" action="/login/2fa">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <label class="field">
+        <span>Authentication code</span>
+        <input type="text" name="code" required inputmode="numeric" autocomplete="one-time-code"
+               pattern="[0-9]*" maxlength="6" placeholder="123456" autofocus
+               style="letter-spacing:0.3em; text-align:center; font-size:1.3rem; font-family:var(--font-head)">
+      </label>
+      <button type="submit" class="btn btn-primary btn-block btn-lg">Verify &amp; sign in</button>
+      <p class="auth-links"><a href="/login">← Back to sign in</a></p>
+    </form>
+  </div>
+</main>
+<%- include('../partials/footer') %>

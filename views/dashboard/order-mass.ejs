@@ -1,0 +1,63 @@
+<%- include('../partials/head', { title }) %>
+<%- include('../partials/nav') %>
+<main class="container page">
+  <div class="page-head"><h1>Mass <span class="grad-text">order</span> 📦</h1></div>
+  <%- include('../partials/dash-nav') %>
+
+  <div class="order-layout">
+    <form class="card order-form" method="post" action="/order/mass" id="mass-form">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <p class="muted">Place the <strong>same service &amp; quantity</strong> across many links at once. One link per line (up to 50).</p>
+
+      <label class="field">
+        <span>Platform</span>
+        <select id="mo-platform" required>
+          <option value="">— Choose a platform —</option>
+          <% platforms.forEach(function(p) { %><option value="<%= p %>"><%= h.platformLabel(p) %></option><% }); %>
+        </select>
+      </label>
+
+      <label class="field">
+        <span>Service</span>
+        <select id="mo-service" name="service_id" required disabled>
+          <option value="">— Choose a platform first —</option>
+        </select>
+      </label>
+
+      <div class="of-meta" id="mo-meta" hidden>
+        <span id="mo-rate"></span>
+        <span id="mo-range"></span>
+      </div>
+
+      <label class="field">
+        <span>Links <small>(one per line, max 50)</small></span>
+        <textarea name="links" id="mo-links" rows="7" required placeholder="https://instagram.com/link1&#10;https://instagram.com/link2&#10;https://instagram.com/link3"></textarea>
+      </label>
+
+      <label class="field">
+        <span>Quantity <small>(per link)</small></span>
+        <input type="number" name="quantity" id="mo-qty" required min="1" step="1" placeholder="1000">
+      </label>
+
+      <div class="of-total">
+        <span>Estimated total <small class="muted" id="mo-count">(0 links)</small></span>
+        <strong id="mo-total">₱0.00</strong>
+      </div>
+
+      <button type="submit" class="btn btn-primary btn-lg btn-block" id="mo-submit" disabled>Place all orders</button>
+      <p class="auth-fineprint">Your balance: <strong>₱<%= h.money(user.balance) %></strong> · <a href="/wallet">add funds</a></p>
+    </form>
+
+    <aside class="order-tips card">
+      <h3>💡 How it works</h3>
+      <ul>
+        <li>Each link gets its <strong>own order</strong> at the chosen quantity.</li>
+        <li>Total = quantity × rate × number of links.</li>
+        <li>Orders place one by one — if funds run out, the rest are skipped.</li>
+        <li>Duplicate links are automatically removed.</li>
+      </ul>
+    </aside>
+  </div>
+</main>
+<script src="/assets/js/mass-order.js?v=<%= assetVersion %>" defer></script>
+<%- include('../partials/footer') %>

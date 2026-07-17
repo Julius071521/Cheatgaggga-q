@@ -28,8 +28,16 @@ function newOrderCode() {
 
 // Place an order: debit wallet + create the local order atomically, then send
 // it to the provider. On provider failure the charge is auto-refunded.
-async function placeOrder(user, service, link, quantity, promoCode) {
+async function placeOrder(user, service, link, quantity, promoCode, opts = {}) {
   const env0 = require('../config/env');
+  // Optional drip-feed (only when the service supports it and both fields given).
+  let runs = null;
+  let interval = null;
+  if (service.dripfeed && opts.runs && opts.interval) {
+    runs = Math.min(100, Math.max(2, parseInt(opts.runs, 10) || 0));
+    interval = Math.min(1440, Math.max(1, parseInt(opts.interval, 10) || 0));
+    if (!runs || !interval) { runs = null; interval = null; }
+  }
   // Optional guard: pause ordering on a provider whose upstream funds are
   // critically low (below threshold), instead of failing after the debit.
   if (env0.PROVIDER_BLOCK_ORDERS_BELOW_THRESHOLD && env0.PROVIDER_LOW_BALANCE_THRESHOLD_PHP > 0) {
@@ -67,14 +75,15 @@ async function placeOrder(user, service, link, quantity, promoCode) {
       `INSERT INTO orders
          (order_id, user_id, service_id, service_name, url, quantity, charge, status, currency,
           api_cost, selling_price, markup_percent, net_profit, roi_percent, profit_margin_percent,
-          api_provider, original_charge, discount_amount, coupon_code, start_count, remains)
-       VALUES (?, ?, ?, ?, ?, ?, ?, 'Pending', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '0', ?)`,
+          api_provider, original_charge, discount_amount, coupon_code, start_count, remains, runs, interval_minutes)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 'Pending', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '0', ?, ?, ?)`,
       [
         orderCode, user.id, String(service.provider_service_id), String(service.name).slice(0, 255),
         link, quantity, finalCharge.toFixed(4), (require('../config/env').SITE_CURRENCY || 'PHP'),
         q.apiCost.toFixed(4), q.sellingPrice.toFixed(4), q.markupPercent.toFixed(2),
         netProfit.toFixed(4), q.roiPercent.toFixed(2), q.profitMarginPercent.toFixed(2),
         providerName, q.sellingPrice.toFixed(4), discount.toFixed(4), promo ? promo.code : null, String(quantity),
+        runs, interval,
       ]
     );
     orderId = result.insertId;
@@ -91,7 +100,7 @@ async function placeOrder(user, service, link, quantity, promoCode) {
   const client = getClient(service.provider_code);
   try {
     if (!client) throw new Error('Provider is not configured');
-    const res = await client.addOrder({ service: service.provider_service_id, link, quantity });
+    const res = await client.addOrder({ service: service.provider_service_id, link, quantity, runs, interval });
     if (!res || res.order === undefined) throw new Error('Provider did not return an order id');
     await pool.query('UPDATE orders SET provider_order_id = ? WHERE id = ?', [String(res.order), orderId]);
     return { orderId, orderCode, charge: finalCharge, discount };
