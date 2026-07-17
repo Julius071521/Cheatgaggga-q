@@ -4,8 +4,11 @@ const env = require('../config/env');
 const VERIFY_URL = 'https://challenges.cloudflare.com/turnstile/v0/siteverify';
 
 // Server-side Cloudflare Turnstile verification for auth forms.
+// Auto-disables unless FULLY configured (required + site key + secret key) —
+// otherwise the widget can't render yet the server would still demand a token,
+// which would lock everyone out of login/register.
 async function verifyTurnstile(req, res, next) {
-  if (!env.TURNSTILE_REQUIRED) return next();
+  if (!env.TURNSTILE_REQUIRED || !env.TURNSTILE_SITE_KEY || !env.TURNSTILE_SECRET_KEY) return next();
   try {
     const token = req.body['cf-turnstile-response'];
     if (!token) throw new Error('missing token');
