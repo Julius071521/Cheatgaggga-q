@@ -6,34 +6,46 @@
   </div>
   <%- include('../partials/admin-nav') %>
 
-  <div class="filter-bar card">
+  <form class="filter-bar card" method="get" action="/admin/orders">
     <div class="filter-platforms">
       <a href="/admin/orders" class="pill <%= !status ? 'active' : '' %>">All</a>
       <% orderStatuses.forEach(function(s) { %>
         <a href="/admin/orders?status=<%= encodeURIComponent(s) %>" class="pill <%= status === s ? 'active' : '' %>"><%= s %></a>
       <% }); %>
     </div>
+    <div class="filter-search">
+      <% if (status) { %><input type="hidden" name="status" value="<%= status %>"><% } %>
+      <input type="search" name="q" value="<%= q %>" placeholder="Search order code (APX-…), provider #, user or link" maxlength="100">
+      <button type="submit" class="btn btn-primary btn-sm">Search</button>
+      <% if (q) { %><a href="/admin/orders<%= status ? '?status=' + encodeURIComponent(status) : '' %>" class="btn btn-ghost btn-sm">Clear</a><% } %>
+    </div>
+  </form>
+  <div class="filter-bar card">
+    <p class="muted" style="margin:0"><small>💡 Tip: paste your site order code <strong>or</strong> the provider order # to jump straight to the match.</small></p>
     <form method="post" action="/admin/orders/sync" class="inline-form">
       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
       <button type="submit" class="btn btn-outline btn-sm">⟳ Sync open orders</button>
     </form>
   </div>
+  <% if (q) { %><p class="muted" data-reveal>Showing results for "<strong><%= q %></strong>" — <%= pagination.total %> order<%= pagination.total === 1 ? '' : 's' %>.</p><% } %>
 
   <% if (orders.length) { %>
   <div class="table-wrap card">
     <table class="table">
-      <thead><tr><th>ID</th><th>User</th><th>Service</th><th class="num">Qty</th><th class="num">Charge</th><th class="num">Profit</th><th>Provider #</th><th>Status</th><th>Date</th><th></th></tr></thead>
+      <thead><tr><th>Order code ↔ Provider #</th><th>User</th><th>Service</th><th class="num">Qty</th><th class="num">Charge</th><th class="num">Profit</th><th>Status</th><th>Date</th><th></th></tr></thead>
       <tbody>
         <% orders.forEach(function(o) { %>
         <tr>
-          <td class="muted" title="<%= o.order_id %>">#<%= o.id %></td>
+          <td class="order-idcell">
+            <code class="order-code"><%= o.order_id %></code>
+            <div class="prov-ref">↔ Provider <strong><%= o.provider_order_id || '—' %></strong></div>
+          </td>
           <td><%= o.email %></td>
           <td><div class="svc-cell"><%- include('../partials/platform-badge', { platform: h.platformFromText(o.service_name), size: 24 }) %><span class="svc-name"><%= o.service_name.length > 40 ? o.service_name.slice(0,40) + '…' : o.service_name %></span></div>
             <% if (o.admin_notes) { %><small class="neg"><%= String(o.admin_notes).slice(0, 60) %></small><% } %></td>
           <td class="num"><%= Number(o.quantity).toLocaleString() %></td>
           <td class="num">₱<%= h.money(o.charge) %><% if (Number(o.refund_amount) > 0) { %><br><small class="refund">↩ ₱<%= h.money(o.refund_amount) %></small><% } %></td>
           <td class="num"><%= o.net_profit == null ? '—' : '₱' + h.money(o.net_profit) %></td>
-          <td class="muted"><%= o.provider_order_id || '—' %></td>
           <td><span class="badge badge-<%= h.statusSlug(o.status) %>"><%= h.statusLabel(o.status) %></span></td>
           <td class="muted"><%= h.formatDate(o.created_at) %></td>
           <td>

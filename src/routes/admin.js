@@ -456,15 +456,27 @@ router.get('/admin/orders', async (req, res, next) => {
     const page = clampInt(req.query.page, 1, 100000) || 1;
     const perPage = 30;
     const status = ORDER_STATUSES.includes(req.query.status) ? req.query.status : '';
-    const where = status ? 'WHERE o.status = ?' : '';
-    const params = status ? [status] : [];
-    const [[{ total }]] = await pool.query(`SELECT COUNT(*) AS total FROM orders o ${where}`, params);
+    // Search by site order code (APX-...), provider order id, or user.
+    const q = String(req.query.q || '').trim().slice(0, 100);
+
+    const clauses = [];
+    const params = [];
+    if (status) { clauses.push('o.status = ?'); params.push(status); }
+    if (q) {
+      clauses.push('(o.order_id LIKE ? OR o.provider_order_id LIKE ? OR u.username LIKE ? OR u.email LIKE ? OR o.url LIKE ?)');
+      const like = `%${q}%`;
+      params.push(like, like, like, like, like);
+    }
+    const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
+
+    const [[{ total }]] = await pool.query(
+      `SELECT COUNT(*) AS total FROM orders o JOIN users u ON u.id = o.user_id ${where}`, params);
     const pages = Math.max(1, Math.ceil(total / perPage));
     const current = Math.min(page, pages);
     const [orders] = await pool.query(
       `SELECT o.*, u.email, u.username FROM orders o JOIN users u ON u.id = o.user_id
        ${where} ORDER BY o.id DESC LIMIT ? OFFSET ?`, [...params, perPage, (current - 1) * perPage]);
-    res.render('admin/orders', { title: 'Admin · Orders', orders, status, pagination: { current, pages, total }, orderStatuses: ORDER_STATUSES });
+    res.render('admin/orders', { title: 'Admin · Orders', orders, status, q, pagination: { current, pages, total }, orderStatuses: ORDER_STATUSES });
   } catch (err) { next(err); }
 });
 

@@ -934,3 +934,9 @@ code { background: var(--surface-2); padding: 2px 7px; border-radius: 6px; font-
 [data-theme="dark"] .threat-high { color: #fb923c; }
 [data-theme="dark"] .threat-medium { color: #fbbf24; }
 [data-theme="dark"] .threat-low { color: #6ee7b7; }
+
+/* ── Admin orders: site code ↔ provider ref ── */
+.order-idcell { white-space: nowrap; }
+.order-code { font-size: 0.82rem; font-weight: 700; background: var(--primary-soft); color: var(--primary); border-radius: 6px; padding: 2px 7px; }
+.prov-ref { font-size: 0.76rem; color: var(--text-soft); margin-top: 4px; }
+.prov-ref strong { color: var(--text); font-family: var(--font-head); }
