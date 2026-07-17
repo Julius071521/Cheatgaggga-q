@@ -22,8 +22,20 @@ async function verifyTurnstile(req, res, next) {
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: body.toString(),
     }).then((r) => r.json());
-    if (!result.success) throw new Error('verification failed');
-    next();
+
+    if (result.success) return next();
+
+    // A SERVER-side misconfiguration (wrong/blank secret) must not lock real
+    // users out of login/register — fail open with a loud log so the admin can
+    // fix it, instead of punishing every visitor for an admin config error.
+    const codes = result['error-codes'] || [];
+    const serverConfigError = codes.some((c) =>
+      ['invalid-input-secret', 'missing-input-secret', 'bad-request', 'internal-error'].includes(c));
+    if (serverConfigError) {
+      console.warn(`[turnstile] captcha bypassed — server secret is misconfigured (${codes.join(', ')}). Fix TURNSTILE_SECRET_KEY or blank TURNSTILE_SITE_KEY.`);
+      return next();
+    }
+    throw new Error('verification failed');
   } catch (_) {
     req.session.flash = { type: 'error', message: 'Captcha verification failed. Please try again.' };
     res.redirect(req.get('referer') || '/login');
