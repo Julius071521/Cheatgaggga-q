@@ -135,7 +135,9 @@ async function chat(sessionId, userId, history, userMessage) {
       const res = await fetch(`${env.AI_BASE_URL.replace(/\/$/, '')}/chat/completions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${env.AI_API_KEY}` },
-        body: JSON.stringify({ model, messages, max_tokens: 500, temperature: 0.4 }),
+        // Higher cap so reasoning models (e.g. GLM-5.2) have room to think AND
+        // still return a visible answer — otherwise `content` comes back empty.
+        body: JSON.stringify({ model, messages, max_tokens: 1200, temperature: 0.4 }),
         signal: controller.signal,
       });
       const text = await res.text();
@@ -175,7 +177,7 @@ async function chat(sessionId, userId, history, userMessage) {
 
 // A single completion with the same model-fallback logic as chat(), but for
 // internal use (no anti-jailbreak wrapping). Returns the reply string or null.
-async function complete(messages, { maxTokens = 300, temperature = 0.2 } = {}) {
+async function complete(messages, { maxTokens = 1000, temperature = 0.2 } = {}) {
   if (!enabled) return null;
   const models = [env.AI_MODEL];
   for (const fb of ['deepseek/deepseek-v3.1', 'gpt-4o', 'gpt-4o-mini']) {
@@ -183,7 +185,7 @@ async function complete(messages, { maxTokens = 300, temperature = 0.2 } = {}) {
   }
   for (let i = 0; i < models.length; i++) {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 25000);
+    const timer = setTimeout(() => controller.abort(), 45000); // reasoning models are slower
     try {
       const res = await fetch(`${env.AI_BASE_URL.replace(/\/$/, '')}/chat/completions`, {
         method: 'POST',
@@ -222,7 +224,7 @@ async function analyzeThreat(ctx) {
   ].join('\n');
   const raw = await complete(
     [{ role: 'system', content: sys }, { role: 'user', content: user }],
-    { maxTokens: 160, temperature: 0.1 });
+    { maxTokens: 900, temperature: 0.1 });
   if (!raw) return null;
   try {
     const m = raw.match(/\{[\s\S]*\}/);
