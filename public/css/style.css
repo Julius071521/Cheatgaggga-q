@@ -588,6 +588,7 @@ code { background: var(--surface-2); padding: 2px 7px; border-radius: 6px; font-
 .filter-search input { padding: 9px 14px; border-radius: 10px; border: 1.5px solid var(--border); background: var(--bg); color: var(--text); min-width: 200px; }
 .filter-search input:focus { outline: none; border-color: var(--primary); }
 .filter-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.sync-pair { display: inline-flex; gap: 4px; align-items: center; }
 .pill-platform { display: inline-flex; align-items: center; gap: 7px; }
 .pill-platform .pbadge { box-shadow: none; }
 

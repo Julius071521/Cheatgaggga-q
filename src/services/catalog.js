@@ -137,4 +137,15 @@ async function syncProvider(code) {
   return { provider: code, imported, totalFromProvider: list.length };
 }
 
-module.exports = { syncProvider, detectPlatform };
+// Un-sync: hide every service from a provider (soft-delete). Order history is
+// kept intact, and a later syncProvider() brings them all back (deleted = 0).
+// This is the reverse of syncProvider — nothing is permanently destroyed.
+async function unsyncProvider(code) {
+  const providerIds = await ensureProviderRows(pool);
+  const providerId = providerIds[code];
+  if (!providerId) throw new Error(`Unknown provider "${code}"`);
+  const [r] = await pool.query('UPDATE services SET deleted = 1 WHERE provider_id = ? AND deleted = 0', [providerId]);
+  return { provider: code, removed: r.affectedRows };
+}
+
+module.exports = { syncProvider, unsyncProvider, detectPlatform };

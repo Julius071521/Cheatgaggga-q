@@ -29,7 +29,10 @@ All money is in Philippine pesos (₱). Be concise and use short Telegram-friend
 const CONFIRM = new Set([
   'approve_deposit', 'reject_deposit', 'refund_order', 'refill_order',
   'adjust_balance', 'ban_user', 'create_promo', 'broadcast', 'resolve_payout',
+  'unsync_services',
 ]);
+
+const PROVIDER_CODE = (p) => (/smmw|world/i.test(String(p)) ? 'smmworld' : 'rkd');
 
 // ── Tool schemas (OpenAI/DeepSeek function-calling format) ──
 const TOOLS = [
@@ -51,6 +54,7 @@ const TOOLS = [
   { type: 'function', function: { name: 'block_ip', description: 'Block an IP address (app + Cloudflare edge).', parameters: { type: 'object', properties: { ip: { type: 'string' } }, required: ['ip'] } } },
   { type: 'function', function: { name: 'unblock_ip', description: 'Unblock/allow an IP address.', parameters: { type: 'object', properties: { ip: { type: 'string' } }, required: ['ip'] } } },
   { type: 'function', function: { name: 'unban_user', description: 'Un-ban a customer (set their account back to Active).', parameters: { type: 'object', properties: { user_id: { type: 'integer' } }, required: ['user_id'] } } },
+  { type: 'function', function: { name: 'sync_services', description: 'Import/refresh services from a provider (fixes stale/"incorrect service ID" services and re-enables valid ones). provider is smmworld or rkd.', parameters: { type: 'object', properties: { provider: { type: 'string' } }, required: ['provider'] } } },
   // confirm-first actions (money / risky)
   { type: 'function', function: { name: 'approve_deposit', description: 'Approve a pending deposit by id (credits the customer + bonus + referral commission). Needs owner confirmation.', parameters: { type: 'object', properties: { deposit_id: { type: 'integer' } }, required: ['deposit_id'] } } },
   { type: 'function', function: { name: 'reject_deposit', description: 'Reject a pending deposit by id (e.g. fake/duplicate receipt). Needs owner confirmation.', parameters: { type: 'object', properties: { deposit_id: { type: 'integer' }, reason: { type: 'string' } }, required: ['deposit_id'] } } },
@@ -61,6 +65,7 @@ const TOOLS = [
   { type: 'function', function: { name: 'create_promo', description: 'Create a discount/promo code. Needs owner confirmation.', parameters: { type: 'object', properties: { code: { type: 'string' }, type: { type: 'string', description: 'percentage|fixed' }, value: { type: 'number' }, max_uses: { type: 'integer' } }, required: ['code', 'type', 'value'] } } },
   { type: 'function', function: { name: 'broadcast', description: 'Post a site-wide update/announcement visible to all customers. Needs owner confirmation.', parameters: { type: 'object', properties: { title: { type: 'string' }, message: { type: 'string' } }, required: ['title', 'message'] } } },
   { type: 'function', function: { name: 'resolve_payout', description: 'Approve (mark paid) or reject a referral payout request by id. Needs owner confirmation.', parameters: { type: 'object', properties: { payout_id: { type: 'integer' }, approve: { type: 'boolean' }, note: { type: 'string' } }, required: ['payout_id', 'approve'] } } },
+  { type: 'function', function: { name: 'unsync_services', description: 'Remove ALL of a provider\'s services from the catalog (soft-delete; re-sync restores them). provider is smmworld or rkd. Needs owner confirmation.', parameters: { type: 'object', properties: { provider: { type: 'string' } }, required: ['provider'] } } },
 ];
 
 const peso = (n) => '₱' + Number(n || 0).toFixed(2);
@@ -195,6 +200,13 @@ const ACTIONS = {
     const [r] = await pool.query("UPDATE users SET status = 'Active' WHERE id = ? AND role NOT IN ('admin','super_admin')", [parseInt(user_id, 10)]);
     return r.affectedRows ? { ok: true, unbanned: user_id } : { ok: false, error: 'user not found or is staff' };
   },
+  async sync_services({ provider }) {
+    const code = PROVIDER_CODE(provider);
+    try {
+      const r = await require('./catalog').syncProvider(code);
+      return { ok: true, provider: r.provider, imported: r.imported, provider_lists: r.totalFromProvider };
+    } catch (e) { return { ok: false, error: e.message }; }
+  },
 };
 
 // ── Confirmed (money / risky) action implementations. Run only after the owner taps ✅. ──
@@ -261,6 +273,10 @@ const PERFORM = {
     await require('./notifications').postUpdate('announcement', String(title || 'Announcement').slice(0, 180), String(message || '').slice(0, 500), null);
     return `Broadcast posted: "${String(title || '').slice(0, 60)}".`;
   },
+  async unsync_services({ provider }) {
+    const r = await require('./catalog').unsyncProvider(PROVIDER_CODE(provider));
+    return `Un-synced ${r.provider}: ${r.removed} service(s) removed from the catalog. Re-sync anytime to bring them back.`;
+  },
   async resolve_payout({ payout_id, approve, note }) {
     const wallet = require('./wallet');
     const p = await wallet.resolvePayout(parseInt(payout_id, 10), null, !!approve, note ? String(note).slice(0, 200) : null);
@@ -287,6 +303,7 @@ async function describe(action, args) {
     if (action === 'create_promo') return `Create promo ${String(args.code).toUpperCase()} — ${args.type === 'fixed' ? peso(args.value) + ' off' : args.value + '% off'}${args.max_uses ? `, max ${args.max_uses} uses` : ''}`;
     if (action === 'broadcast') return `📢 Broadcast to all customers:\n${args.title}\n${String(args.message || '').slice(0, 160)}`;
     if (action === 'resolve_payout') return `${args.approve ? '✅ Approve (mark paid)' : '❌ Reject'} payout #${args.payout_id}`;
+    if (action === 'unsync_services') return `⊘ Un-sync ALL services from ${PROVIDER_CODE(args.provider)} (removes them from the catalog; re-sync restores)`;
   } catch (_) { /* fall through */ }
   return `${action} ${JSON.stringify(args).slice(0, 120)}`;
 }

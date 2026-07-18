@@ -543,6 +543,25 @@ router.post('/admin/services/sync/:code', async (req, res) => {
   res.redirect('/admin/services');
 });
 
+// Un-sync: remove all of a provider's services from the catalog (soft-delete).
+// Reversible — syncing that provider again restores them. Order history is kept.
+router.post('/admin/services/unsync/:code', async (req, res) => {
+  try {
+    const result = await catalog.unsyncProvider(String(req.params.code));
+    flash(req, 'success', `Un-synced ${result.provider}: ${result.removed} service(s) removed from the catalog. Re-sync anytime to bring them back.`);
+  } catch (err) { flash(req, 'error', `Un-sync failed: ${err.message}`); }
+  res.redirect('/admin/services');
+});
+
+// Remove a single service from the catalog (soft-delete; re-sync restores it).
+router.post('/admin/services/:id/remove', async (req, res, next) => {
+  try {
+    await pool.query('UPDATE services SET deleted = 1 WHERE id = ?', [clampInt(req.params.id, 1, 2147483647)]);
+    flash(req, 'success', 'Service removed from the catalog. Re-sync its provider to bring it back.');
+    res.redirect(req.get('referer') || '/admin/services');
+  } catch (err) { next(err); }
+});
+
 router.post('/admin/services/:id/toggle', async (req, res, next) => {
   try {
     await pool.query('UPDATE services SET enabled = 1 - enabled WHERE id = ?', [clampInt(req.params.id, 1, 2147483647)]);

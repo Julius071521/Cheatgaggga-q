@@ -105,11 +105,46 @@ async function placeOrder(user, service, link, quantity, promoCode, opts = {}) {
     await pool.query('UPDATE orders SET provider_order_id = ? WHERE id = ?', [String(res.order), orderId]);
     return { orderId, orderCode, charge: finalCharge, discount };
   } catch (err) {
-    await refundOrder(orderId, `Provider error: ${err.message}`);
+    const msg = String(err.message || '');
+    await refundOrder(orderId, `Provider error: ${msg}`);
+    // If the provider says the service no longer exists / is invalid, stop
+    // selling it so customers don't keep hitting the same failure. Reversible:
+    // re-syncing the provider re-enables valid services.
+    if (isStaleServiceError(msg)) {
+      await disableStaleService(service, msg).catch(() => {});
+      const e = new Error('Sorry, this service is currently unavailable and has been removed from the catalog. Your balance was fully refunded — please choose another service.');
+      e.orderId = orderId; e.staleService = true;
+      throw e;
+    }
     const e = new Error('The order could not be sent to the provider. Your balance was refunded — please try again later.');
     e.orderId = orderId;
     throw e;
   }
+}
+
+// Provider errors that mean the service ID is wrong/gone (not a transient glitch).
+function isStaleServiceError(msg) {
+  return /incorrect service id|service not found|invalid service|no such service|service (is )?(inactive|disabled|not exist)|unknown service/i.test(String(msg));
+}
+
+// Disable a service the provider rejected, and alert the admin once (deduped by
+// the service's enabled flag — we only alert when it was still enabled).
+async function disableStaleService(service, msg) {
+  if (!service || !service.id) return;
+  const [r] = await pool.query('UPDATE services SET enabled = 0 WHERE id = ? AND enabled = 1', [service.id]);
+  if (!r.affectedRows) return; // already disabled — don't re-alert
+  const name = String(service.name || `service #${service.id}`).slice(0, 80);
+  const title = 'Service auto-disabled ⚠️';
+  const body = `"${name}" was auto-disabled — the provider rejected it (${msg.slice(0, 80)}). It stopped selling so customers don't keep failing. Re-sync the provider to refresh IDs, then re-enable if it's back.`;
+  try {
+    const notifications = require('./notifications');
+    const [admins] = await pool.query("SELECT id FROM users WHERE role IN ('admin','super_admin')");
+    await Promise.all(admins.map((a) => notifications.notifyUser(a.id, 'autopilot', title, body)));
+  } catch (_) { /* best effort */ }
+  try {
+    const telegram = require('./telegram');
+    if (telegram.enabled) telegram.send(`⚠️ <b>${telegram.esc(title)}</b>\n${telegram.esc(body)}`).catch(() => {});
+  } catch (_) { /* telegram optional */ }
 }
 
 // Full refund used when the provider add call fails.
@@ -262,4 +297,4 @@ async function syncOpenOrders(limit = 200) {
   return { checked: orders.length, updated };
 }
 
-module.exports = { placeOrder, refundOrder, adminRefund, applyStatusUpdate, syncOrderById, syncOpenOrders, mapProviderStatus, OPEN_STATUSES };
+module.exports = { placeOrder, refundOrder, adminRefund, applyStatusUpdate, syncOrderById, syncOpenOrders, mapProviderStatus, isStaleServiceError, disableStaleService, OPEN_STATUSES };

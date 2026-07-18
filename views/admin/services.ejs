@@ -11,10 +11,17 @@
     </form>
     <div class="filter-actions">
       <% if (providers.length) { providers.forEach(function(code) { %>
-      <form method="post" action="/admin/services/sync/<%= code %>" class="inline-form">
-        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-        <button type="submit" class="btn btn-outline btn-sm">⟳ Sync <%= code %></button>
-      </form>
+      <span class="sync-pair">
+        <form method="post" action="/admin/services/sync/<%= code %>" class="inline-form">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <button type="submit" class="btn btn-outline btn-sm">⟳ Sync <%= code %></button>
+        </form>
+        <form method="post" action="/admin/services/unsync/<%= code %>" class="inline-form"
+              onsubmit="return confirm('Un-sync ALL services from <%= code %>? They will be removed from the catalog (order history is kept). You can re-sync anytime to bring them back.');">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <button type="submit" class="btn btn-ghost btn-sm">⊘ Un-sync <%= code %></button>
+        </form>
+      </span>
       <% }); } else { %>
         <span class="muted">No provider API keys configured in .env</span>
       <% } %>
@@ -46,6 +53,11 @@
               <input type="hidden" name="_csrf" value="<%= csrfToken %>">
               <input type="number" name="markup" step="0.01" min="1" max="100" placeholder="×" class="input-sm input-xs" value="<%= s.markup_override !== null ? Number(s.markup_override) : '' %>">
               <button type="submit" class="btn btn-outline btn-sm">Set</button>
+            </form>
+            <form method="post" action="/admin/services/<%= s.id %>/remove" class="inline-form"
+                  onsubmit="return confirm('Remove this service from the catalog? Re-sync its provider to bring it back.');">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+              <button type="submit" class="btn btn-ghost btn-sm">🗑 Remove</button>
             </form>
           </td>
         </tr>
