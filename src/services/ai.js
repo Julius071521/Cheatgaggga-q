@@ -122,7 +122,7 @@ async function chat(sessionId, userId, history, userMessage) {
   // "gpt-5.5"), automatically retry once with a widely-available fallback.
   const models = [env.AI_MODEL];
   // Provider-agnostic fallbacks (covers OpenAI-style routers and tokengo).
-  for (const fb of ['deepseek/deepseek-v3.1', 'gpt-4o', 'gpt-4o-mini']) {
+  for (const fb of ['deepseek-v4-flash', 'deepseek-chat', 'deepseek/deepseek-v3.1', 'gpt-4o-mini']) {
     if (!models.includes(fb)) models.push(fb);
   }
 
@@ -180,7 +180,7 @@ async function chat(sessionId, userId, history, userMessage) {
 async function complete(messages, { maxTokens = 1000, temperature = 0.2 } = {}) {
   if (!enabled) return null;
   const models = [env.AI_MODEL];
-  for (const fb of ['deepseek/deepseek-v3.1', 'gpt-4o', 'gpt-4o-mini']) {
+  for (const fb of ['deepseek-v4-flash', 'deepseek-chat', 'deepseek/deepseek-v3.1', 'gpt-4o-mini']) {
     if (!models.includes(fb)) models.push(fb);
   }
   for (let i = 0; i < models.length; i++) {
