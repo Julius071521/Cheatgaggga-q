@@ -346,11 +346,16 @@ function apiUrl() { return `${env.AI_BASE_URL.replace(/\/$/, '')}/chat/completio
 // reasoning in <think>…</think>. Strip it so the owner only sees the answer.
 function clean(s) { return String(s || '').replace(/<think>[\s\S]*?<\/think>/gi, '').replace(/<\/?think>/gi, '').trim(); }
 
+function modelList() {
+  const extra = String(env.AI_FALLBACK_MODELS || '').split(',').map((s) => s.trim()).filter(Boolean);
+  return [env.AI_MODEL, ...extra].filter((v, i, a) => v && a.indexOf(v) === i);
+}
+
 async function callModel(messages) {
-  const models = [env.AI_MODEL, 'deepseek-v4-flash', 'deepseek-chat'].filter((v, i, a) => v && a.indexOf(v) === i);
+  const models = modelList();
   for (let i = 0; i < models.length; i++) {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 45000);
+    const timer = setTimeout(() => controller.abort(), env.AI_TIMEOUT_MS);
     try {
       const res = await fetch(apiUrl(), {
         method: 'POST',

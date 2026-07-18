@@ -39,6 +39,11 @@ const env = {
   AI_API_KEY: str('AI_API_KEY', ''),
   AI_MODEL: str('AI_MODEL', 'gpt-4o'),
   AI_BASE_URL: str('AI_BASE_URL', ''),
+  // Per-request timeout (ms). Local/self-hosted CPU models (Ollama) are slower,
+  // so this is generous by default. Comma-separated extra models to try if the
+  // primary fails — leave empty for self-hosted single-model setups.
+  AI_TIMEOUT_MS: num('AI_TIMEOUT_MS', 180000),
+  AI_FALLBACK_MODELS: str('AI_FALLBACK_MODELS', ''),
 
   // AI Autopilot (auto-triage tickets, sync orders, flag stuck ones)
   AUTOPILOT_ENABLED: bool('AUTOPILOT_ENABLED', true),

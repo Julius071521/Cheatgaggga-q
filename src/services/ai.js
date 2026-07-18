@@ -5,6 +5,14 @@ const { siteStats } = require('./stats');
 
 const enabled = Boolean(env.AI_API_KEY && env.AI_BASE_URL);
 
+// The configured model plus any explicit fallbacks (env AI_FALLBACK_MODELS).
+// Empty by default so self-hosted single-model setups (Ollama) never waste time
+// trying model ids the local server doesn't have.
+function modelList() {
+  const extra = String(env.AI_FALLBACK_MODELS || '').split(',').map((s) => s.trim()).filter(Boolean);
+  return [env.AI_MODEL, ...extra].filter((v, i, a) => v && a.indexOf(v) === i);
+}
+
 function paymentMethods() {
   const methods = [];
   if (env.GCASH_ACCOUNT_NUMBER) methods.push('GCash');
@@ -118,19 +126,14 @@ async function chat(sessionId, userId, history, userMessage) {
     { role: 'user', content: userMessage },
   ];
 
-  // Try the configured model; if it's rejected (e.g. an unknown model id like
-  // "gpt-5.5"), automatically retry once with a widely-available fallback.
-  const models = [env.AI_MODEL];
-  // Provider-agnostic fallbacks (covers OpenAI-style routers and tokengo).
-  for (const fb of ['deepseek-v4-flash', 'deepseek-chat', 'deepseek/deepseek-v3.1', 'gpt-4o-mini']) {
-    if (!models.includes(fb)) models.push(fb);
-  }
+  // Try the configured model, plus any explicit fallbacks (AI_FALLBACK_MODELS).
+  const models = modelList();
 
   let lastErr = null;
   for (let i = 0; i < models.length; i++) {
     const model = models[i];
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 30000);
+    const timer = setTimeout(() => controller.abort(), env.AI_TIMEOUT_MS);
     try {
       const res = await fetch(`${env.AI_BASE_URL.replace(/\/$/, '')}/chat/completions`, {
         method: 'POST',
@@ -179,13 +182,10 @@ async function chat(sessionId, userId, history, userMessage) {
 // internal use (no anti-jailbreak wrapping). Returns the reply string or null.
 async function complete(messages, { maxTokens = 1000, temperature = 0.2 } = {}) {
   if (!enabled) return null;
-  const models = [env.AI_MODEL];
-  for (const fb of ['deepseek-v4-flash', 'deepseek-chat', 'deepseek/deepseek-v3.1', 'gpt-4o-mini']) {
-    if (!models.includes(fb)) models.push(fb);
-  }
+  const models = modelList();
   for (let i = 0; i < models.length; i++) {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 45000); // reasoning models are slower
+    const timer = setTimeout(() => controller.abort(), env.AI_TIMEOUT_MS);
     try {
       const res = await fetch(`${env.AI_BASE_URL.replace(/\/$/, '')}/chat/completions`, {
         method: 'POST',
