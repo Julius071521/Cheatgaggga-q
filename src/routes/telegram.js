@@ -43,10 +43,21 @@ router.post('/telegram/webhook/:secret', express.json({ limit: '32kb' }), async 
       // Strip a leading /command (e.g. "/ask orders today") so bot commands still work.
       const question = text.replace(/^\/[a-z0-9_]+(@\w+)?\s*/i, '').trim() || text;
       await telegram.chatAction('typing');
-      let reply;
-      try { reply = await adminAgent.ask(question); }
-      catch (e) { reply = 'Sorry, something went wrong: ' + telegram.esc(e.message); }
-      await telegram.send(telegram.esc(reply || 'No answer.'));
+      let out;
+      try { out = await adminAgent.ask(question); }
+      catch (e) { out = { text: 'Sorry, something went wrong: ' + e.message }; }
+      const body = telegram.esc((out && out.text) || 'No answer.');
+      if (out && out.confirm && out.confirm.length) {
+        // Money / risky actions: show a Confirm/Cancel button per queued action.
+        const rows = out.confirm.map((c) => [
+          { text: '✅ Confirm', data: `cfm:${c.token}` },
+          { text: '❌ Cancel', data: `cxl:${c.token}` },
+        ]);
+        const detail = out.confirm.map((c) => `• ${telegram.esc(c.summary)}`).join('\n');
+        await telegram.sendButtons(`${body}\n\n<b>Please confirm:</b>\n${detail}`, rows);
+      } else {
+        await telegram.send(body);
+      }
       return;
     }
 
@@ -64,6 +75,26 @@ router.post('/telegram/webhook/:secret', express.json({ limit: '32kb' }), async 
     const e = telegram.esc;
     const chatId = cq.message.chat.id;
     const msgId = cq.message.message_id;
+
+    // ── Confirm / cancel a money-moving action queued by the AI agent ──
+    if (action === 'cfm' || action === 'cxl') {
+      const baseText = (cq.message && cq.message.text) ? e(cq.message.text) : 'Action';
+      if (action === 'cxl') {
+        await adminAgent.cancelConfirmed(ip);
+        await telegram.answerCallback(cq.id, '❌ Cancelled');
+        await telegram.editMessage(chatId, msgId, `${baseText}\n\n❌ <b>Cancelled.</b>`);
+        return;
+      }
+      const r = await adminAgent.runConfirmed(ip);
+      if (r.ok) {
+        await telegram.answerCallback(cq.id, '✅ Done');
+        await telegram.editMessage(chatId, msgId, `${baseText}\n\n✅ <b>Done:</b> ${e(r.result)}`);
+      } else {
+        await telegram.answerCallback(cq.id, r.already ? 'Already handled' : 'Failed', true);
+        await telegram.editMessage(chatId, msgId, `${baseText}\n\n⚠️ ${e(r.error)}`);
+      }
+      return;
+    }
 
     if (action === 'blk') {
       await security.blockIp(ip, 'Blocked from Telegram', null);
