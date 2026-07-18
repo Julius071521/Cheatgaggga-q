@@ -173,4 +173,66 @@ async function chat(sessionId, userId, history, userMessage) {
   return "Sorry, I couldn't process that right now. Please try again in a moment, or email our support team.";
 }
 
-module.exports = { chat, enabled };
+// A single completion with the same model-fallback logic as chat(), but for
+// internal use (no anti-jailbreak wrapping). Returns the reply string or null.
+async function complete(messages, { maxTokens = 300, temperature = 0.2 } = {}) {
+  if (!enabled) return null;
+  const models = [env.AI_MODEL];
+  for (const fb of ['deepseek/deepseek-v3.1', 'gpt-4o', 'gpt-4o-mini']) {
+    if (!models.includes(fb)) models.push(fb);
+  }
+  for (let i = 0; i < models.length; i++) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 25000);
+    try {
+      const res = await fetch(`${env.AI_BASE_URL.replace(/\/$/, '')}/chat/completions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${env.AI_API_KEY}` },
+        body: JSON.stringify({ model: models[i], messages, max_tokens: maxTokens, temperature }),
+        signal: controller.signal,
+      });
+      const text = await res.text();
+      if (!res.ok) {
+        if (i < models.length - 1 && ![401, 403].includes(res.status)) continue;
+        return null;
+      }
+      const json = JSON.parse(text);
+      const reply = json.choices && json.choices[0] && json.choices[0].message
+        ? String(json.choices[0].message.content || '').trim() : '';
+      if (reply) return reply;
+    } catch (_) { /* try next model */ } finally { clearTimeout(timer); }
+  }
+  return null;
+}
+
+// AI threat analysis for the security radar — returns a compact verdict object
+// { risk, type, action, reason } or null if AI is unavailable (caller degrades).
+async function analyzeThreat(ctx) {
+  const sys = 'You are a web-security analyst for a social-media-marketing (SMM) website. '
+    + 'Given one IP\'s recent request activity, judge how dangerous it is. '
+    + 'Reply with ONLY compact JSON, no markdown: '
+    + '{"risk":"low|medium|high|critical","type":"short attacker label","action":"block|watch|ignore","reason":"one short sentence"}.';
+  const user = [
+    `IP: ${ctx.ip}`,
+    `Location: ${ctx.location || 'unknown'}`,
+    `Network: ${ctx.isp || 'unknown'}`,
+    `User-agent: ${ctx.ua || 'unknown'}`,
+    `Rule-based score: ${ctx.score}`,
+    `Recent requests:\n${ctx.events || '(none)'}`,
+  ].join('\n');
+  const raw = await complete(
+    [{ role: 'system', content: sys }, { role: 'user', content: user }],
+    { maxTokens: 160, temperature: 0.1 });
+  if (!raw) return null;
+  try {
+    const m = raw.match(/\{[\s\S]*\}/);
+    if (!m) return null;
+    const v = JSON.parse(m[0]);
+    const risk = ['low', 'medium', 'high', 'critical'].includes(String(v.risk).toLowerCase()) ? String(v.risk).toLowerCase() : null;
+    const action = ['block', 'watch', 'ignore'].includes(String(v.action).toLowerCase()) ? String(v.action).toLowerCase() : null;
+    if (!risk) return null;
+    return { risk, type: String(v.type || '').slice(0, 60), action, reason: String(v.reason || '').slice(0, 200) };
+  } catch (_) { return null; }
+}
+
+module.exports = { chat, enabled, complete, analyzeThreat };

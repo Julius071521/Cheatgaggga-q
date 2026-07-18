@@ -288,7 +288,7 @@ async function alert(repIn, kind, detail, autoBlocked) {
   const loc = [rep.city, rep.country].filter(Boolean).join(', ') || 'Unknown location';
   const flag = flagEmoji(rep.country_code);
   const head = autoBlocked ? '🛑 <b>ATTACKER AUTO-BLOCKED</b>' : `${lvl.emoji} <b>${lvl.label} THREAT — action needed</b>`;
-  const text =
+  let text =
     `${head}\n\n` +
     `<b>IP:</b> <code>${e(rep.ip)}</code>\n` +
     `<b>Location:</b> ${flag} ${e(loc)}${rep.is_proxy ? '  ⚠️ <i>VPN/Proxy</i>' : ''}\n` +
@@ -296,6 +296,26 @@ async function alert(repIn, kind, detail, autoBlocked) {
     `<b>Danger:</b> ${lvl.emoji} ${lvl.label}  (score ${rep.score})\n` +
     `<b>Device:</b> ${e(String(rep.user_agent || 'unknown').slice(0, 55))}\n\n` +
     `<b>What they did (${rep.events_count} events):</b>\n${lines}`;
+
+  // Smart layer: let the AI analyst weigh in (best-effort; skipped if AI is off
+  // or the provider is unavailable — the rule-based alert always still sends).
+  try {
+    const ai = require('./ai');
+    if (ai.enabled) {
+      const verdict = await ai.analyzeThreat({
+        ip: rep.ip, location: loc, isp: rep.isp, ua: rep.user_agent, score: rep.score,
+        events: recent[0].map((r) => `- ${r.kind} ${String(r.path || '').slice(0, 60)}`).join('\n'),
+      });
+      if (verdict) {
+        const riskEmoji = { low: '🟢', medium: '🟡', high: '🟠', critical: '🔴' }[verdict.risk] || '🤖';
+        text += `\n\n🤖 <b>AI analyst:</b> ${riskEmoji} ${e(verdict.risk.toUpperCase())}`
+          + (verdict.type ? ` · ${e(verdict.type)}` : '')
+          + (verdict.reason ? `\n<i>${e(verdict.reason)}</i>` : '')
+          + (verdict.action ? `\n<b>Suggests:</b> ${e(verdict.action)}` : '');
+      }
+    }
+  } catch (_) { /* AI is optional — never block the alert */ }
+
   const rows = autoBlocked
     ? [[{ text: '✅ Unblock', data: `alw:${rep.ip}` }, { text: '👁 Watch', data: `wch:${rep.ip}` }],
        [{ text: 'ℹ️ Full details', data: `inf:${rep.ip}` }]]
