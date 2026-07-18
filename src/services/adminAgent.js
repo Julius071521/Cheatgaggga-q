@@ -342,6 +342,10 @@ async function cancelConfirmed(token) {
 
 function apiUrl() { return `${env.AI_BASE_URL.replace(/\/$/, '')}/chat/completions`; }
 
+// Local reasoning models (e.g. deepseek-r1 via Ollama) wrap their scratch
+// reasoning in <think>…</think>. Strip it so the owner only sees the answer.
+function clean(s) { return String(s || '').replace(/<think>[\s\S]*?<\/think>/gi, '').replace(/<\/?think>/gi, '').trim(); }
+
 async function callModel(messages) {
   const models = [env.AI_MODEL, 'deepseek-v4-flash', 'deepseek-chat'].filter((v, i, a) => v && a.indexOf(v) === i);
   for (let i = 0; i < models.length; i++) {
@@ -396,13 +400,12 @@ async function ask(question) {
       if (confirm.length) {
         // Ask one more time so the model writes a short natural lead-in, then attach buttons.
         const lead = await callModel(messages);
-        const text = (lead && lead.content && lead.content.trim())
-          || 'Please confirm:';
-        return { text: text.trim(), confirm };
+        const text = clean(lead && lead.content) || 'Please confirm:';
+        return { text, confirm };
       }
       continue; // let the model read tool results and answer
     }
-    return { text: (msg.content || '').trim() || "I looked but couldn't form an answer." };
+    return { text: clean(msg.content) || "I looked but couldn't form an answer." };
   }
   return { text: 'That needed too many steps — try asking something more specific.' };
 }
