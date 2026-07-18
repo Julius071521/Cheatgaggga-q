@@ -954,3 +954,6 @@ code { background: var(--surface-2); padding: 2px 7px; border-radius: 6px; font-
 .drip-fields .field { margin-bottom: 0; }
 .drip-fields .drip-note { grid-column: 1 / -1; margin: 0; font-size: 0.82rem; }
 @media (max-width: 520px) { .drip-fields { grid-template-columns: 1fr; } }
+
+/* ── Trusted IP row ── */
+.trust-me { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; background: var(--surface-2); border-radius: 10px; padding: 12px 14px; }

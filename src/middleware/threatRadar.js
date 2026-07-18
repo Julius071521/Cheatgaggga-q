@@ -4,10 +4,11 @@
 const security = require('../services/security');
 
 let onCache = { value: true, at: 0 };
-async function enabled() {
+async function radarOn() {
   if (Date.now() - onCache.at > 30000) {
     onCache = { value: await security.isOn().catch(() => true), at: Date.now() };
   }
+  await security.refreshAllowed(); // keep the trusted-IP allowlist warm
   return onCache.value;
 }
 
@@ -15,21 +16,22 @@ const SKIP = /^\/(assets|telegram|favicon\.ico|robots\.txt)/;
 
 function threatRadar(req, res, next) {
   const ip = req.clientIp || req.ip;
-  // Skip assets/webhooks, local IPs, and our own Cloudflare front-end. If the
-  // resolved IP is still a Cloudflare edge IP, CF-Connecting-IP wasn't present
-  // — analysing it would just flag Cloudflare, so we skip it entirely.
+  // Never analyse assets/webhooks, local IPs, or our own Cloudflare front-end.
   if (SKIP.test(req.path) || security.isSkippableIp(ip)) return next();
 
-  enabled().then((on) => {
+  radarOn().then((on) => {
     if (!on) return;
-    // For signed-in customers, only trust unambiguous signals (scanner paths,
-    // hacking-tool user-agents) — never scan their request bodies/queries, so a
-    // customer typing "union select" or "<script>" in chat/tickets is never
-    // flagged. Anonymous visitors get the full payload inspection.
+    // Signed-in admins and explicitly trusted IPs are never flagged/blocked.
+    const trusted = (req.user && req.user.isAdmin) || security.isAllowedCached(ip);
+    if (trusted) return;
+
     const authed = !!req.user;
     const hit = security.classify(req, { scanPayload: !authed });
     if (hit) security.record(ip, hit.kind, req, hit.detail, { authed }).catch(() => {});
-    res.on('finish', () => { security.noteRequest(ip, req, res.statusCode).catch(() => {}); });
+    res.on('finish', () => {
+      if ((req.user && req.user.isAdmin) || security.isAllowedCached(ip)) return;
+      security.noteRequest(ip, req, res.statusCode).catch(() => {});
+    });
   }).catch(() => {});
 
   next();

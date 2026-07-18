@@ -44,6 +44,52 @@
   </div>
 
   <div class="card section-card">
+    <div class="card-head"><h2>✅ Trusted IPs (never flagged or blocked)</h2></div>
+    <p class="muted">Your own IP, office, or the VPS you manage from. Signed-in admins are already exempt automatically — this covers you even when logged out, and never lets your own IP look "suspicious".</p>
+    <div class="trust-me">
+      <span>Your current IP: <code><%= myIp %></code></span>
+      <% var alreadyTrusted = allowed.some(function(a){ return a.ip === myIp; }); %>
+      <% if (!alreadyTrusted) { %>
+      <form method="post" action="/admin/security/ip" class="inline-form">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <input type="hidden" name="ip" value="<%= myIp %>">
+        <input type="hidden" name="action" value="trust">
+        <button type="submit" class="btn btn-primary btn-sm">✅ Trust this IP</button>
+      </form>
+      <% } else { %><span class="badge badge-completed">already trusted</span><% } %>
+    </div>
+    <form method="post" action="/admin/security/ip" class="inline-form" style="margin-top:12px">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <input type="hidden" name="action" value="trust">
+      <input type="text" name="ip" class="input-sm" placeholder="Add another IP (e.g. your VPS)" maxlength="45" pattern="[0-9a-fA-F:.]{3,45}">
+      <button type="submit" class="btn btn-outline btn-sm">Add trusted IP</button>
+    </form>
+    <% if (allowed.length) { %>
+    <div class="table-wrap" style="margin-top:12px">
+      <table class="table table-compact">
+        <thead><tr><th>Trusted IP</th><th>Last seen</th><th></th></tr></thead>
+        <tbody>
+          <% allowed.forEach(function(a) { %>
+          <tr>
+            <td><code><%= a.ip %></code><%= a.ip === myIp ? ' (you)' : '' %></td>
+            <td class="muted"><%= a.last_seen ? h.formatDate(a.last_seen) : '—' %></td>
+            <td>
+              <form method="post" action="/admin/security/ip" class="inline-form">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                <input type="hidden" name="ip" value="<%= a.ip %>">
+                <input type="hidden" name="action" value="untrust">
+                <button type="submit" class="btn btn-ghost btn-sm">Remove</button>
+              </form>
+            </td>
+          </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+    <% } %>
+  </div>
+
+  <div class="card section-card">
     <div class="card-head"><h2>☁️ Cloudflare edge</h2></div>
     <% if (cfConfigured) { %>
       <p class="muted">Connected ✅ — blocking an IP here also blocks it at the Cloudflare edge (before it reaches your server). <strong><%= cfEdgeBlocked %></strong> IP(s) currently blocked at the edge.</p>

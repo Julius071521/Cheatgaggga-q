@@ -142,12 +142,14 @@ router.get('/admin/security', async (req, res, next) => {
       try { cfThreats = await cloudflare.recentThreats(23, 15); } catch (_) {}
       try { cfEdgeBlocked = (await cloudflare.listBlocked(100)).length; } catch (_) {}
     }
+    const allowed = await security.listAllowed();
     res.render('admin/security', {
       title: 'Admin · Security', enabled, autoBlock, threats, recent, stat, blockedCount: blk.c,
       telegramOn: require('../services/telegram').enabled,
       underAttack: await security.underAttack(),
       threatLevel: security.threatLevel, flagEmoji: security.flagEmoji, kindLabel: security.KIND_LABEL,
       cfConfigured: cloudflare.configured, cfThreats, cfEdgeBlocked,
+      allowed, myIp: req.clientIp || req.ip,
     });
   } catch (err) { next(err); }
 });
@@ -168,9 +170,11 @@ router.post('/admin/security/ip', async (req, res, next) => {
     const action = req.body.action;
     if (!/^[0-9a-fA-F:.]{3,45}$/.test(ip)) { flash(req, 'error', 'Invalid IP.'); return res.redirect('/admin/security'); }
     if (action === 'block') await security.blockIp(ip, 'Blocked from admin panel', req.user.id);
-    else if (action === 'allow') await security.allowIp(ip);
+    else if (action === 'allow' || action === 'trust') await security.allowIp(ip);
+    else if (action === 'untrust') await security.untrustIp(ip);
     else if (action === 'watch') await security.watchIp(ip);
-    flash(req, 'success', `IP ${ip} ${action}ed.`);
+    const verb = { block: 'blocked', allow: 'trusted', trust: 'trusted', untrust: 'removed from trusted', watch: 'watched' }[action] || action;
+    flash(req, 'success', `IP ${ip} ${verb}.`);
     res.redirect('/admin/security');
   } catch (err) { next(err); }
 });

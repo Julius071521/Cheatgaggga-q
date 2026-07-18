@@ -106,6 +106,20 @@ function isSkippableIp(ip) {
   return isPrivateIp(ip) || isCloudflareIp(ip);
 }
 
+// ── Trusted-IP allowlist (admin's own IP, office, the VPS, etc.) ──
+// Cached from ip_reputation.status = 'allowed' so the radar can check it
+// synchronously on every request without a DB hit.
+let _allow = { set: new Set(), at: 0 };
+async function refreshAllowed(force) {
+  if (!force && Date.now() - _allow.at < 20000) return;
+  _allow.at = Date.now();
+  try {
+    const [rows] = await pool.query("SELECT ip FROM ip_reputation WHERE status = 'allowed'");
+    _allow.set = new Set(rows.map((r) => r.ip));
+  } catch (_) { /* keep last known set */ }
+}
+function isAllowedCached(ip) { return _allow.set.has(String(ip)); }
+
 async function isOn() {
   return ['1', 'true', 'on', 'yes'].includes(String(await getSetting('security_enabled', 'on')).toLowerCase());
 }
@@ -143,8 +157,10 @@ function decodeURIComponentSafe(s) {
 // Record an event + roll it into the IP's reputation. Fires alert/auto-block
 // when the running score crosses the configured thresholds.
 async function record(ip, kind, req, detail, opts) {
-  // Never record our own front-end (Cloudflare) or local IPs as attackers.
+  // Never record our own front-end (Cloudflare), local, or trusted/allowlisted IPs.
   if (isSkippableIp(ip)) return;
+  await refreshAllowed();
+  if (isAllowedCached(ip)) return;
   const authed = !!(opts && opts.authed);
   const score = KIND_SCORE[kind] || 10;
   const path = String(req.originalUrl || req.url || '').slice(0, 255);
@@ -311,8 +327,22 @@ async function allowIp(ip) {
     `INSERT INTO ip_reputation (ip, status, score) VALUES (?, 'allowed', 0)
      ON DUPLICATE KEY UPDATE status = 'allowed', score = 0, alerted_at = NULL`, [ip]);
   invalidateGate();
+  await refreshAllowed(true); // trusted immediately
   const cf = require('./cloudflare');
   if (cf.configured) cf.edgeUnblock(ip).catch(() => {});
+}
+
+// Remove an IP from the trusted allowlist (back to normal monitoring).
+async function untrustIp(ip) {
+  await pool.query("DELETE FROM ip_reputation WHERE ip = ? AND status = 'allowed'", [ip]);
+  await refreshAllowed(true);
+}
+
+// The IPs currently on the trusted allowlist (for the admin panel).
+async function listAllowed() {
+  const [rows] = await pool.query(
+    "SELECT ip, last_seen FROM ip_reputation WHERE status = 'allowed' ORDER BY last_seen DESC LIMIT 100");
+  return rows;
 }
 
 async function watchIp(ip) {
@@ -372,6 +402,7 @@ async function underAttack() {
 
 module.exports = {
   classify, record, noteRequest, isPrivateIp, isCloudflareIp, isSkippableIp, isOn,
-  blockIp, allowIp, watchIp, ipDetails, underAttack, purgeOld, cleanInfraIps,
+  blockIp, allowIp, untrustIp, listAllowed, refreshAllowed, isAllowedCached,
+  watchIp, ipDetails, underAttack, purgeOld, cleanInfraIps,
   threatLevel, geolocate, flagEmoji, KIND_LABEL,
 };
