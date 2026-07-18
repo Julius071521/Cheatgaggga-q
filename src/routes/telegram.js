@@ -6,8 +6,20 @@ const express = require('express');
 const env = require('../config/env');
 const security = require('../services/security');
 const telegram = require('../services/telegram');
+const adminAgent = require('../services/adminAgent');
 
 const router = express.Router();
+
+const HELP =
+  '👋 <b>Hi boss!</b> I\'m your ApexBoost assistant. Just talk to me normally — I can check the business and take actions for you.\n\n' +
+  'Try asking:\n' +
+  '• <i>How many orders today?</i>\n' +
+  '• <i>Any pending deposits?</i>\n' +
+  '• <i>Look up user juan</i>\n' +
+  '• <i>Find order APX-... (or a provider order number)</i>\n' +
+  '• <i>Are we under attack?</i>\n' +
+  '• <i>Block 1.2.3.4</i>  /  <i>Unblock 1.2.3.4</i>\n' +
+  '• <i>Approve deposit 42</i>';
 
 router.post('/telegram/webhook/:secret', express.json({ limit: '32kb' }), async (req, res) => {
   // Constant-ish secret check; always 200 so Telegram doesn't retry-storm.
@@ -18,6 +30,26 @@ router.post('/telegram/webhook/:secret', express.json({ limit: '32kb' }), async 
 
   try {
     const update = req.body || {};
+
+    // ── Plain text messages → AI admin agent ──
+    if (update.message && !update.callback_query) {
+      const msg = update.message;
+      const fromChat = String(msg.chat && msg.chat.id);
+      // Only the owner may talk to the agent. Ignore everyone else silently.
+      if (!env.TELEGRAM_ADMIN_CHAT_ID || fromChat !== String(env.TELEGRAM_ADMIN_CHAT_ID)) return;
+      const text = String(msg.text || '').trim();
+      if (!text) return;
+      if (/^\/(start|help)\b/i.test(text)) { await telegram.send(HELP); return; }
+      // Strip a leading /command (e.g. "/ask orders today") so bot commands still work.
+      const question = text.replace(/^\/[a-z0-9_]+(@\w+)?\s*/i, '').trim() || text;
+      await telegram.chatAction('typing');
+      let reply;
+      try { reply = await adminAgent.ask(question); }
+      catch (e) { reply = 'Sorry, something went wrong: ' + telegram.esc(e.message); }
+      await telegram.send(telegram.esc(reply || 'No answer.'));
+      return;
+    }
+
     const cq = update.callback_query;
     if (!cq || !cq.data) return;
 

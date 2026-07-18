@@ -47,6 +47,12 @@ function answerCallback(id, text, alert) {
   return api('answerCallbackQuery', { callback_query_id: id, text: text || '', show_alert: !!alert });
 }
 
+// Show a "typing…" indicator in the admin chat while the agent thinks.
+function chatAction(action) {
+  if (!enabled) return Promise.resolve(null);
+  return api('sendChatAction', { chat_id: env.TELEGRAM_ADMIN_CHAT_ID, action: action || 'typing' });
+}
+
 // Replace a message's text + buttons after an action (so the chat reflects state).
 function editMessage(chatId, messageId, text, rows) {
   const reply_markup = rows
@@ -69,4 +75,4 @@ function esc(s) {
   return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
-module.exports = { enabled, send, sendButtons, answerCallback, editMessage, setWebhook, esc };
+module.exports = { enabled, send, sendButtons, answerCallback, chatAction, editMessage, setWebhook, esc };
