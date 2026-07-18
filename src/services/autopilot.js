@@ -44,6 +44,11 @@ async function notifyAdmins(title, message, email = false) {
   } catch (err) {
     console.warn('[autopilot] notifyAdmins failed:', err.message);
   }
+  // Report autonomous actions to the owner's Telegram too (best-effort).
+  try {
+    const telegram = require('./telegram');
+    if (telegram.enabled) telegram.send(`🤖 <b>${telegram.esc(title)}</b>\n${telegram.esc(String(message))}`).catch(() => {});
+  } catch (_) { /* telegram optional */ }
   if (email && env.SUPPORT_EMAIL) {
     mailer.send(env.SUPPORT_EMAIL, `[Autopilot] ${title}`, title,
       `<p>${String(message)}</p><p><a href="${env.BASE_URL}/admin/autopilot">Open the Autopilot panel</a></p>`)
@@ -351,6 +356,77 @@ async function sendDailyDigest() {
   return true;
 }
 
+// ── AI morning brief to Telegram ─────────────────────────────
+// Once a day (from DAILY_DIGEST_HOUR), the AI writes a short, friendly
+// Telegram brief: how the business is doing + what the autopilot handled on
+// its own overnight + what still needs the owner. Degrades to a plain
+// template if the AI is unavailable. Sending to Telegram needs no email set up.
+async function sendMorningBrief() {
+  const telegram = require('./telegram');
+  if (!telegram.enabled) return false;
+  const today = new Date().toISOString().slice(0, 10);
+  if ((await getSetting('tg_brief_last_date', '')) === today) return false;
+  if (new Date().getHours() < Number(env.DAILY_DIGEST_HOUR)) return false;
+
+  // Gather the numbers (today so far, yesterday, what autopilot did, what waits).
+  const [[t]] = await pool.query(`SELECT
+      (SELECT COUNT(*) FROM orders WHERE created_at >= CURDATE()) AS orders_today,
+      (SELECT COALESCE(SUM(charge - COALESCE(refund_amount,0)),0) FROM orders WHERE created_at >= CURDATE() AND status <> 'Failed') AS revenue_today,
+      (SELECT COALESCE(SUM(net_profit),0) FROM orders WHERE created_at >= CURDATE() AND status NOT IN ('Failed','Canceled')) AS profit_today,
+      (SELECT COUNT(*) FROM users WHERE created_at >= CURDATE()) AS new_users_today,
+      (SELECT COUNT(*) FROM deposits WHERE status='Pending') AS pending_deposits,
+      (SELECT COUNT(*) FROM tickets WHERE LOWER(status) IN ('open','in_progress')) AS open_tickets,
+      (SELECT COUNT(*) FROM orders WHERE status IN ('Pending','In progress','Processing')) AS open_orders`);
+  const [[y]] = await pool.query(`SELECT COUNT(*) AS orders, COALESCE(SUM(charge - COALESCE(refund_amount,0)),0) AS revenue,
+      COALESCE(SUM(net_profit),0) AS profit FROM orders
+      WHERE created_at >= CURDATE() - INTERVAL 1 DAY AND created_at < CURDATE() AND status <> 'Failed'`);
+  let auto = { total: 0, waiting: 0, refunded: 0, deposits: 0, tickets: 0 };
+  try {
+    const [[a]] = await pool.query(`SELECT COUNT(*) AS total,
+        SUM(outcome='needs_admin' AND acknowledged=0) AS waiting,
+        SUM(action='auto_refund_stuck') AS refunded,
+        SUM(action LIKE 'deposit%') AS deposits,
+        SUM(ticket_id IS NOT NULL) AS tickets
+        FROM autopilot_log WHERE created_at >= CURDATE() - INTERVAL 1 DAY`);
+    auto = { total: a.total || 0, waiting: a.waiting || 0, refunded: a.refunded || 0, deposits: a.deposits || 0, tickets: a.tickets || 0 };
+  } catch (_) { /* log table optional */ }
+
+  const peso = (n) => '₱' + Number(n || 0).toFixed(2);
+  const data = {
+    site: env.SITE_NAME, date: today,
+    today: { orders: t.orders_today, revenue: peso(t.revenue_today), profit: peso(t.profit_today), new_members: t.new_users_today },
+    yesterday: { orders: y.orders, revenue: peso(y.revenue), profit: peso(y.profit) },
+    autopilot_last_24h: auto,
+    waiting_now: { deposits: t.pending_deposits, tickets: t.open_tickets, open_orders: t.open_orders },
+  };
+
+  // Ask the AI to phrase it; fall back to a clean template if AI is off/unavailable.
+  let text = null;
+  try {
+    const ai = require('./ai');
+    if (ai.enabled) {
+      const msg = [
+        { role: 'system', content: `You are the ${env.SITE_NAME} autopilot. Write a SHORT good-morning Telegram brief for the OWNER in warm Taglish. Use plain text with a few emojis (no markdown tables). Cover: how the business is doing (today so far + vs yesterday), what YOU (the AI autopilot) handled automatically in the last 24h, and what still needs the owner. End with one short suggestion if useful. Keep it under 120 words. Money is already formatted in ₱.` },
+        { role: 'user', content: JSON.stringify(data) },
+      ];
+      const out = await ai.complete(msg, { maxTokens: 500, temperature: 0.5 });
+      if (out && out.trim()) text = out.trim();
+    }
+  } catch (_) { /* fall back */ }
+
+  if (!text) {
+    text = `☀️ Good morning, boss! ${data.site} update\n\n` +
+      `📊 Today: ${data.today.orders} orders · ${data.today.revenue} sales · ${data.today.profit} profit · ${data.today.new_members} new members\n` +
+      `📅 Yesterday: ${data.yesterday.orders} orders · ${data.yesterday.revenue} · ${data.yesterday.profit} profit\n` +
+      `🤖 Autopilot (24h): ${auto.total} actions — ${auto.deposits} deposits, ${auto.tickets} tickets, ${auto.refunded} auto-refunds\n` +
+      `📋 Needs you: ${data.waiting_now.deposits} deposit(s), ${data.waiting_now.tickets} ticket(s), ${data.waiting_now.open_orders} orders running`;
+  }
+
+  await telegram.send(text);
+  await setSetting('tg_brief_last_date', today);
+  return true;
+}
+
 // ── In-process scheduler (no cPanel cron needed) ────────────
 let running = false;
 let lastWatchdogAt = 0;
@@ -378,6 +454,8 @@ async function tick() {
     }
     try { result.digest = await sendDailyDigest(); }
     catch (err) { console.warn('[autopilot] digest failed:', err.message); }
+    try { result.brief = await sendMorningBrief(); }
+    catch (err) { console.warn('[autopilot] telegram brief failed:', err.message); }
   } catch (err) {
     console.warn('[autopilot] tick failed:', err.message);
   } finally {
@@ -396,6 +474,6 @@ function startScheduler() {
 
 module.exports = {
   isOn, handleTicket, processPendingTickets, flagStuckOrders, autoRefundStuckOrders,
-  processPendingDeposits, checkProviderBalances, sendDailyDigest,
+  processPendingDeposits, checkProviderBalances, sendDailyDigest, sendMorningBrief,
   tick, startScheduler,
 };
