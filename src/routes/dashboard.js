@@ -364,6 +364,10 @@ router.post('/wallet/deposit', (req, res, next) => {
     const reference = String(req.body.reference || '').trim().slice(0, 100);
     const fail = (msg) => { if (req.file) fs.unlink(req.file.path, () => {}); flash(req, 'error', msg); res.redirect('/wallet'); };
 
+    // Verify CSRF here (after multer parsed the multipart body) so the token
+    // travels in a hidden field, never the URL.
+    if (!require('../middleware/csrf').verifyToken(req)) return fail('Your session expired. Please try again.');
+
     if (!method) return fail('Please choose a payment method.');
     if (!Number.isFinite(amount) || amount < 50 || amount > 1000000) return fail('Amount must be between ₱50 and ₱1,000,000.');
     const refCheck = validReference(reference);

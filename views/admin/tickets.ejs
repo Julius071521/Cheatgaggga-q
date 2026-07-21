@@ -60,7 +60,7 @@
         <% }); %>
         <% if (t.order_id) { %>
         <form method="post" action="/admin/tickets/<%= t.id %>/action" class="inline-form"
-              onsubmit="return confirm('Refund this order to the customer’s wallet? This cannot be undone.');">
+              data-confirm="Refund this order to the customer’s wallet? This cannot be undone." data-confirm-type="refund">
           <input type="hidden" name="_csrf" value="<%= csrfToken %>">
           <input type="hidden" name="action" value="refund">
           <button type="submit" class="btn btn-sm <%= (rt.indexOf('stuck') > -1 || rt.indexOf('not complet') > -1 || rt.indexOf('refund') > -1) ? 'btn-danger' : 'btn-ghost' %>">💸 Refund</button>

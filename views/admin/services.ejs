@@ -17,7 +17,7 @@
           <button type="submit" class="btn btn-outline btn-sm">⟳ Sync <%= code %></button>
         </form>
         <form method="post" action="/admin/services/unsync/<%= code %>" class="inline-form"
-              onsubmit="return confirm('Un-sync ALL services from <%= code %>? They will be removed from the catalog (order history is kept). You can re-sync anytime to bring them back.');">
+              data-confirm="Un-sync ALL services from <%= code %>? They will be removed from the catalog (order history is kept). You can re-sync anytime." data-confirm-type="unsync">
           <input type="hidden" name="_csrf" value="<%= csrfToken %>">
           <button type="submit" class="btn btn-ghost btn-sm">⊘ Un-sync <%= code %></button>
         </form>
@@ -55,7 +55,7 @@
               <button type="submit" class="btn btn-outline btn-sm">Set</button>
             </form>
             <form method="post" action="/admin/services/<%= s.id %>/remove" class="inline-form"
-                  onsubmit="return confirm('Remove this service from the catalog? Re-sync its provider to bring it back.');">
+                  data-confirm="Remove this service from the catalog? Re-sync its provider to bring it back.">
               <input type="hidden" name="_csrf" value="<%= csrfToken %>">
               <button type="submit" class="btn btn-ghost btn-sm">🗑 Remove</button>
             </form>

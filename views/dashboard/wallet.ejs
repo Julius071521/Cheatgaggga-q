@@ -40,7 +40,8 @@
       <% } %>
 
       <h2 class="mt">2️⃣ Submit the details</h2>
-      <form method="post" action="/wallet/deposit?_csrf=<%= csrfToken %>" enctype="multipart/form-data">
+      <form method="post" action="/wallet/deposit" enctype="multipart/form-data">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
         <label class="field">
           <span>Payment method</span>
           <select name="method" required>

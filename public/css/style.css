@@ -962,3 +962,28 @@ code { background: var(--surface-2); padding: 2px 7px; border-radius: 6px; font-
 
 /* ── Trusted IP row ── */
 .trust-me { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; background: var(--surface-2); border-radius: 10px; padding: 12px 14px; }
+
+/* ── Mobile audit fixes (chat safe-area + overflow) ── */
+@media (max-width: 640px) {
+  /* Leave room at the bottom so the floating chat button never covers the
+     last form control / button on a page. */
+  main.page, main.container.page { padding-bottom: 96px; }
+  .chat-widget { right: 14px; bottom: 14px; }
+  .chat-fab { width: 52px; height: 52px; }
+
+  /* The order "Report" popover became a bottom sheet instead of an absolutely
+     positioned box that overflowed the table horizontally. */
+  .report-form {
+    position: fixed; left: 12px; right: 12px; bottom: 12px; top: auto;
+    min-width: 0; width: auto; max-height: 70vh; overflow: auto; z-index: 260;
+  }
+
+  /* Inline admin forms (block IP, trust IP, markup, search…) wrap and their
+     inputs go full-width instead of forcing horizontal scroll. */
+  .inline-form { flex-wrap: wrap; }
+  .filter-search { flex-wrap: wrap; }
+  .filter-search input[type="search"], .filter-search input[type="text"] { flex: 1 1 100%; min-width: 0; }
+  .inline-form input[type="text"], .inline-form input[type="search"], .inline-form .input-sm { flex: 1 1 auto; min-width: 0; max-width: 100%; }
+  .trust-me { width: 100%; }
+  .trust-me .inline-form { width: 100%; }
+}

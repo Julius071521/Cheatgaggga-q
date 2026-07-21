@@ -26,7 +26,7 @@
           <td class="muted"><%= x.reason || '—' %></td>
           <td class="muted"><%= h.formatDate(x.created_at) %></td>
           <td>
-            <form method="post" action="/admin/ips/<%= x.id %>/unblock" class="inline-form">
+            <form method="post" action="/admin/ips/<%= x.id %>/unblock" class="inline-form" data-confirm="Unblock this IP? It will be able to reach the site again.">
               <input type="hidden" name="_csrf" value="<%= csrfToken %>">
               <button type="submit" class="btn btn-ghost btn-sm">Unblock</button>
             </form>

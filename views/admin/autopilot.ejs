@@ -15,7 +15,7 @@
       Every action is logged below and sent to your notifications.
     </p>
     <div class="ticket-actions">
-      <form method="post" action="/admin/autopilot/toggle" class="inline-form">
+      <form method="post" action="/admin/autopilot/toggle" class="inline-form" data-confirm="<%= on ? 'Turn OFF autopilot? Tickets, deposits and stuck orders will no longer be handled automatically.' : 'Turn ON autopilot?' %>">
         <input type="hidden" name="_csrf" value="<%= csrfToken %>">
         <input type="hidden" name="autopilot" value="<%= on ? '0' : '1' %>">
         <button type="submit" class="btn <%= on ? 'btn-danger' : 'btn-success' %>">

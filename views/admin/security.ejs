@@ -25,7 +25,7 @@
       <strong>Telegram is not configured yet</strong> — add <code>TELEGRAM_BOT_TOKEN</code> + <code>TELEGRAM_ADMIN_CHAT_ID</code> to get phone alerts.<% } %>
     </p>
     <div class="ticket-actions">
-      <form method="post" action="/admin/security/toggle" class="inline-form">
+      <form method="post" action="/admin/security/toggle" class="inline-form"<%= enabled ? ' data-confirm="Turn OFF Threat Radar? The site will stop detecting and blocking scanners/attackers."' : '' %>>
         <input type="hidden" name="_csrf" value="<%= csrfToken %>">
         <input type="hidden" name="key" value="radar">
         <input type="hidden" name="value" value="<%= enabled ? '0' : '1' %>">
@@ -75,7 +75,7 @@
             <td><code><%= a.ip %></code><%= a.ip === myIp ? ' (you)' : '' %></td>
             <td class="muted"><%= a.last_seen ? h.formatDate(a.last_seen) : '—' %></td>
             <td>
-              <form method="post" action="/admin/security/ip" class="inline-form">
+              <form method="post" action="/admin/security/ip" class="inline-form" data-confirm="Remove this trusted IP? It can be flagged/blocked again like any other IP.">
                 <input type="hidden" name="_csrf" value="<%= csrfToken %>">
                 <input type="hidden" name="ip" value="<%= a.ip %>">
                 <input type="hidden" name="action" value="untrust">

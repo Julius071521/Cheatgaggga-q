@@ -58,6 +58,15 @@ function scrubBrands(text) {
     .trim();
 }
 
+// A service with a blank/numeric/too-short name (renders as "Service #123") or
+// a max quantity of 1 is not something a customer can meaningfully order.
+function isJunkService(name, maxQty) {
+  const n = String(name || '').trim();
+  if (n.length < 4 || /^\d+$/.test(n) || /^(boosting service|unnamed service|general|service #?\d+)$/i.test(n)) return true;
+  if (Number(maxQty) <= 1) return true;
+  return false;
+}
+
 function isProviderBranded(name, category) {
   const hay = `${name || ''} ${category || ''}`;
   OUR_RE.lastIndex = 0;
@@ -84,6 +93,15 @@ async function scrubExistingBrands() {
       [newName, newCat, s.id]);
     changed += 1;
   }
+  // Disable junk services already in the catalog (blank/numeric name or max ≤ 1).
+  const [maybeJunk] = await pool.query(
+    "SELECT id, name, max_qty FROM services WHERE enabled = 1 AND deleted = 0 AND (CHAR_LENGTH(TRIM(name)) < 4 OR name REGEXP '^[0-9]+$' OR max_qty <= 1 OR name IN ('Boosting service','Unnamed service','General'))");
+  let junkOff = 0;
+  for (const s of maybeJunk) {
+    if (isJunkService(s.name, s.max_qty)) { await pool.query('UPDATE services SET enabled = 0 WHERE id = ?', [s.id]); junkOff += 1; }
+  }
+  if (junkOff) console.log(`[catalog] hid ${junkOff} junk/blank service(s)`);
+
   // Order history copies the service name — scrub any old branded copies too.
   const ordLike = words.map((w) => `service_name LIKE ${pool.escape(`%${w}%`)}`).join(' OR ');
   const [ords] = await pool.query(`SELECT id, service_name FROM orders WHERE ${ordLike}`);
@@ -146,6 +164,9 @@ async function syncProvider(code) {
     const CAP = 100000000000; // 100 billion
     const min = Math.min(CAP, Math.max(1, parseInt(svc.min, 10) || 1));
     const max = Math.min(CAP, Math.max(min, parseInt(svc.max, 10) || min));
+    // Hide junk the provider sometimes lists: blank/numeric names that show up
+    // as "Service #123", or a fixed max of 1 (nothing a customer can meaningfully order).
+    const junk = isJunkService(name, max);
 
     // One bad row must never abort the whole sync — skip it and keep going.
     try {
@@ -167,7 +188,7 @@ async function syncProvider(code) {
           svc.refill === true || svc.refill === 'true' ? 1 : 0,
           svc.cancel === true || svc.cancel === 'true' ? 1 : 0,
           svc.dripfeed === true || svc.dripfeed === 'true' ? 1 : 0,
-          branded ? 0 : 1,
+          (branded || junk) ? 0 : 1,
         ]
       );
       imported += 1;

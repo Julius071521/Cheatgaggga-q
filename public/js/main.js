@@ -2,6 +2,35 @@
   'use strict';
   var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
+  // ── Confirmation for destructive actions (CSP-safe) ──────
+  // The site's CSP sets script-src-attr 'none', which blocks inline
+  // onsubmit/onclick handlers — so confirmations MUST live here, delegated off
+  // data-attributes. Any form/link with [data-confirm] asks first; forms whose
+  // data-confirm-type="type" require the user to type CONFIRM (very destructive).
+  document.addEventListener('submit', function (e) {
+    var el = e.target.closest ? e.target.closest('[data-confirm]') : null;
+    if (!el) return;
+    var msg = el.getAttribute('data-confirm') || 'Are you sure?';
+    if (el.hasAttribute('data-confirm-type')) {
+      var answer = window.prompt(msg + '\n\nType CONFIRM to proceed:');
+      if (String(answer || '').trim().toUpperCase() !== 'CONFIRM') { e.preventDefault(); return false; }
+    } else if (!window.confirm(msg)) {
+      e.preventDefault(); return false;
+    }
+    return true;
+  });
+  document.addEventListener('click', function (e) {
+    // Links/buttons that confirm before navigating.
+    var c = e.target.closest ? e.target.closest('a[data-confirm], button[data-confirm]') : null;
+    if (c && !c.closest('form')) {
+      if (!window.confirm(c.getAttribute('data-confirm') || 'Are you sure?')) { e.preventDefault(); return false; }
+    }
+    // Select-on-click inputs (e.g. copy a referral link) — replaces onclick.
+    var s = e.target.closest ? e.target.closest('[data-select]') : null;
+    if (s && s.select) s.select();
+    return true;
+  });
+
   // ── Theme toggle ─────────────────────────────────────────
   var themeBtn = document.getElementById('theme-toggle');
   if (themeBtn) {

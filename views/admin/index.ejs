@@ -43,7 +43,7 @@
       <h2>🛠️ Maintenance mode <%= maintenance ? '— ACTIVE' : '' %></h2>
     </div>
     <p class="muted">When ON, only admins can access the site. All other logged-in users are signed out immediately and see a "Under maintenance" page.</p>
-    <form method="post" action="/admin/maintenance">
+    <form method="post" action="/admin/maintenance" data-confirm="<%= maintenance ? 'Turn OFF maintenance and put the site live for everyone?' : 'Turn ON maintenance? All non-admin users will be signed out and locked out until you turn it off.' %>">
       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
       <input type="hidden" name="maintenance" value="<%= maintenance ? '0' : '1' %>">
       <button type="submit" class="btn <%= maintenance ? 'btn-success' : 'btn-danger' %>">

@@ -257,6 +257,13 @@
     if (current) {
       meta.hidden = false;
       if (guidance) guidance.hidden = false; // assistant guidance appears on select
+      // Service-aware test suggestion: start at the minimum (up to ~2x, capped by max).
+      var testEl = document.getElementById('ofg-testqty');
+      if (testEl) {
+        var lo = current.min;
+        var hi = Math.min(current.max, Math.max(current.min, current.min * 2));
+        testEl.textContent = hi > lo ? ('e.g. ' + fmtQty(lo) + '–' + fmtQty(hi)) : ('e.g. ' + fmtQty(lo));
+      }
       rateEl.textContent = '💰 ' + peso(current.ratePhp) + ' / 1000';
       rangeEl.textContent = '📦 Min ' + fmtQty(current.min) + ' · Max ' + fmtQty(current.max);
       refillEl.textContent = current.refill ? '♻️ Refill available' : '♻️ No refill';

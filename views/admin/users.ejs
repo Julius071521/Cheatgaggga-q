@@ -34,7 +34,7 @@
               <button type="submit" class="btn btn-outline btn-sm">Adjust</button>
             </form>
             <% if (u.role !== 'admin' && u.role !== 'super_admin') { %>
-            <form method="post" action="/admin/users/<%= u.id %>/ban" class="inline-form">
+            <form method="post" action="/admin/users/<%= u.id %>/ban" class="inline-form" data-confirm="<%= banned ? 'Unban ' + (u.username || u.email) + '?' : 'Ban ' + (u.username || u.email) + '? They will be locked out of their account.' %>">
               <input type="hidden" name="_csrf" value="<%= csrfToken %>">
               <% if (banned) { %><input type="hidden" name="unban" value="1"><% } %>
               <button type="submit" class="btn <%= banned ? 'btn-success' : 'btn-danger' %> btn-sm"><%= banned ? 'Unban' : 'Ban' %></button>
