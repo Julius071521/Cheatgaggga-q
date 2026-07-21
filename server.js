@@ -57,12 +57,17 @@ app.use((req, res, next) => {
   next();
 });
 
-// Canonical host: 301 www → apex (keeps path + query) so search engines don't
-// see two copies of the site. Belt-and-suspenders alongside the canonical tag.
+// Canonical host: only redirect when CANONICAL_HOST is explicitly set (e.g.
+// "apexsmmboosting.com" or "www.apexsmmboosting.com"). Any other host 301s to
+// it. Left UNSET by default on purpose — forcing a redirect while DNS still
+// points the apex at a parking page would bounce real visitors to the parking
+// page. Set this only AFTER both hosts serve this app.
 app.use((req, res, next) => {
-  const host = req.headers.host || '';
-  if (/^www\./i.test(host)) {
-    return res.redirect(301, `https://${host.replace(/^www\./i, '')}${req.originalUrl}`);
+  const want = String(env.CANONICAL_HOST || '').trim().toLowerCase();
+  if (!want) return next();
+  const host = String(req.headers.host || '').toLowerCase();
+  if (host && host !== want) {
+    return res.redirect(301, `https://${want}${req.originalUrl}`);
   }
   next();
 });

@@ -33,6 +33,9 @@ const env = {
 
   SITE_NAME: str('SITE_NAME', 'ApexBoost'),
   SITE_DOMAIN: str('SITE_DOMAIN', 'apexsmmboosting.com'),
+  // Set to force a single canonical host (301 all others to it), e.g.
+  // "apexsmmboosting.com". Leave empty until BOTH apex and www serve this app.
+  CANONICAL_HOST: str('CANONICAL_HOST', ''),
   BASE_URL: str('BASE_URL', str('PUBLIC_SITE_URL', '')),
 
   // AI assistant (OpenAI-compatible router)

@@ -1,18 +1,41 @@
 <%- include('partials/head', { title }) %>
 <%- include('partials/nav') %>
 <main class="container container-narrow page">
-  <div class="page-head"><h1>Terms of <span class="grad-text">Service</span></h1></div>
+  <div class="page-head"><h1>Terms &amp; <span class="grad-text">Privacy</span></h1></div>
   <div class="card prose">
-    <p>By creating an account on <%= site.name %> (<%= site.domain %>) you agree to the terms below.</p>
+    <p>By creating an account on <%= site.name %> (<%= site.domain %>) you agree to the Terms of Service and Privacy Policy below. Last updated <%= new Date().getFullYear() %>.</p>
+
+    <h2>Terms of Service</h2>
     <h3>1. Service</h3>
     <p><%= site.name %> provides social media marketing services (followers, likes, views, and similar engagement) delivered automatically to the public links you submit. Delivery speeds and quantities are estimates, not guarantees.</p>
-    <h3>2. Wallet & payments</h3>
-    <p>Deposits are manual bank/e-wallet transfers verified by our staff. Wallet balance is non-transferable and used only to purchase services on this site. Failed orders are refunded to your wallet in full; partial deliveries refund the undelivered portion.</p>
+    <h3>2. Wallet &amp; payments</h3>
+    <p>Deposits are manual bank/e-wallet transfers (GCash, Maya, or bank) verified by our staff. Wallet balance is non-transferable and used only to purchase services on this site. Failed orders are refunded to your wallet in full; partial deliveries refund the undelivered portion.</p>
     <h3>3. Acceptable use</h3>
     <p>You may only submit links you own or are authorized to promote. You are responsible for complying with each social platform's terms. We may suspend accounts used for fraud, abuse, or unlawful content.</p>
     <h3>4. Liability</h3>
     <p>Services are provided "as is". We are not affiliated with any social media platform and are not responsible for actions those platforms take on your accounts.</p>
-    <% if (site.supportEmail) { %><p>Questions? Contact <a href="mailto:<%= site.supportEmail %>"><%= site.supportEmail %></a>.</p><% } %>
+
+    <h2 id="privacy">Privacy Policy</h2>
+    <h3>What we collect</h3>
+    <ul>
+      <li><strong>Account data:</strong> your username, email address, and password (stored only as a secure one-way hash).</li>
+      <li><strong>Payment references:</strong> the deposit amount, method, reference number, and the receipt screenshot you upload — used to verify your top-up.</li>
+      <li><strong>Order data:</strong> the links and quantities you order, and their delivery status.</li>
+      <li><strong>Support messages:</strong> the concerns and chat messages you send us.</li>
+      <li><strong>Technical data:</strong> IP address, browser/device type, and session cookies, used to keep you signed in and to protect the site from abuse.</li>
+    </ul>
+    <h3>How we use it</h3>
+    <p>We use your data only to run your account, process deposits and orders, provide support, and keep the platform secure. We do <strong>not</strong> sell your data or share it for advertising.</p>
+    <h3>Who processes your data</h3>
+    <p>To deliver the service we use trusted third-party processors: an email provider (for verification and notifications), our hosting and database provider, Cloudflare (security and delivery), and our upstream delivery network (which receives only the target link and quantity — never your account details). Our AI assistant may process the text of your messages to help answer them; it is instructed never to receive payment or password data.</p>
+    <h3>How long we keep it</h3>
+    <p>Account and order records are kept while your account is active and as required for accounting/anti-fraud. Uploaded receipts are kept only as long as needed to verify a deposit and resolve disputes.</p>
+    <h3>Cookies &amp; sessions</h3>
+    <p>We use a single essential session cookie (HttpOnly, Secure) to keep you logged in and to protect forms against CSRF. We do not use third-party advertising or tracking cookies.</p>
+    <h3>Your rights &amp; account deletion</h3>
+    <p>You can request a copy of your data, corrections, or deletion of your account at any time by contacting us<% if (site.supportEmail) { %> at <a href="mailto:<%= site.supportEmail %>"><%= site.supportEmail %></a><% } %>. We will remove your personal data except records we must retain by law.</p>
+    <h3>Contact</h3>
+    <p>Data controller: <%= site.name %><% if (site.supportEmail) { %> — <a href="mailto:<%= site.supportEmail %>"><%= site.supportEmail %></a><% } %>.</p>
   </div>
 </main>
 <%- include('partials/footer') %>
