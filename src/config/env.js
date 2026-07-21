@@ -49,6 +49,10 @@ const env = {
   // token (X-Backup-Token header). Endpoint is disabled when unset.
   BACKUP_TOKEN: str('BACKUP_TOKEN', ''),
 
+  // Extra brand/panel words to hide from customer-visible service names and
+  // categories (comma-separated), on top of the built-in provider brands.
+  BRAND_HIDE_WORDS: str('BRAND_HIDE_WORDS', ''),
+
   // AI Autopilot (auto-triage tickets, sync orders, flag stuck ones)
   AUTOPILOT_ENABLED: bool('AUTOPILOT_ENABLED', true),
   AUTOPILOT_INTERVAL_MINUTES: num('AUTOPILOT_INTERVAL_MINUTES', 10),

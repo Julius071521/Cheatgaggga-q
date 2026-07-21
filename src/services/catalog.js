@@ -27,17 +27,32 @@ function detectPlatform(category, name) {
 }
 
 // ── Provider-brand privacy ──────────────────────────────────
-// Upstream service names/categories sometimes contain the provider's own brand
-// ("RKDpanel Official", "SMMWorld Best…"). Customers must never see those, so
-// every imported name/category is scrubbed, and provider-branded PRODUCTS
-// (child panels etc. that only make sense under the provider's brand) are
-// imported disabled so they never show in the public catalog.
-const BRAND_RE = /rkd\s*panel|rdk\s*panel|\brkd\b|\brdk\b|smm\s*world|smmworld/gi;
+// Upstream service names/categories often contain panel brand names — our own
+// providers ("RKDpanel Official", "SMMWorld…") AND other panels they resell
+// ("GAG Universal Hub - …"). Customers must never see any of those, so every
+// imported name/category is scrubbed. Our-provider-branded PRODUCTS (child
+// panels etc.) are additionally imported disabled. Extra words to hide can be
+// added anytime via env BRAND_HIDE_WORDS (comma-separated, no code change).
+const OUR_BRANDS = ['rkd panel', 'rkdpanel', 'rdk panel', 'rkd', 'rdk', 'smm world', 'smmworld'];
+const THIRD_PARTY_BRANDS = ['gag universal hub', 'universal hub', 'gag'];
+
+function escRe(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+function phraseRe(phrases) {
+  // Each phrase matches with flexible whitespace between words, word-bounded.
+  const parts = phrases.map((p) => `\\b${p.trim().split(/\s+/).map(escRe).join('\\s*')}\\b`);
+  return new RegExp(parts.join('|'), 'gi');
+}
+function extraWords() {
+  return String(env.BRAND_HIDE_WORDS || '').split(',').map((s) => s.trim()).filter((s) => s.length >= 3);
+}
+const OUR_RE = phraseRe(OUR_BRANDS);
+function allBrandRe() { return phraseRe([...OUR_BRANDS, ...THIRD_PARTY_BRANDS, ...extraWords()]); }
 
 function scrubBrands(text) {
   return String(text || '')
-    .replace(BRAND_RE, '')
+    .replace(allBrandRe(), '')
     .replace(/\(\s*(official)?\s*\)/gi, '')   // leftover "( Official )" / "()"
+    .replace(/^[?\s]+/, '')                    // mojibake "?? " left by lost emojis
     .replace(/^\s*[|\-–—/·:]+\s*/, '')         // leftover leading separators
     .replace(/\s{2,}/g, ' ')
     .trim();
@@ -45,30 +60,42 @@ function scrubBrands(text) {
 
 function isProviderBranded(name, category) {
   const hay = `${name || ''} ${category || ''}`;
-  BRAND_RE.lastIndex = 0;
-  const branded = BRAND_RE.test(String(name || ''));
+  OUR_RE.lastIndex = 0;
+  const branded = OUR_RE.test(String(name || ''));
   return branded || /child\s*panel/i.test(hay);
 }
 
 // One-time cleanup for rows imported before scrubbing existed (safe to re-run).
 async function scrubExistingBrands() {
-  const like = "name LIKE '%rkd%' OR name LIKE '%rdk%' OR name LIKE '%smmworld%' OR name LIKE '%smm world%' OR category LIKE '%rkd%' OR category LIKE '%rdk%' OR category LIKE '%smmworld%' OR category LIKE '%smm world%'";
-  const [rows] = await pool.query(`SELECT id, name, category FROM services WHERE ${like}`);
+  const words = [...OUR_BRANDS, ...THIRD_PARTY_BRANDS, ...extraWords()];
+  const like = words.map((w) => {
+    const v = pool.escape(`%${w}%`);
+    return `name LIKE ${v} OR category LIKE ${v}`;
+  }).join(' OR ');
+  const [rows] = await pool.query(`SELECT id, name, category, enabled FROM services WHERE ${like}`);
+  let changed = 0;
   for (const s of rows) {
     const branded = isProviderBranded(s.name, s.category);
+    const newName = scrubBrands(s.name) || 'Boosting service';
+    const newCat = scrubBrands(s.category) || 'General';
+    if (newName === s.name && newCat === s.category && !branded) continue; // e.g. "Engagements" false-match
     await pool.query(
       `UPDATE services SET name = ?, category = ?${branded ? ', enabled = 0' : ''} WHERE id = ?`,
-      [scrubBrands(s.name) || 'Boosting service', scrubBrands(s.category) || 'General', s.id]);
+      [newName, newCat, s.id]);
+    changed += 1;
   }
   // Order history copies the service name — scrub any old branded copies too.
-  const [ords] = await pool.query(
-    "SELECT id, service_name FROM orders WHERE service_name LIKE '%rkd%' OR service_name LIKE '%rdk%' OR service_name LIKE '%smmworld%' OR service_name LIKE '%smm world%'");
+  const ordLike = words.map((w) => `service_name LIKE ${pool.escape(`%${w}%`)}`).join(' OR ');
+  const [ords] = await pool.query(`SELECT id, service_name FROM orders WHERE ${ordLike}`);
+  let ordChanged = 0;
   for (const o of ords) {
-    await pool.query('UPDATE orders SET service_name = ? WHERE id = ?',
-      [(scrubBrands(o.service_name) || 'Boosting service').slice(0, 255), o.id]);
+    const clean = (scrubBrands(o.service_name) || 'Boosting service').slice(0, 255);
+    if (clean === o.service_name) continue; // false-match (e.g. "Engagements")
+    await pool.query('UPDATE orders SET service_name = ? WHERE id = ?', [clean, o.id]);
+    ordChanged += 1;
   }
-  if (rows.length || ords.length) console.log(`[catalog] privacy scrub: cleaned ${rows.length} service row(s), ${ords.length} order row(s)`);
-  return rows.length + ords.length;
+  if (changed || ordChanged) console.log(`[catalog] privacy scrub: cleaned ${changed} service row(s), ${ordChanged} order row(s)`);
+  return changed + ordChanged;
 }
 
 function smmworldFilter(service) {
