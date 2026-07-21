@@ -62,7 +62,14 @@ async function placeOrder(user, service, link, quantity, promoCode, opts = {}) {
   let discount = 0;
   if (promoCode) {
     promo = await promos.findValid(promoCode);
-    if (promo) discount = promos.computeDiscount(promo, q.sellingPrice);
+    if (promo) {
+      // One redemption per customer — check up front so they get a clear
+      // message instead of a crash at the unique-key inside the transaction.
+      const [[used]] = await pool.query(
+        'SELECT 1 AS x FROM promo_redemptions WHERE user_id = ? AND code = ? LIMIT 1', [user.id, promo.code]);
+      if (used) throw new Error('You have already used this promo code. Promo codes work once per account.');
+      discount = promos.computeDiscount(promo, q.sellingPrice);
+    }
   }
   const finalCharge = promos.round4(Math.max(0, q.sellingPrice - discount));
   const netProfit = promos.round4(finalCharge - q.apiCost);
@@ -93,6 +100,11 @@ async function placeOrder(user, service, link, quantity, promoCode, opts = {}) {
   } catch (err) {
     await conn.rollback();
     conn.release();
+    // Two simultaneous orders racing the same promo hit the unique key —
+    // surface it as the same friendly message (nothing was charged).
+    if (err.code === 'ER_DUP_ENTRY' && String(err.message).includes('promo_redemption')) {
+      throw new Error('You have already used this promo code. Promo codes work once per account.');
+    }
     throw err;
   }
   conn.release();

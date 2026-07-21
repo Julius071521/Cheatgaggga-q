@@ -361,7 +361,7 @@ async function callModel(messages) {
       const res = await fetch(apiUrl(), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${env.AI_API_KEY}` },
-        body: JSON.stringify({ model: models[i], messages, tools: TOOLS, tool_choice: 'auto', temperature: 0.2, max_tokens: 1200 }),
+        body: JSON.stringify({ model: models[i], messages: require('./ai').cleanMessages(messages), tools: TOOLS, tool_choice: 'auto', temperature: 0.2, max_tokens: 1200 }),
         signal: controller.signal,
       });
       const text = await res.text();

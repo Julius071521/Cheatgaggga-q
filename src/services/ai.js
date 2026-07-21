@@ -13,6 +13,21 @@ function modelList() {
   return [env.AI_MODEL, ...extra].filter((v, i, a) => v && a.indexOf(v) === i);
 }
 
+// Truncating text with .slice() can cut an emoji in half, leaving a lone
+// surrogate. JSON.stringify then emits a bare "\ud83d" which strict API
+// parsers reject ("unexpected end of hex escape"). Repair every outgoing
+// message so that can never break a request.
+function wellFormed(s) {
+  const str = String(s == null ? '' : s);
+  if (typeof str.toWellFormed === 'function') return str.toWellFormed();
+  return str
+    .replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/g, '')
+    .replace(/(^|[^\uD800-\uDBFF])([\uDC00-\uDFFF])/g, '$1');
+}
+function cleanMessages(messages) {
+  return messages.map((m) => (typeof m.content === 'string' ? { ...m, content: wellFormed(m.content) } : m));
+}
+
 function paymentMethods() {
   const methods = [];
   if (env.GCASH_ACCOUNT_NUMBER) methods.push('GCash');
@@ -140,7 +155,7 @@ async function chat(sessionId, userId, history, userMessage) {
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${env.AI_API_KEY}` },
         // Higher cap so reasoning models (e.g. GLM-5.2) have room to think AND
         // still return a visible answer — otherwise `content` comes back empty.
-        body: JSON.stringify({ model, messages, max_tokens: 1200, temperature: 0.4 }),
+        body: JSON.stringify({ model, messages: cleanMessages(messages), max_tokens: 1200, temperature: 0.4 }),
         signal: controller.signal,
       });
       const text = await res.text();
@@ -190,7 +205,7 @@ async function complete(messages, { maxTokens = 1000, temperature = 0.2 } = {}) 
       const res = await fetch(`${env.AI_BASE_URL.replace(/\/$/, '')}/chat/completions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${env.AI_API_KEY}` },
-        body: JSON.stringify({ model: models[i], messages, max_tokens: maxTokens, temperature }),
+        body: JSON.stringify({ model: models[i], messages: cleanMessages(messages), max_tokens: maxTokens, temperature }),
         signal: controller.signal,
       });
       const text = await res.text();
@@ -237,4 +252,4 @@ async function analyzeThreat(ctx) {
   } catch (_) { return null; }
 }
 
-module.exports = { chat, enabled, complete, analyzeThreat };
+module.exports = { chat, enabled, complete, analyzeThreat, wellFormed, cleanMessages };
