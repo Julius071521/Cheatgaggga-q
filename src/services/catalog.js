@@ -51,9 +51,17 @@ function allBrandRe() { return phraseRe([...OUR_BRANDS, ...THIRD_PARTY_BRANDS, .
 function scrubBrands(text) {
   return String(text || '')
     .replace(allBrandRe(), '')
+    // Internal supplier jargon that only confuses customers.
+    .replace(/\bhidden\s*[-–—]?\s*provider\b/gi, '')
+    .replace(/\bhidden\s*data\b/gi, '')
+    .replace(/\bprovider\s*hidden\b/gi, '')
+    .replace(/\bcancel\s*enable[d]?\b/gi, 'Cancelable')
     .replace(/\(\s*(official)?\s*\)/gi, '')   // leftover "( Official )" / "()"
+    .replace(/\[\s*\]/g, '')                   // leftover empty "[ ]"
+    .replace(/([|/·:–—])(\s*[|/·:–—])+/g, '$1') // collapse "| |" runs to one
     .replace(/^[?\s]+/, '')                    // mojibake "?? " left by lost emojis
     .replace(/^\s*[|\-–—/·:]+\s*/, '')         // leftover leading separators
+    .replace(/\s*[|\-–—/·:]\s*$/, '')          // leftover trailing separators
     .replace(/\s{2,}/g, ' ')
     .trim();
 }
@@ -82,7 +90,8 @@ function isProviderBranded(name, category) {
 
 // One-time cleanup for rows imported before scrubbing existed (safe to re-run).
 async function scrubExistingBrands() {
-  const words = [...OUR_BRANDS, ...THIRD_PARTY_BRANDS, ...extraWords()];
+  const JARGON_HINTS = ['hidden data', 'hidden provider', 'hidden - provider', 'provider hidden', 'cancel enable'];
+  const words = [...OUR_BRANDS, ...THIRD_PARTY_BRANDS, ...JARGON_HINTS, ...extraWords()];
   const like = words.map((w) => {
     const v = pool.escape(`%${w}%`);
     return `name LIKE ${v} OR category LIKE ${v}`;

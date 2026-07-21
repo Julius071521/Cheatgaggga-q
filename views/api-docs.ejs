@@ -8,7 +8,8 @@
     <ul class="doc-list">
       <li><strong>Endpoint:</strong> <code>https://<%= site.domain %>/api/v2</code></li>
       <li><strong>Method:</strong> <code>POST</code> (form-encoded)</li>
-      <li><strong>Your API key:</strong> get it in <a href="/settings">Settings → API key</a> (sign in first). Send it as the <code>key</code> field on every request.</li>
+      <li><strong>Your API key:</strong> get it in <a href="/settings">Settings → API key</a> (sign in first). Send it as the <code>key</code> field, or — recommended — as an <code>Authorization: Bearer YOUR_API_KEY</code> header so it stays out of request-body logs.</li>
+      <li><strong>Rate limit:</strong> up to <strong>300 requests/minute</strong> per IP. Exceeding it returns an error; back off and retry.</li>
       <li><strong>Currency:</strong> all amounts are in <strong>PHP (₱)</strong>.</li>
     </ul>
   </div>
@@ -45,10 +46,11 @@ key=YOUR_API_KEY&action=services</pre>
   <div class="card section-card">
     <div class="card-head"><h2>3 · Place an order</h2></div>
     <pre class="code-block">POST /api/v2
-key=YOUR_API_KEY&action=add&service=1234&link=https://instagram.com/username&quantity=1000</pre>
+key=YOUR_API_KEY&action=add&service=1234&link=https://instagram.com/username&quantity=1000&client_order_id=MYSHOP-87219</pre>
     <p class="muted">Response:</p>
     <pre class="code-block">{ "order": 23501 }</pre>
     <p class="muted"><small>Your wallet is charged instantly. If funds are low you get <code>{ "error": "Not enough funds in your balance" }</code> and nothing is charged.</small></p>
+    <p class="muted"><small><strong>Prevent duplicate orders:</strong> send a unique <code>client_order_id</code> with each order. If a request times out and you retry with the same <code>client_order_id</code>, we return the original order id instead of placing (and charging for) a second one.</small></p>
   </div>
 
   <div class="card section-card">

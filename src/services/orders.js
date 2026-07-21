@@ -78,19 +78,20 @@ async function placeOrder(user, service, link, quantity, promoCode, opts = {}) {
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();
+    const clientOrderId = opts.clientOrderId ? String(opts.clientOrderId).slice(0, 64) : null;
     const [result] = await conn.query(
       `INSERT INTO orders
          (order_id, user_id, service_id, service_name, url, quantity, charge, status, currency,
           api_cost, selling_price, markup_percent, net_profit, roi_percent, profit_margin_percent,
-          api_provider, original_charge, discount_amount, coupon_code, start_count, remains, runs, interval_minutes)
-       VALUES (?, ?, ?, ?, ?, ?, ?, 'Pending', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '0', ?, ?, ?)`,
+          api_provider, original_charge, discount_amount, coupon_code, start_count, remains, runs, interval_minutes, client_order_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 'Pending', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '0', ?, ?, ?, ?)`,
       [
         orderCode, user.id, String(service.provider_service_id), String(service.name).slice(0, 255),
         link, quantity, finalCharge.toFixed(4), (require('../config/env').SITE_CURRENCY || 'PHP'),
         q.apiCost.toFixed(4), q.sellingPrice.toFixed(4), q.markupPercent.toFixed(2),
         netProfit.toFixed(4), q.roiPercent.toFixed(2), q.profitMarginPercent.toFixed(2),
         providerName, q.sellingPrice.toFixed(4), discount.toFixed(4), promo ? promo.code : null, String(quantity),
-        runs, interval,
+        runs, interval, clientOrderId,
       ]
     );
     orderId = result.insertId;
@@ -100,6 +101,14 @@ async function placeOrder(user, service, link, quantity, promoCode, opts = {}) {
   } catch (err) {
     await conn.rollback();
     conn.release();
+    // Idempotency: a retried request with the same client_order_id hits the
+    // unique key — return the ORIGINAL order instead of charging again.
+    if (err.code === 'ER_DUP_ENTRY' && String(err.message).includes('uniq_client_order') && opts.clientOrderId) {
+      const [[existing]] = await pool.query(
+        'SELECT id, order_id, charge FROM orders WHERE user_id = ? AND client_order_id = ? LIMIT 1',
+        [user.id, String(opts.clientOrderId).slice(0, 64)]);
+      if (existing) return { orderId: existing.id, orderCode: existing.order_id, charge: Number(existing.charge), discount: 0, duplicate: true };
+    }
     // Two simultaneous orders racing the same promo hit the unique key —
     // surface it as the same friendly message (nothing was charged).
     if (err.code === 'ER_DUP_ENTRY' && String(err.message).includes('promo_redemption')) {
