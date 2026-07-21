@@ -397,6 +397,7 @@ router.post('/wallet/deposit', (req, res, next) => {
       [depRes] = await pool.query(
         "INSERT INTO deposits (user_id, payment_method, amount, reference_id, status, receipt_path, receipt_hash) VALUES (?, ?, ?, ?, 'Pending', ?, ?)",
         [req.user.id, method, amount.toFixed(4), reference, req.file ? path.basename(req.file.path) : null, receiptHash]);
+      req._depositSaved = true; // receipt now belongs to a saved deposit — don't clean it up
     } catch (err) {
       // reference_id is globally unique — a reference someone else already used
       // must be rejected cleanly, never crash.
@@ -412,7 +413,12 @@ router.post('/wallet/deposit', (req, res, next) => {
 
     flash(req, 'success', 'Deposit submitted! We emailed you a confirmation and will credit your wallet once verified.');
     res.redirect('/wallet');
-  } catch (err) { next(err); }
+  } catch (err) {
+    // An unexpected error before the deposit row was saved would otherwise
+    // leave the uploaded receipt orphaned on disk — clean it up.
+    if (req.file && !req._depositSaved) fs.unlink(req.file.path, () => {});
+    next(err);
+  }
 });
 
 router.get('/receipt/:id', async (req, res) => {

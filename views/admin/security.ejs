@@ -25,13 +25,13 @@
       <strong>Telegram is not configured yet</strong> — add <code>TELEGRAM_BOT_TOKEN</code> + <code>TELEGRAM_ADMIN_CHAT_ID</code> to get phone alerts.<% } %>
     </p>
     <div class="ticket-actions">
-      <form method="post" action="/admin/security/toggle" class="inline-form"<%= enabled ? ' data-confirm="Turn OFF Threat Radar? The site will stop detecting and blocking scanners/attackers."' : '' %>>
+      <form method="post" action="/admin/security/toggle" class="inline-form"<% if (enabled) { %> data-confirm="Turn OFF Threat Radar? The site will stop detecting and blocking scanners/attackers."<% } %>>
         <input type="hidden" name="_csrf" value="<%= csrfToken %>">
         <input type="hidden" name="key" value="radar">
         <input type="hidden" name="value" value="<%= enabled ? '0' : '1' %>">
         <button type="submit" class="btn <%= enabled ? 'btn-danger' : 'btn-success' %>"><%= enabled ? '⏸ Turn OFF radar' : '▶️ Turn ON radar' %></button>
       </form>
-      <form method="post" action="/admin/security/toggle" class="inline-form">
+      <form method="post" action="/admin/security/toggle" class="inline-form"<% if (autoBlock) { %> data-confirm="Turn OFF score-based auto-block? Clear attackers will still be instant-blocked, but borderline ones will only alert."<% } %>>
         <input type="hidden" name="_csrf" value="<%= csrfToken %>">
         <input type="hidden" name="key" value="auto">
         <input type="hidden" name="value" value="<%= autoBlock ? '0' : '1' %>">
@@ -141,10 +141,10 @@
             </td>
             <td class="actions-cell">
               <% if (t.is_blocked) { %>
-                <form method="post" action="/admin/security/ip" class="inline-form"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="ip" value="<%= t.ip %>"><input type="hidden" name="action" value="allow"><button class="btn btn-ghost btn-sm">✅ Unblock</button></form>
+                <form method="post" action="/admin/security/ip" class="inline-form" data-confirm="Unblock <%= t.ip %>? It will be able to reach the site again."><input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="ip" value="<%= t.ip %>"><input type="hidden" name="action" value="allow"><button class="btn btn-ghost btn-sm">✅ Unblock</button></form>
               <% } else { %>
                 <form method="post" action="/admin/security/ip" class="inline-form"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="ip" value="<%= t.ip %>"><input type="hidden" name="action" value="block"><button class="btn btn-outline btn-sm">🚫 Block</button></form>
-                <form method="post" action="/admin/security/ip" class="inline-form"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="ip" value="<%= t.ip %>"><input type="hidden" name="action" value="allow"><button class="btn btn-ghost btn-sm">✅ Allow</button></form>
+                <form method="post" action="/admin/security/ip" class="inline-form" data-confirm="Allow <%= t.ip %> and stop flagging it?"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="ip" value="<%= t.ip %>"><input type="hidden" name="action" value="allow"><button class="btn btn-ghost btn-sm">✅ Allow</button></form>
               <% } %>
             </td>
           </tr>

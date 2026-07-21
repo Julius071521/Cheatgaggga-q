@@ -70,17 +70,8 @@
             <a class="btn btn-outline btn-sm" title="Order this again with the same link & quantity"
                href="/order/new?service=<%= o.local_service_id %>&link=<%= encodeURIComponent(o.url) %>&qty=<%= o.quantity %>">🔁 Reorder</a>
             <% } %>
-            <details class="report-details">
-              <summary class="btn btn-ghost btn-sm">Report</summary>
-              <form method="post" action="/orders/<%= o.id %>/ticket" class="report-form card">
-                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-                <select name="request_type" class="input-sm">
-                  <option>Refill</option><option>Cancel</option><option>Speed up</option><option>Other</option>
-                </select>
-                <textarea name="message" required minlength="3" maxlength="2000" rows="2" placeholder="Describe your concern…"></textarea>
-                <button type="submit" class="btn btn-primary btn-sm">Submit concern</button>
-              </form>
-            </details>
+            <button type="button" class="btn btn-ghost btn-sm" data-report
+                    data-order-id="<%= o.id %>" data-order-code="<%= o.order_id %>">Report</button>
           </td>
         </tr>
         <% }); %>
@@ -92,4 +83,26 @@
     <p class="empty-note" data-reveal>No orders yet — <a href="/order/new">place your first order</a>! 🚀</p>
   <% } %>
 </main>
+
+<!-- One shared report dialog at body level — a top-layer <dialog> is never
+     affected by the horizontally-scrolling table, so it works on mobile. -->
+<dialog id="report-sheet" class="report-dialog">
+  <form method="post" id="report-form" class="report-dialog-form">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <div class="report-dialog-head">
+      <strong>Report a concern</strong>
+      <span class="muted" id="report-order-label"></span>
+    </div>
+    <label>What's the issue?
+      <select name="request_type" class="input-sm">
+        <option>Refill</option><option>Cancel</option><option>Speed up</option><option>Other</option>
+      </select>
+    </label>
+    <textarea name="message" required minlength="3" maxlength="2000" rows="3" placeholder="Describe your concern…"></textarea>
+    <div class="report-dialog-actions">
+      <button type="button" class="btn btn-ghost btn-sm" data-report-close>Cancel</button>
+      <button type="submit" class="btn btn-primary btn-sm">Submit concern</button>
+    </div>
+  </form>
+</dialog>
 <%- include('../partials/footer') %>

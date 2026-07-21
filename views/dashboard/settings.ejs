@@ -91,7 +91,7 @@
       <% } else { %>
         <p class="empty-note">No API key yet.</p>
       <% } %>
-      <form method="post" action="/settings/api-key" class="mt-sm"<%= user.api_key ? ' data-confirm="Regenerate your API key? Your current key stops working immediately and any integration using it must be updated."' : '' %>>
+      <form method="post" action="/settings/api-key" class="mt-sm"<% if (user.api_key) { %> data-confirm="Regenerate your API key? Your current key stops working immediately and any integration using it must be updated."<% } %>>
         <input type="hidden" name="_csrf" value="<%= csrfToken %>">
         <button type="submit" class="btn btn-outline"><%= user.api_key ? 'Regenerate key' : 'Generate API key' %></button>
       </form>

@@ -28,7 +28,22 @@
     // Select-on-click inputs (e.g. copy a referral link) — replaces onclick.
     var s = e.target.closest ? e.target.closest('[data-select]') : null;
     if (s && s.select) s.select();
-    return true;
+
+    // Order "Report" → open the shared body-level dialog (works on mobile,
+    // unlike a form trapped inside a horizontally-scrolling table).
+    var rep = e.target.closest ? e.target.closest('[data-report]') : null;
+    var sheet = document.getElementById('report-sheet');
+    if (rep && sheet) {
+      var form = document.getElementById('report-form');
+      form.setAttribute('action', '/orders/' + rep.getAttribute('data-order-id') + '/ticket');
+      var lbl = document.getElementById('report-order-label');
+      if (lbl) lbl.textContent = rep.getAttribute('data-order-code') || '';
+      var ta = form.querySelector('textarea'); if (ta) ta.value = '';
+      if (sheet.showModal) sheet.showModal(); else sheet.setAttribute('open', '');
+    }
+    if (e.target.closest && e.target.closest('[data-report-close]') && sheet) {
+      if (sheet.close) sheet.close(); else sheet.removeAttribute('open');
+    }
   });
 
   // ── Theme toggle ─────────────────────────────────────────

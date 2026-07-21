@@ -58,12 +58,18 @@ function scrubBrands(text) {
     .trim();
 }
 
-// A service with a blank/numeric/too-short name (renders as "Service #123") or
-// a max quantity of 1 is not something a customer can meaningfully order.
-function isJunkService(name, maxQty) {
+// Junk = a service with no real name a customer can act on: blank/numeric/
+// too-short (renders as "Service #123"), a generic fallback, a decorative
+// section-header/divider row, or a name with no letters/digits at all.
+// A fixed-quantity package (min = max = 1, e.g. "Telegram Premium — 3 months")
+// is perfectly valid and must NOT be treated as junk.
+function isJunkService(name) {
   const n = String(name || '').trim();
-  if (n.length < 4 || /^\d+$/.test(n) || /^(boosting service|unnamed service|general|service #?\d+)$/i.test(n)) return true;
-  if (Number(maxQty) <= 1) return true;
+  if (n.length < 4) return true;
+  if (/^\d+$/.test(n)) return true;
+  if (/^(boosting service|unnamed service|general|service #?\d+)$/i.test(n)) return true;
+  if (/[=\-_~*#•▬═►◄★☆♛✦❖▪▫—]{4,}/.test(n)) return true; // "═════" style divider
+  if (!/[a-z0-9]/i.test(n)) return true;                    // only symbols/emoji
   return false;
 }
 
@@ -93,14 +99,32 @@ async function scrubExistingBrands() {
       [newName, newCat, s.id]);
     changed += 1;
   }
-  // Disable junk services already in the catalog (blank/numeric name or max ≤ 1).
-  const [maybeJunk] = await pool.query(
-    "SELECT id, name, max_qty FROM services WHERE enabled = 1 AND deleted = 0 AND (CHAR_LENGTH(TRIM(name)) < 4 OR name REGEXP '^[0-9]+$' OR max_qty <= 1 OR name IN ('Boosting service','Unnamed service','General'))");
+  // Disable junk services already in the catalog. Scan all enabled services in
+  // JS so decorated section-header rows (e.g. "═══ FACEBOOK ═══", which still
+  // contain letters) are caught, not just blank/numeric names.
+  const [enabledSvcs] = await pool.query('SELECT id, name FROM services WHERE enabled = 1 AND deleted = 0');
   let junkOff = 0;
-  for (const s of maybeJunk) {
-    if (isJunkService(s.name, s.max_qty)) { await pool.query('UPDATE services SET enabled = 0 WHERE id = ?', [s.id]); junkOff += 1; }
+  for (const s of enabledSvcs) {
+    if (isJunkService(s.name)) { await pool.query('UPDATE services SET enabled = 0 WHERE id = ?', [s.id]); junkOff += 1; }
   }
   if (junkOff) console.log(`[catalog] hid ${junkOff} junk/blank service(s)`);
+
+  // One-time repair: an earlier over-broad rule disabled ALL max=1 services,
+  // which wrongly hid valid fixed-quantity packages (Telegram Premium, etc.).
+  // Re-enable those (valid name, max ≤ 1) exactly once, without touching
+  // anything the owner has intentionally disabled since.
+  const { getSetting, setSetting } = require('./stats');
+  if ((await getSetting('junk_max1_repaired', '')) !== '1') {
+    const [wrong] = await pool.query('SELECT id, name FROM services WHERE enabled = 0 AND deleted = 0 AND max_qty <= 1');
+    let reOn = 0;
+    for (const s of wrong) {
+      if (!isJunkService(s.name) && !isProviderBranded(s.name, '')) {
+        await pool.query('UPDATE services SET enabled = 1 WHERE id = ?', [s.id]); reOn += 1;
+      }
+    }
+    await setSetting('junk_max1_repaired', '1');
+    if (reOn) console.log(`[catalog] re-enabled ${reOn} valid fixed-quantity package(s)`);
+  }
 
   // Order history copies the service name — scrub any old branded copies too.
   const ordLike = words.map((w) => `service_name LIKE ${pool.escape(`%${w}%`)}`).join(' OR ');
@@ -165,8 +189,8 @@ async function syncProvider(code) {
     const min = Math.min(CAP, Math.max(1, parseInt(svc.min, 10) || 1));
     const max = Math.min(CAP, Math.max(min, parseInt(svc.max, 10) || min));
     // Hide junk the provider sometimes lists: blank/numeric names that show up
-    // as "Service #123", or a fixed max of 1 (nothing a customer can meaningfully order).
-    const junk = isJunkService(name, max);
+    // as "Service #123", generic fallbacks, or section-header divider rows.
+    const junk = isJunkService(name);
 
     // One bad row must never abort the whole sync — skip it and keep going.
     try {

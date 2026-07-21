@@ -57,6 +57,16 @@ app.use((req, res, next) => {
   next();
 });
 
+// Canonical host: 301 www → apex (keeps path + query) so search engines don't
+// see two copies of the site. Belt-and-suspenders alongside the canonical tag.
+app.use((req, res, next) => {
+  const host = req.headers.host || '';
+  if (/^www\./i.test(host)) {
+    return res.redirect(301, `https://${host.replace(/^www\./i, '')}${req.originalUrl}`);
+  }
+  next();
+});
+
 app.use(generalLimiter);
 app.use(express.urlencoded({ extended: false, limit: '32kb' }));
 app.use('/assets', express.static(path.join(__dirname, 'public'), { maxAge: '7d' }));
