@@ -132,7 +132,8 @@ const READS = {
   async ticket_detail({ ticket_id }) {
     const [[t]] = await pool.query(
       `SELECT t.id, u.username, u.id AS user_id, t.subject, t.request_type, t.message, t.order_id,
-              t.status, t.priority, t.internal_notes, t.provider_action_status, t.created_at
+              t.provider_order_id, t.provider_refill_id, t.status, t.priority, t.internal_notes,
+              t.provider_action_status, t.created_at
        FROM tickets t LEFT JOIN users u ON u.id = t.user_id WHERE t.id = ?`, [parseInt(ticket_id, 10)]);
     return t || { note: 'ticket not found' };
   },

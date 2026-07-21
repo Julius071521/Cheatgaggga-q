@@ -180,6 +180,13 @@ runMigrations()
       try { require('./src/services/security').cleanInfraIps(); }
       catch (err) { console.warn('[server] infra-ip cleanup failed:', err.message); }
 
+      // Privacy: scrub any provider brand names that reached the catalog
+      // before sanitizing existed (safe to re-run; usually a no-op).
+      try {
+        require('./src/services/catalog').scrubExistingBrands()
+          .catch((err) => console.warn('[server] brand scrub failed:', err.message));
+      } catch (err) { console.warn('[server] brand scrub failed:', err.message); }
+
       // Telegram security bot: register the webhook so button presses reach us.
       try {
         const telegram = require('./src/services/telegram');

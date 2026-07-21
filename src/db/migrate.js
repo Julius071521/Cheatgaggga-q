@@ -14,13 +14,26 @@ async function runMigrations() {
   const [done] = await pool.query('SELECT name FROM _migrations');
   const doneSet = new Set(done.map((r) => r.name));
 
+  // Our migrations are additive, so "already exists" errors mean a statement
+  // was applied earlier (e.g. a boot interrupted between apply and record) —
+  // safe to skip and continue instead of wedging every future boot.
+  const TOLERATED = new Set(['ER_DUP_FIELDNAME', 'ER_DUP_KEYNAME', 'ER_TABLE_EXISTS_ERROR']);
+
   const applied = [];
   for (const file of files) {
     if (doneSet.has(file)) continue;
     const sql = fs.readFileSync(path.join(dir, file), 'utf8');
     const statements = sql.split(/;\s*(?:\r?\n|$)/).map((s) => s.trim()).filter(Boolean);
     for (const stmt of statements) {
-      await pool.query(stmt);
+      try {
+        await pool.query(stmt);
+      } catch (err) {
+        if (TOLERATED.has(err.code)) {
+          console.warn(`[migrate] ${file}: skipped already-applied statement (${err.code})`);
+          continue;
+        }
+        throw err;
+      }
     }
     await pool.query('INSERT INTO _migrations (name) VALUES (?)', [file]);
     applied.push(file);

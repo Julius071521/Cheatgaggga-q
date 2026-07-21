@@ -70,6 +70,12 @@ class SmmClient {
     return this.call({ action: 'refill', order: providerOrderId });
   }
 
+  // Check how a previously-requested refill is doing at the provider.
+  // Standard SMM v2: { action: 'refill_status', refill: <id> } → { status: 'Completed'|'Pending'|... }
+  refillStatus(refillId) {
+    return this.call({ action: 'refill_status', refill: String(refillId) });
+  }
+
   cancel(providerOrderId) {
     // Standard SMM v2 uses "orders" (comma list) for cancel.
     return this.call({ action: 'cancel', orders: String(providerOrderId) });

@@ -26,6 +26,51 @@ function detectPlatform(category, name) {
   return 'other';
 }
 
+// ── Provider-brand privacy ──────────────────────────────────
+// Upstream service names/categories sometimes contain the provider's own brand
+// ("RKDpanel Official", "SMMWorld Best…"). Customers must never see those, so
+// every imported name/category is scrubbed, and provider-branded PRODUCTS
+// (child panels etc. that only make sense under the provider's brand) are
+// imported disabled so they never show in the public catalog.
+const BRAND_RE = /rkd\s*panel|rdk\s*panel|\brkd\b|\brdk\b|smm\s*world|smmworld/gi;
+
+function scrubBrands(text) {
+  return String(text || '')
+    .replace(BRAND_RE, '')
+    .replace(/\(\s*(official)?\s*\)/gi, '')   // leftover "( Official )" / "()"
+    .replace(/^\s*[|\-–—/·:]+\s*/, '')         // leftover leading separators
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
+function isProviderBranded(name, category) {
+  const hay = `${name || ''} ${category || ''}`;
+  BRAND_RE.lastIndex = 0;
+  const branded = BRAND_RE.test(String(name || ''));
+  return branded || /child\s*panel/i.test(hay);
+}
+
+// One-time cleanup for rows imported before scrubbing existed (safe to re-run).
+async function scrubExistingBrands() {
+  const like = "name LIKE '%rkd%' OR name LIKE '%rdk%' OR name LIKE '%smmworld%' OR name LIKE '%smm world%' OR category LIKE '%rkd%' OR category LIKE '%rdk%' OR category LIKE '%smmworld%' OR category LIKE '%smm world%'";
+  const [rows] = await pool.query(`SELECT id, name, category FROM services WHERE ${like}`);
+  for (const s of rows) {
+    const branded = isProviderBranded(s.name, s.category);
+    await pool.query(
+      `UPDATE services SET name = ?, category = ?${branded ? ', enabled = 0' : ''} WHERE id = ?`,
+      [scrubBrands(s.name) || 'Boosting service', scrubBrands(s.category) || 'General', s.id]);
+  }
+  // Order history copies the service name — scrub any old branded copies too.
+  const [ords] = await pool.query(
+    "SELECT id, service_name FROM orders WHERE service_name LIKE '%rkd%' OR service_name LIKE '%rdk%' OR service_name LIKE '%smmworld%' OR service_name LIKE '%smm world%'");
+  for (const o of ords) {
+    await pool.query('UPDATE orders SET service_name = ? WHERE id = ?',
+      [(scrubBrands(o.service_name) || 'Boosting service').slice(0, 255), o.id]);
+  }
+  if (rows.length || ords.length) console.log(`[catalog] privacy scrub: cleaned ${rows.length} service row(s), ${ords.length} order row(s)`);
+  return rows.length + ords.length;
+}
+
 function smmworldFilter(service) {
   const ids = env.SMMWORLD_IMPORT_SERVICE_IDS;
   const keywords = env.SMMWORLD_IMPORT_KEYWORDS;
@@ -63,8 +108,12 @@ async function syncProvider(code) {
     if (Number.isNaN(rate) || rate < 0) continue;
 
     const providerServiceId = String(svc.service);
-    const name = String(svc.name || 'Unnamed service').slice(0, 255);
-    const category = String(svc.category || '').slice(0, 190);
+    const rawName = String(svc.name || 'Unnamed service').slice(0, 255);
+    const rawCategory = String(svc.category || '').slice(0, 190);
+    // Privacy: never let the provider's brand reach the public catalog.
+    const branded = isProviderBranded(rawName, rawCategory);
+    const name = (scrubBrands(rawName) || 'Boosting service').slice(0, 255);
+    const category = (scrubBrands(rawCategory) || 'General').slice(0, 190);
     const platform = detectPlatform(category, name);
     // Clamp quantities to a safe BIGINT range (guards against absurd/overflow values).
     const CAP = 100000000000; // 100 billion
@@ -76,13 +125,14 @@ async function syncProvider(code) {
       await pool.query(
         `INSERT INTO services
            (provider_id, provider_service_id, platform, category, name, type, rate_usd,
-            min_qty, max_qty, refill, cancelable, dripfeed, deleted)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
+            min_qty, max_qty, refill, cancelable, dripfeed, deleted, enabled)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)
          ON DUPLICATE KEY UPDATE
            platform = VALUES(platform), category = VALUES(category), name = VALUES(name),
            type = VALUES(type), rate_usd = VALUES(rate_usd), min_qty = VALUES(min_qty),
            max_qty = VALUES(max_qty), refill = VALUES(refill), cancelable = VALUES(cancelable),
-           dripfeed = VALUES(dripfeed), deleted = 0`,
+           dripfeed = VALUES(dripfeed), deleted = 0,
+           enabled = IF(VALUES(enabled) = 0, 0, enabled)`, // branded stays hidden; owner's toggles survive re-sync
         [
           providerId, providerServiceId, platform, category, name,
           String(svc.type || 'Default').slice(0, 64), rate.toFixed(6),
@@ -90,6 +140,7 @@ async function syncProvider(code) {
           svc.refill === true || svc.refill === 'true' ? 1 : 0,
           svc.cancel === true || svc.cancel === 'true' ? 1 : 0,
           svc.dripfeed === true || svc.dripfeed === 'true' ? 1 : 0,
+          branded ? 0 : 1,
         ]
       );
       imported += 1;
@@ -148,4 +199,4 @@ async function unsyncProvider(code) {
   return { provider: code, removed: r.affectedRows };
 }
 
-module.exports = { syncProvider, unsyncProvider, detectPlatform };
+module.exports = { syncProvider, unsyncProvider, detectPlatform, scrubBrands, scrubExistingBrands };

@@ -236,12 +236,20 @@ router.get('/admin/tickets', async (req, res, next) => {
   try {
     const status = ['open', 'in_progress', 'resolved', 'closed'].includes(String(req.query.status || '').toLowerCase())
       ? String(req.query.status).toLowerCase() : '';
-    const where = status ? 'WHERE LOWER(t.status) = ?' : '';
-    const params = status ? [status] : [];
+    const q = String(req.query.q || '').trim().slice(0, 80);
+    const clauses = [];
+    const params = [];
+    if (status) { clauses.push('LOWER(t.status) = ?'); params.push(status); }
+    if (q) {
+      // Search by site order code (APX-…), provider order number, customer, or subject.
+      clauses.push('(t.order_id LIKE ? OR t.provider_order_id = ? OR u.username LIKE ? OR u.email LIKE ? OR t.subject LIKE ?)');
+      params.push(`%${q}%`, q, `%${q}%`, `%${q}%`, `%${q}%`);
+    }
+    const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
     const [tickets] = await pool.query(
       `SELECT t.*, u.username, u.email FROM tickets t LEFT JOIN users u ON u.id = t.user_id
        ${where} ORDER BY t.id DESC LIMIT 100`, params);
-    res.render('admin/tickets', { title: 'Admin · Customer Concerns', tickets, status });
+    res.render('admin/tickets', { title: 'Admin · Customer Concerns', tickets, status, q });
   } catch (err) { next(err); }
 });
 

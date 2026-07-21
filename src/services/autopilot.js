@@ -65,8 +65,10 @@ async function findOrderForTicket(ticket) {
 }
 
 // Triage one ticket. Safe to call repeatedly — a ticket is only handled once.
+// Refill/Cancel concerns are ALWAYS forwarded to the provider immediately
+// (even with the autopilot toggle off) — the toggle only gates the AI triage.
 async function handleTicket(ticketId) {
-  if (!(await isOn())) return { skipped: 'autopilot off' };
+  const auto = await isOn();
   const [[ticket]] = await pool.query('SELECT * FROM tickets WHERE id = ?', [ticketId]);
   if (!ticket || ticket.ai_handled_at) return { skipped: 'missing or already handled' };
   if (['resolved', 'closed'].includes(String(ticket.status || '').toLowerCase())) return { skipped: 'closed' };
@@ -90,14 +92,22 @@ async function handleTicket(ticketId) {
   let detail = '';
   let userMsg = null;
   let providerAction = null;
+  let refillId = null;
 
   if (requestType === 'Refill' && client) {
     try {
       const resp = await client.refill(order.provider_order_id);
+      // Standard v2 replies { refill: <id> } (or [{ order, refill }]); keep the
+      // id so we can poll refill_status until the provider finishes it.
+      const rawRefill = resp && resp.refill !== undefined ? resp.refill
+        : (Array.isArray(resp) && resp[0] ? resp[0].refill : undefined);
+      if (rawRefill !== undefined && rawRefill !== null && ['string', 'number'].includes(typeof rawRefill)) {
+        refillId = String(rawRefill).slice(0, 32);
+      }
       action = 'refill_sent'; outcome = 'done'; ticketStatus = 'in_progress';
       providerAction = { status: 'refill_sent', response: JSON.stringify(resp).slice(0, 1000) };
-      detail = `Refill sent to the provider for order ${order.order_id}.`;
-      userMsg = `Good news! 🤖 A refill was requested for your order ${order.order_id}. Please allow some time for it to process — we'll keep an eye on it.`;
+      detail = `Refill sent to the provider for order ${order.order_id}${refillId ? ` (refill #${refillId})` : ''}.`;
+      userMsg = `Good news! 🤖 A refill was requested for your order ${order.order_id}. Please allow some time for it to process — we'll keep an eye on it and let you know once it's done.`;
     } catch (err) {
       action = 'refill_failed'; detail = `Refill attempt failed for ${order.order_id}: ${err.message}`;
     }
@@ -111,6 +121,10 @@ async function handleTicket(ticketId) {
     } catch (err) {
       action = 'cancel_failed'; detail = `Cancel attempt failed for ${order.order_id}: ${err.message}`;
     }
+  } else if (!auto) {
+    // Autopilot toggle is off and this isn't a direct provider action —
+    // leave the ticket untouched for a human (no ai_handled_at mark).
+    return { skipped: 'autopilot off' };
   } else if (order && status === 'Completed') {
     action = 'auto_resolved'; outcome = 'done'; ticketStatus = 'resolved';
     detail = `Order ${order.order_id} now shows Completed at the provider — ticket auto-resolved.`;
@@ -131,10 +145,14 @@ async function handleTicket(ticketId) {
     `UPDATE tickets SET ai_handled_at = NOW(), status = ?,
         internal_notes = CONCAT(COALESCE(internal_notes, ''), ?, '\n'),
         provider_action_status = COALESCE(?, provider_action_status),
-        provider_action_response = COALESCE(?, provider_action_response)
+        provider_action_response = COALESCE(?, provider_action_response),
+        provider_refill_id = COALESCE(?, provider_refill_id),
+        provider_order_id = COALESCE(provider_order_id, ?),
+        api_provider = COALESCE(api_provider, ?)
       WHERE id = ?`,
     [ticketStatus, note, providerAction ? providerAction.status : null,
-      providerAction ? providerAction.response : null, ticket.id]);
+      providerAction ? providerAction.response : null, refillId,
+      order ? order.provider_order_id : null, order ? order.api_provider : null, ticket.id]);
 
   await log({ ticket_id: ticket.id, order_ref: order ? order.order_id : ticket.order_id,
     user_id: ticket.user_id, action, detail, outcome });
@@ -225,6 +243,58 @@ async function autoRefundStuckOrders() {
       `${refunded} order(s) undelivered after ${days} days were auto-refunded to customers.`);
   }
   return refunded;
+}
+
+// ── Refill follow-up ────────────────────────────────────────
+// Tickets whose refill was forwarded to the provider are polled
+// (action=refill_status) until the provider finishes: the customer is told
+// when it completes, and rejections escalate to the admin. Matches every
+// ticket to its provider refill id so nothing is left hanging.
+async function syncRefillStatuses(limit = 25) {
+  const [rows] = await pool.query(
+    `SELECT id, user_id, order_id, api_provider, provider_refill_id FROM tickets
+      WHERE provider_action_status = 'refill_sent' AND provider_refill_id IS NOT NULL
+        AND created_at >= DATE_SUB(NOW(), INTERVAL 14 DAY)
+      ORDER BY id ASC LIMIT ?`, [limit]);
+  let updated = 0;
+  for (const t of rows) {
+    const client = getClient(t.api_provider === 'SMMWorld' ? 'smmworld' : 'rkd');
+    if (!client) continue;
+    let payload;
+    try { payload = await client.refillStatus(t.provider_refill_id); }
+    catch (_) { continue; } // transient — try again next tick
+    const st = String((payload && payload.status) || '').toLowerCase();
+    if (!st || ['pending', 'in progress', 'processing'].includes(st)) continue;
+
+    if (st === 'completed') {
+      await pool.query(
+        `UPDATE tickets SET provider_action_status = 'refill_completed', status = 'resolved',
+            internal_notes = CONCAT(COALESCE(internal_notes,''), '[AI autopilot] Refill completed.', '\n')
+          WHERE id = ?`, [t.id]);
+      if (t.user_id) {
+        notifications.notifyUser(t.user_id, 'ticket', 'Refill completed ✅',
+          `Your refill for order ${t.order_id} is done — the dropped amount has been restored. Thanks for your patience!`).catch(() => {});
+      }
+      await log({ ticket_id: t.id, order_ref: t.order_id, user_id: t.user_id,
+        action: 'refill_completed', outcome: 'done', detail: `Refill #${t.provider_refill_id} completed for ${t.order_id}.` });
+      updated += 1;
+    } else if (['rejected', 'canceled', 'cancelled', 'error', 'failed'].includes(st)) {
+      await pool.query(
+        `UPDATE tickets SET provider_action_status = 'refill_rejected', status = 'open',
+            internal_notes = CONCAT(COALESCE(internal_notes,''), ?, '\n')
+          WHERE id = ?`, [`[AI autopilot] Refill #${t.provider_refill_id} came back "${st}" — needs admin review.`, t.id]);
+      if (t.user_id) {
+        notifications.notifyUser(t.user_id, 'ticket', 'Update on your refill request',
+          `Your refill request for order ${t.order_id} needs a second look — our team is now reviewing it personally. We'll update you soon.`).catch(() => {});
+      }
+      await notifyAdmins('⚠️ Refill rejected — needs you',
+        `Ticket #${t.id} (order ${t.order_id}): the refill request came back "${st}". Please review.`, true);
+      await log({ ticket_id: t.id, order_ref: t.order_id, user_id: t.user_id,
+        action: 'refill_rejected', outcome: 'needs_admin', detail: `Refill #${t.provider_refill_id} status "${st}" for ${t.order_id}.` });
+      updated += 1;
+    }
+  }
+  return updated;
 }
 
 // ── Deposit auto-approval (small amounts with a receipt) ────
@@ -440,6 +510,8 @@ async function tick() {
     try { result.synced = await orderService.syncOpenOrders(150); }
     catch (err) { console.warn('[autopilot] order sync failed:', err.message); }
     result.tickets = await processPendingTickets();
+    try { result.refills = await syncRefillStatuses(); }
+    catch (err) { console.warn('[autopilot] refill follow-up failed:', err.message); }
     try { result.deposits = await processPendingDeposits(); }
     catch (err) { console.warn('[autopilot] deposit pass failed:', err.message); }
     if (Date.now() - lastWatchdogAt > 60 * 60 * 1000) {
@@ -473,7 +545,7 @@ function startScheduler() {
 }
 
 module.exports = {
-  isOn, handleTicket, processPendingTickets, flagStuckOrders, autoRefundStuckOrders,
+  isOn, handleTicket, processPendingTickets, syncRefillStatuses, flagStuckOrders, autoRefundStuckOrders,
   processPendingDeposits, checkProviderBalances, sendDailyDigest, sendMorningBrief,
   tick, startScheduler,
 };

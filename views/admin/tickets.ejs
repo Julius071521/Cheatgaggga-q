@@ -11,6 +11,15 @@
     <% }); %>
   </div>
 
+  <div class="filter-bar card">
+    <form class="filter-search" method="get" action="/admin/tickets">
+      <% if (status) { %><input type="hidden" name="status" value="<%= status %>"><% } %>
+      <input type="search" name="q" value="<%= typeof q !== 'undefined' ? q : '' %>" placeholder="Search: APX-… code, provider order #, customer, subject" maxlength="80">
+      <button type="submit" class="btn btn-primary btn-sm">Search</button>
+      <% if (typeof q !== 'undefined' && q) { %><a href="/admin/tickets<%= status ? ('?status=' + status) : '' %>" class="btn btn-ghost btn-sm">Clear</a><% } %>
+    </form>
+  </div>
+
   <% if (tickets.length) { %>
   <div class="tickets-list">
     <% tickets.forEach(function(t) { %>
@@ -30,7 +39,7 @@
       </p>
       <% if (t.message) { %><p class="ticket-msg"><%= String(t.message).slice(0, 400) %></p><% } %>
       <% if (t.provider_action_status) { %>
-        <p class="muted"><small>Last action: <strong><%= t.provider_action_status %></strong> — <%= String(t.provider_action_response || '').slice(0,120) %></small></p>
+        <p class="muted"><small>Last action: <strong><%= t.provider_action_status %></strong><% if (t.provider_refill_id) { %> · refill #<%= t.provider_refill_id %><% } %> — <%= String(t.provider_action_response || '').slice(0,120) %></small></p>
       <% } %>
 
       <div class="ticket-actions">
