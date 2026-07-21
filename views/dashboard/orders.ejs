@@ -4,6 +4,20 @@
   <div class="page-head"><h1>My <span class="grad-text">orders</span></h1></div>
   <%- include('../partials/dash-nav') %>
 
+  <div class="filter-bar card">
+    <form class="filter-search" method="get" action="/orders">
+      <input type="search" name="q" value="<%= typeof q !== 'undefined' ? q : '' %>" placeholder="Search order code, service, or link…" maxlength="80">
+      <select name="status" class="input-sm">
+        <option value="">All statuses</option>
+        <% ['Pending','In progress','Processing','Completed','Partial','Canceled','Failed'].forEach(function(s){ %>
+          <option value="<%= s %>" <%= (typeof status !== 'undefined' && status === s) ? 'selected' : '' %>><%= s %></option>
+        <% }); %>
+      </select>
+      <button type="submit" class="btn btn-primary btn-sm">Search</button>
+      <% if ((typeof q !== 'undefined' && q) || (typeof status !== 'undefined' && status)) { %><a href="/orders" class="btn btn-ghost btn-sm">Clear</a><% } %>
+    </form>
+  </div>
+
   <% if (orders.length) { %>
   <div class="table-wrap card" data-reveal>
     <table class="table">
@@ -17,7 +31,19 @@
           <td class="num"><%= Number(o.quantity).toLocaleString() %></td>
           <td class="num">₱<%= h.money(o.charge) %><% if (Number(o.refund_amount) > 0) { %><br><small class="refund">↩ ₱<%= h.money(o.refund_amount) %></small><% } %></td>
           <td class="num"><%= o.start_count == null ? '—' : Number(o.start_count).toLocaleString() %></td>
-          <td class="num"><%= o.remains == null ? '—' : Number(o.remains).toLocaleString() %></td>
+          <td class="num">
+            <% var qty = Number(o.quantity) || 0;
+               var rem = o.remains == null ? null : Number(o.remains);
+               var pct = null;
+               if (o.status === 'Completed') pct = 100;
+               else if (rem != null && qty > 0) pct = Math.max(0, Math.min(100, Math.round((qty - rem) / qty * 100)));
+               if (pct == null) { %>—<% } else { %>
+              <div class="oprog" title="<%= pct %>% delivered">
+                <span class="oprog-fill" style="width:<%= pct %>%"></span>
+              </div>
+              <small class="muted"><%= pct %>%</small>
+            <% } %>
+          </td>
           <td>
             <span class="badge badge-<%= h.statusSlug(o.status) %>"><%= h.statusLabel(o.status) %></span>
             <% var tk = (typeof ticketByOrder !== 'undefined' && ticketByOrder[o.order_id]) || null;

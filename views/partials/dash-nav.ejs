@@ -4,6 +4,7 @@
   <a href="/order/mass" class="pill <%= path.startsWith('/order/mass') ? 'active' : '' %>">📦 Mass order</a>
   <a href="/orders" class="pill <%= path.startsWith('/orders') ? 'active' : '' %>">My orders</a>
   <a href="/wallet" class="pill <%= path.startsWith('/wallet') ? 'active' : '' %>">Wallet</a>
+  <a href="/support" class="pill <%= path.startsWith('/support') ? 'active' : '' %>">💬 Support<% if (typeof supportUnread !== 'undefined' && supportUnread > 0) { %> <span class="badge badge-pending"><%= supportUnread %></span><% } %></a>
   <a href="/referrals" class="pill <%= path.startsWith('/referrals') ? 'active' : '' %>">💸 Invite & Earn</a>
   <a href="/settings" class="pill <%= path.startsWith('/settings') ? 'active' : '' %>">Settings</a>
 </nav>

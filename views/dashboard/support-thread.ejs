@@ -1,0 +1,51 @@
+<%- include('../partials/head', { title }) %>
+<%- include('../partials/nav') %>
+<main class="container page">
+  <div class="page-head">
+    <h1>Ticket <span class="grad-text">#<%= ticket.id %></span></h1>
+    <a href="/support" class="btn btn-ghost btn-sm">← All tickets</a>
+  </div>
+
+  <div class="card section-card">
+    <p class="muted" style="margin:0 0 4px">
+      <strong><%= ticket.subject || 'Concern' %></strong>
+      <span class="badge badge-<%= h.statusSlug(ticket.status || 'open') %>"><%= h.statusLabel(ticket.status || 'open') %></span>
+      <% if (ticket.order_id) { %> · order <code><%= ticket.order_id %></code><% } %>
+    </p>
+  </div>
+
+  <div class="chat-thread">
+    <% messages.forEach(function(m) { var mine = m.sender === 'customer'; %>
+      <div class="chat-row <%= mine ? 'chat-mine' : 'chat-theirs' %>">
+        <div class="chat-bubble">
+          <div class="chat-who"><%= mine ? 'You' : (m.sender === 'system' ? '🤖 Auto' : 'Support') %></div>
+          <div class="chat-body"><%= m.body %></div>
+          <div class="chat-time"><%= h.formatDate(m.created_at) %></div>
+        </div>
+      </div>
+    <% }); %>
+  </div>
+
+  <% var closed = ['resolved','closed'].includes(String(ticket.status || '').toLowerCase()); %>
+  <form method="post" action="/support/<%= ticket.id %>/reply" class="card chat-compose">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <textarea name="message" rows="2" maxlength="4000" required placeholder="<%= closed ? 'Reply to reopen this ticket…' : 'Type your reply…' %>"></textarea>
+    <button type="submit" class="btn btn-primary">Send</button>
+  </form>
+</main>
+
+<style>
+  .chat-thread { display:flex; flex-direction:column; gap:10px; margin:14px 0; }
+  .chat-row { display:flex; }
+  .chat-mine { justify-content:flex-end; }
+  .chat-theirs { justify-content:flex-start; }
+  .chat-bubble { max-width:min(78%, 560px); padding:10px 14px; border-radius:14px; box-shadow:var(--shadow); }
+  .chat-mine .chat-bubble { background:var(--grad-btn); color:#fff; border-bottom-right-radius:4px; }
+  .chat-theirs .chat-bubble { background:var(--surface); border:1px solid var(--border); border-bottom-left-radius:4px; }
+  .chat-who { font-size:.72rem; font-weight:700; opacity:.75; margin-bottom:2px; }
+  .chat-body { white-space:pre-wrap; word-break:break-word; line-height:1.45; }
+  .chat-time { font-size:.68rem; opacity:.6; margin-top:4px; }
+  .chat-compose { display:flex; gap:10px; align-items:flex-end; padding:12px; }
+  .chat-compose textarea { flex:1; resize:vertical; }
+</style>
+<%- include('../partials/footer') %>

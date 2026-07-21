@@ -1,0 +1,28 @@
+<%- include('../partials/head', { title }) %>
+<%- include('../partials/nav') %>
+<main class="container page">
+  <div class="page-head"><h1>My <span class="grad-text">support</span> 💬</h1></div>
+  <%- include('../partials/dash-nav') %>
+
+  <% if (tickets.length) { %>
+  <div class="tickets-list">
+    <% tickets.forEach(function(t) { %>
+    <a class="card ticket-card ticket-link" href="/support/<%= t.id %>">
+      <div class="ticket-head">
+        <div>
+          <strong>#<%= t.id %> · <%= t.subject || 'Concern' %></strong>
+          <% if (t.request_type) { %><span class="badge badge-tx-order"><%= t.request_type %></span><% } %>
+          <span class="badge badge-<%= h.statusSlug(t.status || 'open') %>"><%= h.statusLabel(t.status || 'open') %></span>
+          <% if (t.customer_unread) { %><span class="badge badge-pending">new reply</span><% } %>
+        </div>
+        <span class="muted"><%= h.formatDate(t.created_at) %></span>
+      </div>
+      <p class="ticket-meta muted"><% if (t.order_id) { %>Order <code><%= t.order_id %></code> · <% } %>Tap to open the conversation →</p>
+    </a>
+    <% }); %>
+  </div>
+  <% } else { %>
+    <p class="empty-note">No support tickets yet. Have a concern about an order? Open <a href="/orders">My orders</a> and tap <strong>Report</strong>.</p>
+  <% } %>
+</main>
+<%- include('../partials/footer') %>

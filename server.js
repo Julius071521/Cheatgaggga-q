@@ -115,8 +115,14 @@ app.use((req, res, next) => {
 const notifications = require('./src/services/notifications');
 app.use(async (req, res, next) => {
   res.locals.notifCount = 0;
+  res.locals.supportUnread = 0;
   if (req.user && req.method === 'GET' && !req.path.startsWith('/assets')) {
     try { res.locals.notifCount = await notifications.unreadCount(req.user); } catch (_) {}
+    try {
+      const [[s]] = await require('./src/db/pool').query(
+        'SELECT COUNT(*) AS c FROM tickets WHERE user_id = ? AND customer_unread = 1', [req.user.id]);
+      res.locals.supportUnread = s ? s.c : 0;
+    } catch (_) {}
   }
   next();
 });

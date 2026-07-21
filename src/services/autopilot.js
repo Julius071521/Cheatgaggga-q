@@ -159,6 +159,8 @@ async function handleTicket(ticketId) {
 
   if (userMsg && ticket.user_id) {
     notifications.notifyUser(ticket.user_id, 'ticket', 'Update on your report 🤖', userMsg).catch(() => {});
+    // Also drop it into the two-way chat thread (no second notification).
+    require('./tickets').postMessage(ticket.id, 'system', userMsg, { notify: false }).catch(() => {});
   }
   if (outcome === 'needs_admin') {
     await notifyAdmins('Autopilot escalated a ticket',

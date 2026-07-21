@@ -160,12 +160,9 @@ const ACTIONS = {
     const msg = String(message || '').slice(0, 900);
     const allowed = ['open', 'in_progress', 'resolved', 'closed'];
     const newStatus = allowed.includes(String(status || '').toLowerCase()) ? String(status).toLowerCase() : 'in_progress';
-    await pool.query(
-      "UPDATE tickets SET status = ?, internal_notes = CONCAT(COALESCE(internal_notes,''), ?, ?) WHERE id = ?",
-      [newStatus, `\n[agent reply ${new Date().toISOString().slice(0, 16)}] `, msg, id]);
-    if (t.user_id) {
-      require('./notifications').notifyUser(t.user_id, 'ticket', 'Reply from support 💬', msg).catch(() => {});
-    }
+    // Post into the two-way chat thread (notifies the customer) + set status.
+    await require('./tickets').postMessage(id, 'staff', msg);
+    await pool.query('UPDATE tickets SET status = ? WHERE id = ?', [newStatus, id]);
     return { ok: true, ticket: id, status: newStatus, sent: true };
   },
   async set_ticket_status({ ticket_id, status }) {

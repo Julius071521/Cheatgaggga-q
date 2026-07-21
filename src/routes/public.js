@@ -59,5 +59,6 @@ router.get('/services', async (req, res, next) => {
 });
 
 router.get('/terms', (req, res) => res.render('terms', { title: 'Terms of Service' }));
+router.get('/api-docs', (req, res) => res.render('api-docs', { title: 'API Documentation' }));
 
 module.exports = router;

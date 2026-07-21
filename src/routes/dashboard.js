@@ -223,7 +223,17 @@ router.get('/orders', async (req, res, next) => {
   try {
     const page = clampInt(req.query.page, 1, 100000) || 1;
     const perPage = 20;
-    const [[{ total }]] = await pool.query('SELECT COUNT(*) AS total FROM orders WHERE user_id = ?', [req.user.id]);
+    const q = String(req.query.q || '').trim().slice(0, 80);
+    const status = ['Pending', 'In progress', 'Processing', 'Completed', 'Partial', 'Canceled', 'Failed']
+      .find((s) => s.toLowerCase() === String(req.query.status || '').toLowerCase()) || '';
+    // Build an optional search/status filter over the customer's own orders.
+    const filt = ['o.user_id = ?'];
+    const fparams = [req.user.id];
+    if (q) { filt.push('(o.order_id LIKE ? OR o.service_name LIKE ? OR o.url LIKE ?)'); fparams.push(`%${q}%`, `%${q}%`, `%${q}%`); }
+    if (status) { filt.push('o.status = ?'); fparams.push(status); }
+    const whereSql = filt.join(' AND ');
+
+    const [[{ total }]] = await pool.query(`SELECT COUNT(*) AS total FROM orders o WHERE ${whereSql}`, fparams);
     const pages = Math.max(1, Math.ceil(total / perPage));
     const current = Math.min(page, pages);
     // local_service_id lets the "Reorder" button jump straight back into the
@@ -236,8 +246,8 @@ router.get('/orders', async (req, res, next) => {
             AND CONVERT(s.provider_service_id USING utf8mb4) COLLATE utf8mb4_bin =
                 CONVERT(o.service_id USING utf8mb4) COLLATE utf8mb4_bin
             AND s.enabled = 1 AND s.deleted = 0
-       WHERE o.user_id = ? ORDER BY o.id DESC LIMIT ? OFFSET ?`,
-      [req.user.id, perPage, (current - 1) * perPage]);
+       WHERE ${whereSql} ORDER BY o.id DESC LIMIT ? OFFSET ?`,
+      [...fparams, perPage, (current - 1) * perPage]);
 
     // Latest concern/ticket per order on this page, so the list can show live
     // refill/cancel progress ("Refill in progress", "Refill done", …).
@@ -250,7 +260,7 @@ router.get('/orders', async (req, res, next) => {
         [req.user.id, ...codes]);
       for (const t of tks) if (!ticketByOrder[t.order_id]) ticketByOrder[t.order_id] = t;
     }
-    res.render('dashboard/orders', { title: 'My Orders', orders, ticketByOrder, pagination: { current, pages, total } });
+    res.render('dashboard/orders', { title: 'My Orders', orders, ticketByOrder, q, status, pagination: { current, pages, total } });
   } catch (err) { next(err); }
 });
 
@@ -286,10 +296,48 @@ router.post('/orders/:id/ticket', async (req, res) => {
     // AI autopilot triages the new ticket right away (fire-and-forget).
     require('../services/autopilot').handleTicket(tRes.insertId).catch(() => {});
     flash(req, 'success', 'Your concern has been submitted — our team will take a look shortly.');
+    return res.redirect(`/support/${tRes.insertId}`);
   } catch (err) {
     flash(req, 'error', 'Could not submit your concern right now. Please try again.');
   }
   res.redirect('/orders');
+});
+
+// ── Support inbox (two-way chat) ──────────────────────────
+router.get('/support', async (req, res, next) => {
+  try {
+    const [tickets] = await pool.query(
+      `SELECT id, subject, request_type, order_id, status, customer_unread, created_at
+       FROM tickets WHERE user_id = ? ORDER BY id DESC LIMIT 100`, [req.user.id]);
+    res.render('dashboard/support', { title: 'Support', tickets });
+  } catch (err) { next(err); }
+});
+
+router.get('/support/:id', async (req, res, next) => {
+  try {
+    const tickets = require('../services/tickets');
+    const id = clampInt(req.params.id, 1, 2147483647);
+    const [[own]] = await pool.query('SELECT user_id FROM tickets WHERE id = ?', [id]);
+    if (!own || own.user_id !== req.user.id) return res.status(404).render('errors/404');
+    const data = await tickets.thread(id);
+    // Customer opened it → clear their unread flag.
+    await pool.query('UPDATE tickets SET customer_unread = 0 WHERE id = ?', [id]);
+    res.render('dashboard/support-thread', { title: `Ticket #${id}`, ticket: data.ticket, messages: data.messages });
+  } catch (err) { next(err); }
+});
+
+router.post('/support/:id/reply', async (req, res) => {
+  const id = clampInt(req.params.id, 1, 2147483647);
+  try {
+    const [[own]] = await pool.query('SELECT user_id FROM tickets WHERE id = ?', [id]);
+    if (!own || own.user_id !== req.user.id) return res.status(404).render('errors/404');
+    const body = String(req.body.message || '').trim().slice(0, 4000);
+    if (body.length < 2) { flash(req, 'error', 'Please type a message.'); return res.redirect(`/support/${id}`); }
+    await require('../services/tickets').postMessage(id, 'customer', body);
+  } catch (err) {
+    flash(req, 'error', 'Could not send your message. Please try again.');
+  }
+  res.redirect(`/support/${id}`);
 });
 
 // ── Wallet / add funds ────────────────────────────────────

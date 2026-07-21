@@ -589,6 +589,10 @@ code { background: var(--surface-2); padding: 2px 7px; border-radius: 6px; font-
 .filter-search input:focus { outline: none; border-color: var(--primary); }
 .filter-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .sync-pair { display: inline-flex; gap: 4px; align-items: center; }
+.oprog { display: inline-block; width: 64px; height: 7px; background: var(--surface-2); border-radius: 5px; overflow: hidden; vertical-align: middle; }
+.oprog-fill { display: block; height: 100%; background: var(--grad-btn); border-radius: 5px; transition: width .3s; }
+.ticket-link { display: block; text-decoration: none; color: inherit; }
+.ticket-link:hover { border-color: var(--primary); }
 .pill-platform { display: inline-flex; align-items: center; gap: 7px; }
 .pill-platform .pbadge { box-shadow: none; }
 

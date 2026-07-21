@@ -1,0 +1,91 @@
+<%- include('partials/head', { title }) %>
+<%- include('partials/nav') %>
+<main class="container page">
+  <div class="page-head"><h1>API <span class="grad-text">documentation</span></h1></div>
+
+  <div class="card section-card">
+    <p class="muted">Resell our services from your own panel or app. The API follows the standard SMM Panel <strong>API v2</strong> format, so most panel software works out of the box.</p>
+    <ul class="doc-list">
+      <li><strong>Endpoint:</strong> <code>https://<%= site.domain %>/api/v2</code></li>
+      <li><strong>Method:</strong> <code>POST</code> (form-encoded)</li>
+      <li><strong>Your API key:</strong> get it in <a href="/settings">Settings → API key</a> (sign in first). Send it as the <code>key</code> field on every request.</li>
+      <li><strong>Currency:</strong> all amounts are in <strong>PHP (₱)</strong>.</li>
+    </ul>
+  </div>
+
+  <div class="card section-card">
+    <div class="card-head"><h2>1 · Check balance</h2></div>
+    <pre class="code-block">POST /api/v2
+key=YOUR_API_KEY&action=balance</pre>
+    <p class="muted">Response:</p>
+    <pre class="code-block">{ "balance": "1500.00", "currency": "PHP" }</pre>
+  </div>
+
+  <div class="card section-card">
+    <div class="card-head"><h2>2 · Service list</h2></div>
+    <pre class="code-block">POST /api/v2
+key=YOUR_API_KEY&action=services</pre>
+    <p class="muted">Response (array):</p>
+    <pre class="code-block">[
+  {
+    "service": 1234,
+    "name": "Instagram Followers | Fast",
+    "type": "Default",
+    "category": "instagram — Followers",
+    "rate": "45.0000",     // price per 1000, in PHP
+    "min": 50,
+    "max": 100000,
+    "refill": true,
+    "cancel": true,
+    "currency": "PHP"
+  }
+]</pre>
+  </div>
+
+  <div class="card section-card">
+    <div class="card-head"><h2>3 · Place an order</h2></div>
+    <pre class="code-block">POST /api/v2
+key=YOUR_API_KEY&action=add&service=1234&link=https://instagram.com/username&quantity=1000</pre>
+    <p class="muted">Response:</p>
+    <pre class="code-block">{ "order": 23501 }</pre>
+    <p class="muted"><small>Your wallet is charged instantly. If funds are low you get <code>{ "error": "Not enough funds in your balance" }</code> and nothing is charged.</small></p>
+  </div>
+
+  <div class="card section-card">
+    <div class="card-head"><h2>4 · Order status</h2></div>
+    <pre class="code-block">POST /api/v2
+key=YOUR_API_KEY&action=status&order=23501</pre>
+    <p class="muted">Response:</p>
+    <pre class="code-block">{
+  "charge": "45.0000",
+  "start_count": "1200",
+  "status": "In progress",
+  "remains": "400",
+  "currency": "PHP"
+}</pre>
+    <p class="muted"><small>Multiple at once: <code>action=status&orders=23501,23502,23503</code> → keyed by order id.</small></p>
+  </div>
+
+  <div class="card section-card">
+    <div class="card-head"><h2>Errors</h2></div>
+    <p class="muted">Every error is returned as <code>{ "error": "message" }</code> with HTTP 200. Common ones: <code>Invalid API key</code>, <code>Service not found</code>, <code>Invalid link</code>, <code>Not enough funds in your balance</code>.</p>
+  </div>
+
+  <div class="card section-card">
+    <div class="card-head"><h2>Example (cURL)</h2></div>
+    <pre class="code-block">curl -X POST https://<%= site.domain %>/api/v2 \
+  -d "key=YOUR_API_KEY" \
+  -d "action=add" \
+  -d "service=1234" \
+  -d "link=https://instagram.com/username" \
+  -d "quantity=1000"</pre>
+  </div>
+</main>
+
+<style>
+  .doc-list { line-height: 2; }
+  .code-block { background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px;
+    padding: 14px 16px; overflow-x: auto; font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+    font-size: .86rem; line-height: 1.5; white-space: pre; margin: 6px 0; }
+</style>
+<%- include('partials/footer') %>

@@ -593,6 +593,32 @@ router.post('/admin/services/:id/markup', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// ── Support chat: read a ticket thread + reply to the customer ──
+router.get('/admin/tickets/:id/thread', async (req, res, next) => {
+  try {
+    const id = clampInt(req.params.id, 1, 2147483647);
+    const data = await require('../services/tickets').thread(id);
+    if (!data) { flash(req, 'error', 'Ticket not found.'); return res.redirect('/admin/tickets'); }
+    const [[u]] = await pool.query('SELECT username, email FROM users WHERE id = ?', [data.ticket.user_id]);
+    await pool.query('UPDATE tickets SET staff_unread = 0 WHERE id = ?', [id]);
+    res.render('admin/ticket-thread', { title: `Ticket #${id}`, ticket: data.ticket, messages: data.messages, customer: u || {} });
+  } catch (err) { next(err); }
+});
+
+router.post('/admin/tickets/:id/reply', async (req, res) => {
+  const id = clampInt(req.params.id, 1, 2147483647);
+  try {
+    const body = String(req.body.message || '').trim().slice(0, 4000);
+    if (body.length < 1) { flash(req, 'error', 'Type a message.'); return res.redirect(`/admin/tickets/${id}/thread`); }
+    const posted = await require('../services/tickets').postMessage(id, 'staff', body);
+    if (!posted) { flash(req, 'error', 'Ticket not found.'); return res.redirect('/admin/tickets'); }
+    const status = ['open', 'in_progress', 'resolved', 'closed'].includes(req.body.status) ? req.body.status : 'in_progress';
+    await pool.query('UPDATE tickets SET status = ?, assigned_to = ? WHERE id = ?', [status, req.user.id, id]);
+    flash(req, 'success', 'Reply sent to the customer.');
+  } catch (err) { flash(req, 'error', `Could not send: ${err.message}`); }
+  res.redirect(`/admin/tickets/${id}/thread`);
+});
+
 // ── Analytics: where the money comes from ───────────────────
 router.get('/admin/analytics', async (req, res, next) => {
   try {
