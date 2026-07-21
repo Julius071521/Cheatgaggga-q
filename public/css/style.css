@@ -989,3 +989,21 @@ code { background: var(--surface-2); padding: 2px 7px; border-radius: 6px; font-
   .sync-pair .btn, .filter-actions .btn { flex: 1 1 130px; white-space: normal; }
   .filter-actions form { flex: 1 1 auto; }
 }
+
+/* ── Accessibility: visible keyboard focus (Phase 7) ── */
+/* Only shows for keyboard users, never on mouse click — a clear ring on every
+   interactive element so the site is navigable without a mouse. */
+a:focus-visible, button:focus-visible, [role="button"]:focus-visible,
+input:focus-visible, select:focus-visible, textarea:focus-visible,
+summary:focus-visible, [tabindex]:focus-visible {
+  outline: 3px solid var(--primary);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+/* Comfortable tap targets on touch devices (WCAG 2.5.5). */
+@media (pointer: coarse) {
+  .btn, .pill, .nav-links a, .chat-fab, [data-report], .actions-cell button, .actions-cell a {
+    min-height: 40px;
+  }
+  .btn-sm { min-height: 38px; }
+}
