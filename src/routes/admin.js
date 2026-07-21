@@ -593,4 +593,54 @@ router.post('/admin/services/:id/markup', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// ── Analytics: where the money comes from ───────────────────
+router.get('/admin/analytics', async (req, res, next) => {
+  try {
+    // Headline tiles (this month).
+    const [[now]] = await pool.query(`SELECT
+      (SELECT COALESCE(SUM(charge - COALESCE(refund_amount,0)),0) FROM orders WHERE created_at >= DATE_FORMAT(NOW(),'%Y-%m-01') AND status <> 'Failed') AS revenue,
+      (SELECT COALESCE(SUM(net_profit),0) FROM orders WHERE created_at >= DATE_FORMAT(NOW(),'%Y-%m-01') AND status NOT IN ('Failed','Canceled')) AS profit,
+      (SELECT COUNT(*) FROM orders WHERE created_at >= DATE_FORMAT(NOW(),'%Y-%m-01')) AS orders,
+      (SELECT COUNT(*) FROM users WHERE created_at >= DATE_FORMAT(NOW(),'%Y-%m-01')) AS new_users`);
+
+    // 12-month revenue + profit trend.
+    const [monthly] = await pool.query(`
+      SELECT DATE_FORMAT(created_at, '%Y-%m') AS ym,
+             COALESCE(SUM(CASE WHEN status <> 'Failed' THEN charge - COALESCE(refund_amount,0) ELSE 0 END),0) AS revenue,
+             COALESCE(SUM(CASE WHEN status NOT IN ('Failed','Canceled') THEN net_profit ELSE 0 END),0) AS profit
+      FROM orders WHERE created_at >= DATE_SUB(DATE_FORMAT(NOW(),'%Y-%m-01'), INTERVAL 11 MONTH)
+      GROUP BY ym ORDER BY ym`);
+
+    // Daily revenue, last 30 days.
+    const [daily] = await pool.query(`
+      SELECT DATE(created_at) AS d,
+             COALESCE(SUM(CASE WHEN status <> 'Failed' THEN charge - COALESCE(refund_amount,0) ELSE 0 END),0) AS revenue
+      FROM orders WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL 29 DAY)
+      GROUP BY d ORDER BY d`);
+
+    // Top services by profit + top customers by spend (last 30 days).
+    const [topServices] = await pool.query(`
+      SELECT service_name, COUNT(*) AS orders, COALESCE(SUM(net_profit),0) AS profit
+      FROM orders WHERE created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY) AND status NOT IN ('Failed','Canceled')
+      GROUP BY service_name ORDER BY profit DESC LIMIT 10`);
+    const [topCustomers] = await pool.query(`
+      SELECT u.username, u.email, COUNT(*) AS orders,
+             COALESCE(SUM(o.charge - COALESCE(o.refund_amount,0)),0) AS spend,
+             COALESCE(SUM(CASE WHEN o.status NOT IN ('Failed','Canceled') THEN o.net_profit ELSE 0 END),0) AS profit
+      FROM orders o JOIN users u ON u.id = o.user_id
+      WHERE o.created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY) AND o.status <> 'Failed'
+      GROUP BY o.user_id ORDER BY spend DESC LIMIT 10`);
+
+    // Approved deposits by method (last 30 days).
+    const [byMethod] = await pool.query(`
+      SELECT payment_method, COUNT(*) AS cnt, COALESCE(SUM(amount),0) AS total
+      FROM deposits WHERE status = 'Approved' AND created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+      GROUP BY payment_method ORDER BY total DESC`);
+
+    res.render('admin/analytics', {
+      title: 'Admin · Analytics', now, monthly, daily, topServices, topCustomers, byMethod,
+    });
+  } catch (err) { next(err); }
+});
+
 module.exports = router;

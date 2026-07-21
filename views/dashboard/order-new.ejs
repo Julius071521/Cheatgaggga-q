@@ -69,7 +69,7 @@
 
       <label class="field">
         <span>Quantity</span>
-        <input type="number" name="quantity" id="of-qty" required min="1" step="1" placeholder="1000">
+        <input type="number" name="quantity" id="of-qty" required min="1" step="1" placeholder="1000" value="<%= typeof prefillQty !== 'undefined' ? prefillQty : '' %>">
       </label>
       <div class="qty-chips" id="qty-chips" hidden></div>
 

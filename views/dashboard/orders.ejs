@@ -18,7 +18,20 @@
           <td class="num">₱<%= h.money(o.charge) %><% if (Number(o.refund_amount) > 0) { %><br><small class="refund">↩ ₱<%= h.money(o.refund_amount) %></small><% } %></td>
           <td class="num"><%= o.start_count == null ? '—' : Number(o.start_count).toLocaleString() %></td>
           <td class="num"><%= o.remains == null ? '—' : Number(o.remains).toLocaleString() %></td>
-          <td><span class="badge badge-<%= h.statusSlug(o.status) %>"><%= h.statusLabel(o.status) %></span></td>
+          <td>
+            <span class="badge badge-<%= h.statusSlug(o.status) %>"><%= h.statusLabel(o.status) %></span>
+            <% var tk = (typeof ticketByOrder !== 'undefined' && ticketByOrder[o.order_id]) || null;
+               if (tk) {
+                 var pas = String(tk.provider_action_status || '');
+                 var chip = null;
+                 if (pas === 'refill_sent') chip = ['♻️ Refill in progress', 'badge-processing'];
+                 else if (pas === 'refill_completed') chip = ['♻️ Refill done ✅', 'badge-completed'];
+                 else if (pas === 'refill_rejected') chip = ['♻️ Refill under review', 'badge-pending'];
+                 else if (pas === 'cancel_sent') chip = ['✖ Cancel requested', 'badge-pending'];
+                 else if (['open','in_progress'].includes(String(tk.status || '').toLowerCase())) chip = ['📨 Report received', 'badge-pending'];
+                 if (chip) { %><br><span class="badge <%= chip[1] %>" style="margin-top:4px"><small><%= chip[0] %></small></span><% }
+               } %>
+          </td>
           <td class="muted"><%= h.formatDate(o.created_at) %></td>
           <td class="actions-cell">
             <% if (['Pending','In progress','Processing'].includes(o.status)) { %>
@@ -28,8 +41,8 @@
             </form>
             <% } %>
             <% if (o.local_service_id) { %>
-            <a class="btn btn-ghost btn-sm" title="Order this again"
-               href="/order/new?service=<%= o.local_service_id %>&link=<%= encodeURIComponent(o.url) %>">🔁</a>
+            <a class="btn btn-outline btn-sm" title="Order this again with the same link & quantity"
+               href="/order/new?service=<%= o.local_service_id %>&link=<%= encodeURIComponent(o.url) %>&qty=<%= o.quantity %>">🔁 Reorder</a>
             <% } %>
             <details class="report-details">
               <summary class="btn btn-ghost btn-sm">Report</summary>

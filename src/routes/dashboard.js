@@ -111,10 +111,11 @@ router.get('/order/new', async (req, res, next) => {
       const [[svc]] = await pool.query('SELECT * FROM services WHERE id = ? AND enabled = 1 AND deleted = 0', [selectedService]);
       if (svc) preselected = { ...svc, ratePhp: pricing.ratePhpPer1000(svc) };
     }
-    // Optional link prefill (used by the "Reorder" button on My Orders).
+    // Optional link + quantity prefill (used by the "Reorder" button on My Orders).
     const rawLink = String(req.query.link || '').slice(0, 500);
     const prefillLink = isValidHttpUrl(rawLink) ? rawLink : '';
-    res.render('dashboard/order-new', { title: 'New Order', platforms: platforms.map((r) => r.platform), preselected, prefillLink });
+    const prefillQty = clampInt(req.query.qty, 1, 100000000000) || '';
+    res.render('dashboard/order-new', { title: 'New Order', platforms: platforms.map((r) => r.platform), preselected, prefillLink, prefillQty });
   } catch (err) { next(err); }
 });
 
@@ -237,7 +238,19 @@ router.get('/orders', async (req, res, next) => {
             AND s.enabled = 1 AND s.deleted = 0
        WHERE o.user_id = ? ORDER BY o.id DESC LIMIT ? OFFSET ?`,
       [req.user.id, perPage, (current - 1) * perPage]);
-    res.render('dashboard/orders', { title: 'My Orders', orders, pagination: { current, pages, total } });
+
+    // Latest concern/ticket per order on this page, so the list can show live
+    // refill/cancel progress ("Refill in progress", "Refill done", …).
+    const ticketByOrder = {};
+    const codes = orders.map((o) => o.order_id).filter(Boolean);
+    if (codes.length) {
+      const [tks] = await pool.query(
+        `SELECT order_id, request_type, status, provider_action_status FROM tickets
+         WHERE user_id = ? AND order_id IN (${codes.map(() => '?').join(',')}) ORDER BY id DESC`,
+        [req.user.id, ...codes]);
+      for (const t of tks) if (!ticketByOrder[t.order_id]) ticketByOrder[t.order_id] = t;
+    }
+    res.render('dashboard/orders', { title: 'My Orders', orders, ticketByOrder, pagination: { current, pages, total } });
   } catch (err) { next(err); }
 });
 

@@ -1,0 +1,203 @@
+<%- include('../partials/head', { title }) %>
+<%- include('../partials/nav') %>
+<main class="container page">
+  <div class="page-head"><h1>Business <span class="grad-text">analytics</span> 📊</h1></div>
+  <%- include('../partials/admin-nav') %>
+
+  <div class="ref-stats">
+    <div class="card stat-tile"><span class="stat-label">Revenue this month</span><strong class="stat-value">₱<%= h.money(now.revenue) %></strong></div>
+    <div class="card stat-tile"><span class="stat-label">Profit this month</span><strong class="stat-value">₱<%= h.money(now.profit) %></strong></div>
+    <div class="card stat-tile"><span class="stat-label">Orders this month</span><strong class="stat-value"><%= now.orders %></strong></div>
+    <div class="card stat-tile"><span class="stat-label">New members</span><strong class="stat-value"><%= now.new_users %></strong></div>
+  </div>
+
+  <div class="card section-card">
+    <div class="card-head"><h2>Revenue vs profit — last 12 months</h2></div>
+    <div class="chart-legend">
+      <span><i class="dot" style="background:#2563eb"></i> Revenue</span>
+      <span><i class="dot" style="background:#10b981"></i> Profit</span>
+    </div>
+    <div id="chart-monthly" class="chart-box" aria-label="Monthly revenue and profit line chart"></div>
+  </div>
+
+  <div class="card section-card">
+    <div class="card-head"><h2>Daily revenue — last 30 days</h2></div>
+    <div id="chart-daily" class="chart-box" aria-label="Daily revenue bar chart"></div>
+  </div>
+
+  <div class="an-grid">
+    <div class="card section-card">
+      <div class="card-head"><h2>Top services by profit (30d)</h2></div>
+      <% if (topServices.length) { var maxP = Math.max.apply(null, topServices.map(function(s){ return Number(s.profit); })) || 1; %>
+      <div class="hbars">
+        <% topServices.forEach(function(s) { %>
+        <div class="hbar-row">
+          <span class="hbar-label" title="<%= s.service_name %>"><%= s.service_name.length > 34 ? s.service_name.slice(0,34) + '…' : s.service_name %></span>
+          <span class="hbar-track"><i class="hbar-fill" style="width:<%= Math.max(2, Math.round(Number(s.profit) / maxP * 100)) %>%"></i></span>
+          <span class="hbar-val">₱<%= h.money(s.profit) %> <small class="muted">(<%= s.orders %>)</small></span>
+        </div>
+        <% }); %>
+      </div>
+      <% } else { %><p class="empty-note">No orders in the last 30 days.</p><% } %>
+    </div>
+
+    <div class="card section-card">
+      <div class="card-head"><h2>Deposits by method (30d)</h2></div>
+      <% if (byMethod.length) { var maxM = Math.max.apply(null, byMethod.map(function(m){ return Number(m.total); })) || 1; %>
+      <div class="hbars">
+        <% byMethod.forEach(function(m) { %>
+        <div class="hbar-row">
+          <span class="hbar-label"><%= String(m.payment_method || 'other').toUpperCase() %></span>
+          <span class="hbar-track"><i class="hbar-fill hbar-fill-alt" style="width:<%= Math.max(2, Math.round(Number(m.total) / maxM * 100)) %>%"></i></span>
+          <span class="hbar-val">₱<%= h.money(m.total) %> <small class="muted">(<%= m.cnt %>)</small></span>
+        </div>
+        <% }); %>
+      </div>
+      <% } else { %><p class="empty-note">No approved deposits in the last 30 days.</p><% } %>
+    </div>
+  </div>
+
+  <div class="card section-card">
+    <div class="card-head"><h2>Top customers (30d)</h2></div>
+    <% if (topCustomers.length) { %>
+    <div class="table-wrap">
+      <table class="table table-compact">
+        <thead><tr><th>Customer</th><th class="num">Orders</th><th class="num">Spend</th><th class="num">Profit</th></tr></thead>
+        <tbody>
+          <% topCustomers.forEach(function(c) { %>
+          <tr>
+            <td><strong><%= c.username || c.email %></strong></td>
+            <td class="num"><%= c.orders %></td>
+            <td class="num">₱<%= h.money(c.spend) %></td>
+            <td class="num">₱<%= h.money(c.profit) %></td>
+          </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+    <% } else { %><p class="empty-note">No customer activity in the last 30 days.</p><% } %>
+  </div>
+</main>
+
+<style>
+  .chart-legend { display:flex; gap:18px; margin:0 0 6px 2px; font-size:.85rem; color:var(--text-soft); }
+  .chart-legend .dot { display:inline-block; width:10px; height:10px; border-radius:3px; margin-right:6px; vertical-align:-1px; }
+  .chart-box { position:relative; width:100%; }
+  .chart-box svg { display:block; width:100%; height:auto; }
+  .chart-tip { position:absolute; pointer-events:none; background:var(--surface); border:1px solid var(--border);
+    border-radius:8px; padding:6px 10px; font-size:.8rem; box-shadow:var(--shadow); white-space:nowrap; z-index:5; display:none; }
+  .an-grid { display:grid; grid-template-columns:1fr 1fr; gap:18px; }
+  @media (max-width: 900px) { .an-grid { grid-template-columns:1fr; } }
+  .hbars { display:flex; flex-direction:column; gap:8px; }
+  .hbar-row { display:grid; grid-template-columns: minmax(120px, 240px) 1fr auto; gap:10px; align-items:center; font-size:.85rem; }
+  .hbar-label { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .hbar-track { background:var(--surface-2); border-radius:6px; height:14px; overflow:hidden; }
+  .hbar-fill { display:block; height:100%; background:#2563eb; border-radius:0 4px 4px 0; }
+  .hbar-fill-alt { background:#10b981; }
+  .hbar-val { text-align:right; font-variant-numeric:tabular-nums; }
+</style>
+
+<script>
+(function () {
+  'use strict';
+  var MONTHLY = <%- JSON.stringify(monthly.map(function(m){ return { l: m.ym, r: Number(m.revenue), p: Number(m.profit) }; })) %>;
+  var DAILY = <%- JSON.stringify(daily.map(function(d){ return { l: String(d.d).slice(0, 10), r: Number(d.revenue) }; })) %>;
+  var peso = function (n) { return '₱' + Number(n).toLocaleString('en-PH', { maximumFractionDigits: 0 }); };
+  var NS = 'http://www.w3.org/2000/svg';
+  function el(tag, attrs) { var e = document.createElementNS(NS, tag); for (var k in attrs) e.setAttribute(k, attrs[k]); return e; }
+  function tip(box) { var t = document.createElement('div'); t.className = 'chart-tip'; box.appendChild(t); return t; }
+  function showTip(t, box, x, y, html) {
+    t.innerHTML = html; t.style.display = 'block';
+    var bw = box.clientWidth, tw = t.offsetWidth;
+    t.style.left = Math.min(Math.max(0, x - tw / 2), bw - tw) + 'px';
+    t.style.top = Math.max(0, y - t.offsetHeight - 10) + 'px';
+  }
+
+  // Line chart: monthly revenue (blue) vs profit (green). Thin 2px lines,
+  // recessive grid, direct labels on the last points, hover markers >= 8px.
+  function lineChart(boxId, rows) {
+    var box = document.getElementById(boxId); if (!box || !rows.length) { if (box) box.innerHTML = '<p class="empty-note">No data yet.</p>'; return; }
+    var W = Math.max(560, box.clientWidth), H = 260, P = { t: 16, r: 74, b: 26, l: 10 };
+    var max = Math.max(1, Math.max.apply(null, rows.map(function (d) { return Math.max(d.r, d.p); })));
+    var iw = W - P.l - P.r, ih = H - P.t - P.b;
+    var X = function (i) { return P.l + (rows.length === 1 ? iw / 2 : i * iw / (rows.length - 1)); };
+    var Y = function (v) { return P.t + ih - (v / max) * ih; };
+    var svg = el('svg', { viewBox: '0 0 ' + W + ' ' + H, role: 'img' });
+    for (var g = 0; g <= 3; g++) { // recessive grid
+      var gy = P.t + ih * g / 3;
+      svg.appendChild(el('line', { x1: P.l, x2: P.l + iw, y1: gy, y2: gy, stroke: 'var(--border)', 'stroke-width': 1 }));
+      var lab = el('text', { x: P.l + iw + 6, y: gy + 4, 'font-size': 10, fill: 'var(--text-soft)' });
+      lab.textContent = peso(max * (1 - g / 3)); svg.appendChild(lab);
+    }
+    [['r', '#2563eb', 'Revenue'], ['p', '#10b981', 'Profit']].forEach(function (S) {
+      var path = rows.map(function (d, i) { return (i ? 'L' : 'M') + X(i).toFixed(1) + ' ' + Y(d[S[0]]).toFixed(1); }).join(' ');
+      svg.appendChild(el('path', { d: path, fill: 'none', stroke: S[1], 'stroke-width': 2, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }));
+      var last = rows[rows.length - 1]; // direct label on the final point
+      var dl = el('text', { x: X(rows.length - 1) + 6, y: Y(last[S[0]]) + 4, 'font-size': 11, 'font-weight': 700, fill: 'var(--text)' });
+      dl.textContent = peso(last[S[0]]); svg.appendChild(dl);
+    });
+    // x labels: first, middle, last
+    [0, Math.floor((rows.length - 1) / 2), rows.length - 1].forEach(function (i) {
+      if (i < 0 || i >= rows.length) return;
+      var t = el('text', { x: X(i), y: H - 8, 'font-size': 10, fill: 'var(--text-soft)', 'text-anchor': 'middle' });
+      t.textContent = rows[i].l; svg.appendChild(t);
+    });
+    var hover = el('g', {}); svg.appendChild(hover);
+    box.appendChild(svg);
+    var t = tip(box);
+    svg.addEventListener('mousemove', function (ev) {
+      var rect = svg.getBoundingClientRect();
+      var fx = (ev.clientX - rect.left) * (W / rect.width);
+      var i = Math.round((fx - P.l) / (iw / Math.max(1, rows.length - 1)));
+      i = Math.max(0, Math.min(rows.length - 1, i));
+      hover.innerHTML = '';
+      hover.appendChild(el('line', { x1: X(i), x2: X(i), y1: P.t, y2: P.t + ih, stroke: 'var(--border)', 'stroke-width': 1 }));
+      [['r', '#2563eb'], ['p', '#10b981']].forEach(function (S) {
+        hover.appendChild(el('circle', { cx: X(i), cy: Y(rows[i][S[0]]), r: 4.5, fill: S[1], stroke: 'var(--surface)', 'stroke-width': 2 }));
+      });
+      showTip(t, box, X(i) * (rect.width / W), P.t, '<strong>' + rows[i].l + '</strong><br>Revenue: ' + peso(rows[i].r) + '<br>Profit: ' + peso(rows[i].p));
+    });
+    svg.addEventListener('mouseleave', function () { hover.innerHTML = ''; t.style.display = 'none'; });
+  }
+
+  // Bar chart: daily revenue (single series — the title names it, no legend).
+  function barChart(boxId, rows) {
+    var box = document.getElementById(boxId); if (!box || !rows.length) { if (box) box.innerHTML = '<p class="empty-note">No data yet.</p>'; return; }
+    var W = Math.max(560, box.clientWidth), H = 220, P = { t: 14, r: 74, b: 26, l: 10 };
+    var max = Math.max(1, Math.max.apply(null, rows.map(function (d) { return d.r; })));
+    var iw = W - P.l - P.r, ih = H - P.t - P.b;
+    var bw = Math.max(3, iw / rows.length - 2); // 2px gap between bars
+    var svg = el('svg', { viewBox: '0 0 ' + W + ' ' + H, role: 'img' });
+    for (var g = 0; g <= 2; g++) {
+      var gy = P.t + ih * g / 2;
+      svg.appendChild(el('line', { x1: P.l, x2: P.l + iw, y1: gy, y2: gy, stroke: 'var(--border)', 'stroke-width': 1 }));
+      var lab = el('text', { x: P.l + iw + 6, y: gy + 4, 'font-size': 10, fill: 'var(--text-soft)' });
+      lab.textContent = peso(max * (1 - g / 2)); svg.appendChild(lab);
+    }
+    var t = tip(box);
+    rows.forEach(function (d, i) {
+      var x = P.l + i * (iw / rows.length) + 1;
+      var h = Math.max(1, (d.r / max) * ih);
+      var bar = el('rect', { x: x, y: P.t + ih - h, width: bw, height: h, rx: 2, fill: '#2563eb' });
+      var hit = el('rect', { x: x - 1, y: P.t, width: bw + 2, height: ih, fill: 'transparent' }); // bigger hit target
+      hit.addEventListener('mousemove', function (ev) {
+        var rect = svg.getBoundingClientRect();
+        showTip(t, box, (x + bw / 2) * (rect.width / W), P.t, '<strong>' + d.l + '</strong><br>' + peso(d.r));
+        bar.setAttribute('fill', '#0ea5e9');
+      });
+      hit.addEventListener('mouseleave', function () { t.style.display = 'none'; bar.setAttribute('fill', '#2563eb'); });
+      svg.appendChild(bar); svg.appendChild(hit);
+    });
+    [0, rows.length - 1].forEach(function (i) {
+      if (i < 0) return;
+      var tx = el('text', { x: P.l + i * (iw / rows.length) + bw / 2, y: H - 8, 'font-size': 10, fill: 'var(--text-soft)', 'text-anchor': i === 0 ? 'start' : 'middle' });
+      tx.textContent = rows[i].l.slice(5); svg.appendChild(tx);
+    });
+    box.appendChild(svg);
+  }
+
+  lineChart('chart-monthly', MONTHLY);
+  barChart('chart-daily', DAILY);
+})();
+</script>
+<%- include('../partials/footer') %>

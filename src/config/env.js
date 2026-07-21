@@ -45,6 +45,10 @@ const env = {
   AI_TIMEOUT_MS: num('AI_TIMEOUT_MS', 180000),
   AI_FALLBACK_MODELS: str('AI_FALLBACK_MODELS', ''),
 
+  // Nightly off-server backups: the VPS guard pulls /internal/backup with this
+  // token (X-Backup-Token header). Endpoint is disabled when unset.
+  BACKUP_TOKEN: str('BACKUP_TOKEN', ''),
+
   // AI Autopilot (auto-triage tickets, sync orders, flag stuck ones)
   AUTOPILOT_ENABLED: bool('AUTOPILOT_ENABLED', true),
   AUTOPILOT_INTERVAL_MINUTES: num('AUTOPILOT_INTERVAL_MINUTES', 10),

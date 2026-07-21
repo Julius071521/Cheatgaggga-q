@@ -142,6 +142,7 @@ app.use(require('./src/middleware/gate').gate);
 
 // ── Routes ────────────────────────────────────────────────
 app.use(require('./src/routes/telegram'));
+app.use(require('./src/routes/internal'));
 app.use(require('./src/routes/api'));
 app.use(require('./src/routes/ai'));
 app.use(require('./src/routes/notifications'));

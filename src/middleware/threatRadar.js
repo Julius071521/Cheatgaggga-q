@@ -12,7 +12,7 @@ async function radarOn() {
   return onCache.value;
 }
 
-const SKIP = /^\/(assets|telegram|favicon\.ico|robots\.txt)/;
+const SKIP = /^\/(assets|telegram|internal|favicon\.ico|robots\.txt)/;
 
 function threatRadar(req, res, next) {
   const ip = req.clientIp || req.ip;
