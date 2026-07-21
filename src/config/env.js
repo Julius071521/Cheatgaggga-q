@@ -76,6 +76,10 @@ const env = {
   SECURITY_ALERT_SCORE: num('SECURITY_ALERT_SCORE', 40),
   SECURITY_AUTOBLOCK_SCORE: num('SECURITY_AUTOBLOCK_SCORE', 120),
   SECURITY_ALERT_COOLDOWN_MIN: num('SECURITY_ALERT_COOLDOWN_MIN', 30),
+  // Instant-ban clear hack attempts on the first hit (always-on defense).
+  SECURITY_INSTANT_BLOCK: bool('SECURITY_INSTANT_BLOCK', true),
+  // Message shown on the block page to a banned attacker.
+  SECURITY_BLOCK_MESSAGE: str('SECURITY_BLOCK_MESSAGE', 'nice try fuck bitch'),
   SECURITY_404_THRESHOLD: num('SECURITY_404_THRESHOLD', 15),
   SECURITY_FLOOD_THRESHOLD: num('SECURITY_FLOOD_THRESHOLD', 150),
   SECURITY_GEO_LOOKUP: bool('SECURITY_GEO_LOOKUP', true),

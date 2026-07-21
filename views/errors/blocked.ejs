@@ -1,6 +1,39 @@
-<%- include('../partials/head', { title: 'Access blocked' }) %>
-<main class="container page-error">
-  <h1 class="err-code">403</h1>
-  <p>Access from your network has been blocked. If you believe this is a mistake, please contact support<% if (site.supportEmail) { %> at <a href="mailto:<%= site.supportEmail %>"><%= site.supportEmail %></a><% } %>.</p>
-</main>
-<%- include('../partials/footer') %>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Access blocked</title>
+  <style>
+    :root { color-scheme: dark; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: radial-gradient(1200px 600px at 50% -10%, #1e293b, #020617 60%); color: #e2e8f0;
+      padding: 24px; text-align: center;
+    }
+    .box { max-width: 520px; }
+    .lock { font-size: 68px; line-height: 1; margin-bottom: 10px; }
+    .code { font-size: clamp(64px, 18vw, 132px); font-weight: 800; margin: 0; letter-spacing: -2px;
+      background: linear-gradient(120deg, #f43f5e, #ef4444); -webkit-background-clip: text; background-clip: text; color: transparent; }
+    .taunt { font-size: clamp(20px, 5vw, 30px); font-weight: 800; margin: 6px 0 18px; color: #fecaca; }
+    p { color: #94a3b8; line-height: 1.6; margin: 8px 0; font-size: 15px; }
+    code { background: #0f172a; border: 1px solid #1e293b; border-radius: 6px; padding: 2px 8px; color: #cbd5e1; font-size: 13px; }
+    a { color: #60a5fa; }
+    .foot { margin-top: 22px; font-size: 12px; color: #475569; }
+  </style>
+</head>
+<body>
+  <main class="box">
+    <div class="lock">🚫</div>
+    <h1 class="code">403</h1>
+    <p class="taunt"><%= (typeof site !== 'undefined' && site.blockMessage) ? site.blockMessage : 'Access blocked.' %></p>
+    <p>Your network has been <strong>blocked</strong> for suspicious or abusive activity. This block is logged.</p>
+    <% if (typeof clientIp !== 'undefined' && clientIp) { %><p>Your IP: <code><%= clientIp %></code></p><% } %>
+    <p>If you believe this is a genuine mistake, contact support<% if (typeof site !== 'undefined' && site.supportEmail) { %> at <a href="mailto:<%= site.supportEmail %>"><%= site.supportEmail %></a><% } %>.</p>
+    <div class="foot">Threat Radar · <%= (typeof site !== 'undefined' && site.name) ? site.name : 'Security' %></div>
+  </main>
+</body>
+</html>

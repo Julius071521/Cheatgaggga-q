@@ -34,7 +34,7 @@ async function gate(req, res, next) {
 
   // IP blocklist (admins are never blocked). Use the real visitor IP.
   if (!isAdmin && cache.blocked.has(req.clientIp || req.ip)) {
-    return res.status(403).render('errors/blocked');
+    return res.status(403).render('errors/blocked', { clientIp: req.clientIp || req.ip });
   }
 
   if (cache.maintenance && !isAdmin) {

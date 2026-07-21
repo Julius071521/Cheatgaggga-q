@@ -27,7 +27,7 @@ function threatRadar(req, res, next) {
 
     const authed = !!req.user;
     const hit = security.classify(req, { scanPayload: !authed });
-    if (hit) security.record(ip, hit.kind, req, hit.detail, { authed }).catch(() => {});
+    if (hit) security.record(ip, hit.kind, req, hit.detail, { authed, instant: hit.instant }).catch(() => {});
     res.on('finish', () => {
       if ((req.user && req.user.isAdmin) || security.isAllowedCached(ip)) return;
       security.noteRequest(ip, req, res.statusCode).catch(() => {});

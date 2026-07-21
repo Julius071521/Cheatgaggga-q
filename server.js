@@ -99,6 +99,7 @@ app.use((req, res, next) => {
     turnstileSiteKey: env.TURNSTILE_REQUIRED ? env.TURNSTILE_SITE_KEY : '',
     googleEnabled: Boolean(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET && env.GOOGLE_CALLBACK_URL),
     aiEnabled: ai.enabled,
+    blockMessage: env.SECURITY_BLOCK_MESSAGE,
     year: new Date().getFullYear(),
   };
   res.locals.h = helpers;

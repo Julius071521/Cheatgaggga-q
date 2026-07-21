@@ -135,18 +135,20 @@ function classify(req, opts) {
   const path = String(req.originalUrl || req.url || '').slice(0, 500);
   const ua = String(req.get('user-agent') || '');
 
-  if (!ua || ua.length < 4) return { kind: 'bad_ua', detail: 'empty/short user-agent' };
-  if (BAD_UA.test(ua)) return { kind: 'bad_ua', detail: ua.slice(0, 80) };
-  if (SCANNER_PATHS.some((re) => re.test(path))) return { kind: 'scanner', detail: path.slice(0, 90) };
+  // `instant: true` marks an unambiguous hack attempt — one hit is enough to
+  // ban the source (see record()). An empty UA alone is only soft-scored.
+  if (!ua || ua.length < 4) return { kind: 'bad_ua', detail: 'empty/short user-agent', instant: false };
+  if (BAD_UA.test(ua)) return { kind: 'bad_ua', detail: ua.slice(0, 80), instant: true };
+  if (SCANNER_PATHS.some((re) => re.test(path))) return { kind: 'scanner', detail: path.slice(0, 90), instant: true };
   if (!scanPayload) return null; // trusted user — stop at path/UA signals
 
   let body = '';
   try { body = req.body && typeof req.body === 'object' ? JSON.stringify(req.body).slice(0, 1000) : ''; } catch (_) {}
   const hay = decodeURIComponentSafe(path) + ' ' + decodeURIComponentSafe(body);
-  if (SQLI.test(hay)) return { kind: 'sqli', detail: 'SQL keywords in request' };
-  if (TRAVERSAL.test(hay)) return { kind: 'traversal', detail: 'path traversal pattern' };
-  if (CMDI.test(hay)) return { kind: 'cmdi', detail: 'command-injection pattern' };
-  if (XSS.test(hay)) return { kind: 'xss', detail: 'script/HTML in request' };
+  if (SQLI.test(hay)) return { kind: 'sqli', detail: 'SQL keywords in request', instant: true };
+  if (TRAVERSAL.test(hay)) return { kind: 'traversal', detail: 'path traversal pattern', instant: true };
+  if (CMDI.test(hay)) return { kind: 'cmdi', detail: 'command-injection pattern', instant: true };
+  if (XSS.test(hay)) return { kind: 'xss', detail: 'script/HTML in request', instant: true };
   return null;
 }
 
@@ -190,6 +192,17 @@ async function record(ip, kind, req, detail, opts) {
 
   // Feed the coordinated-attack detector (real attack kinds only, not soft signals).
   if (!['probe404', 'flood'].includes(kind)) noteAttackForSurge(ip).catch(() => {});
+
+  // INSTANT BLOCK: an unambiguous hack attempt (SQLi/XSS/traversal/cmdi, a
+  // scanner path, or a known hacking-tool user-agent) bans the source on the
+  // FIRST hit — always on, no score threshold, no toggle needed. Signed-in
+  // customers and trusted/own IPs were already filtered out above.
+  const instant = !!(opts && opts.instant);
+  if (!authed && instant && env.SECURITY_INSTANT_BLOCK) {
+    await blockIp(ip, `Auto-blocked (instant): ${kind}`, null);
+    await alert(rep, kind, detail, true);
+    return;
+  }
 
   // Auto-block clear-cut attackers when enabled — but NEVER auto-block a
   // signed-in customer (a human account is not an anonymous attacker).
