@@ -72,6 +72,10 @@
             <% } %>
             <button type="button" class="btn btn-ghost btn-sm" data-report
                     data-order-id="<%= o.id %>" data-order-code="<%= o.order_id %>">Report</button>
+            <% if (o.status === 'Completed' && typeof reviewed !== 'undefined' && !reviewed.has(o.id)) { %>
+            <button type="button" class="btn btn-outline btn-sm" data-review
+                    data-order-id="<%= o.id %>" data-order-code="<%= o.order_id %>">★ Review</button>
+            <% } %>
           </td>
         </tr>
         <% }); %>
@@ -102,6 +106,26 @@
     <div class="report-dialog-actions">
       <button type="button" class="btn btn-ghost btn-sm" data-report-close>Cancel</button>
       <button type="submit" class="btn btn-primary btn-sm">Submit concern</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="review-sheet" class="report-dialog">
+  <form method="post" id="review-form" class="report-dialog-form">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <div class="report-dialog-head">
+      <strong>Rate your order</strong>
+      <span class="muted" id="review-order-label"></span>
+    </div>
+    <div class="star-pick" id="star-pick" role="radiogroup" aria-label="Star rating">
+      <% for (var st = 1; st <= 5; st++) { %>
+      <label class="star-opt"><input type="radio" name="rating" value="<%= st %>" required> <span>★</span></label>
+      <% } %>
+    </div>
+    <textarea name="body" rows="3" maxlength="600" placeholder="Tell others how it went (optional)…"></textarea>
+    <div class="report-dialog-actions">
+      <button type="button" class="btn btn-ghost btn-sm" data-review-close>Cancel</button>
+      <button type="submit" class="btn btn-primary btn-sm">Post review</button>
     </div>
   </form>
 </dialog>

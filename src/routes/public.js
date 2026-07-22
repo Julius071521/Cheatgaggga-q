@@ -9,17 +9,38 @@ const router = express.Router();
 
 router.get('/', async (req, res, next) => {
   try {
-    const [stats, showcase, announcement] = await Promise.all([
-      siteStats(), popularServices(), getSetting('announcement', ''),
+    const [stats, showcase, announcement, reviewData] = await Promise.all([
+      siteStats(), popularServices(), getSetting('announcement', ''), loadReviews(),
     ]);
     res.render('home', {
       title: null,
       stats,
       showcase: showcase.map((s) => ({ ...s, ratePhp: pricing.ratePhpPer1000(s) })),
       announcement,
+      reviews: reviewData.reviews,
+      reviewAvg: reviewData.avg,
+      reviewCount: reviewData.count,
     });
   } catch (err) { next(err); }
 });
+
+// Real customer reviews for the homepage (masked names, visible only).
+async function loadReviews() {
+  try {
+    const [[agg]] = await pool.query("SELECT COUNT(*) AS c, AVG(rating) AS a FROM reviews WHERE status = 'visible'");
+    const [rows] = await pool.query(
+      `SELECT r.rating, r.body, r.created_at, u.username, o.service_name
+       FROM reviews r JOIN users u ON u.id = r.user_id JOIN orders o ON o.id = r.order_id
+       WHERE r.status = 'visible' AND r.body IS NOT NULL AND CHAR_LENGTH(r.body) >= 3
+       ORDER BY r.id DESC LIMIT 6`);
+    const mask = (n) => { const s = String(n || 'Member'); return s.length <= 2 ? s[0] + '***' : s[0] + '***' + s[s.length - 1]; };
+    return {
+      count: agg.c || 0,
+      avg: agg.a ? Number(agg.a).toFixed(1) : null,
+      reviews: rows.map((r) => ({ name: mask(r.username), rating: r.rating, body: r.body, service: r.service_name, date: r.created_at })),
+    };
+  } catch (_) { return { count: 0, avg: null, reviews: [] }; }
+}
 
 router.get('/services', async (req, res, next) => {
   try {
@@ -56,6 +77,14 @@ router.get('/services', async (req, res, next) => {
       pagination: { current, pages, total },
     });
   } catch (err) { next(err); }
+});
+
+// Language switch: set a cookie and return to the previous page.
+router.get('/lang/:code', (req, res) => {
+  const code = req.params.code === 'fil' ? 'fil' : 'en';
+  res.setHeader('Set-Cookie', `lang=${code}; Path=/; Max-Age=${60 * 60 * 24 * 365}; SameSite=Lax`);
+  const back = req.get('referer');
+  res.redirect(back && back.startsWith(`${req.protocol}://${req.get('host')}`) ? back : '/');
 });
 
 router.get('/terms', (req, res) => res.render('terms', { title: 'Terms of Service' }));

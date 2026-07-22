@@ -44,6 +44,22 @@
     if (e.target.closest && e.target.closest('[data-report-close]') && sheet) {
       if (sheet.close) sheet.close(); else sheet.removeAttribute('open');
     }
+
+    // Order "★ Review" → open the review dialog (Completed orders only).
+    var rv = e.target.closest ? e.target.closest('[data-review]') : null;
+    var rsheet = document.getElementById('review-sheet');
+    if (rv && rsheet) {
+      var rform = document.getElementById('review-form');
+      rform.setAttribute('action', '/orders/' + rv.getAttribute('data-order-id') + '/review');
+      var rlbl = document.getElementById('review-order-label');
+      if (rlbl) rlbl.textContent = rv.getAttribute('data-order-code') || '';
+      rform.querySelectorAll('input[name="rating"]').forEach(function (i) { i.checked = false; });
+      var rta = rform.querySelector('textarea'); if (rta) rta.value = '';
+      if (rsheet.showModal) rsheet.showModal(); else rsheet.setAttribute('open', '');
+    }
+    if (e.target.closest && e.target.closest('[data-review-close]') && rsheet) {
+      if (rsheet.close) rsheet.close(); else rsheet.removeAttribute('open');
+    }
   });
 
   // ── Theme toggle ─────────────────────────────────────────

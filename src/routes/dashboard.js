@@ -260,7 +260,15 @@ router.get('/orders', async (req, res, next) => {
         [req.user.id, ...codes]);
       for (const t of tks) if (!ticketByOrder[t.order_id]) ticketByOrder[t.order_id] = t;
     }
-    res.render('dashboard/orders', { title: 'My Orders', orders, ticketByOrder, q, status, pagination: { current, pages, total } });
+
+    // Which of these orders the customer has already reviewed (to toggle the button).
+    const reviewed = new Set();
+    const ids = orders.map((o) => o.id);
+    if (ids.length) {
+      const [rv] = await pool.query(`SELECT order_id FROM reviews WHERE order_id IN (${ids.map(() => '?').join(',')})`, ids);
+      for (const r of rv) reviewed.add(r.order_id);
+    }
+    res.render('dashboard/orders', { title: 'My Orders', orders, ticketByOrder, reviewed, q, status, pagination: { current, pages, total } });
   } catch (err) { next(err); }
 });
 
@@ -299,6 +307,30 @@ router.post('/orders/:id/ticket', async (req, res) => {
     return res.redirect(`/support/${tRes.insertId}`);
   } catch (err) {
     flash(req, 'error', 'Could not submit your concern right now. Please try again.');
+  }
+  res.redirect('/orders');
+});
+
+// Leave a review for a completed order (one per order).
+router.post('/orders/:id/review', async (req, res) => {
+  try {
+    const orderId = clampInt(req.params.id, 1, 2147483647);
+    const rating = clampInt(req.body.rating, 1, 5);
+    const body = String(req.body.body || '').trim().slice(0, 600);
+    const [[order]] = await pool.query('SELECT id, user_id, status FROM orders WHERE id = ?', [orderId]);
+    if (!order || order.user_id !== req.user.id) return res.status(404).render('errors/404');
+    if (String(order.status) !== 'Completed') { flash(req, 'error', 'You can only review completed orders.'); return res.redirect('/orders'); }
+    if (!rating) { flash(req, 'error', 'Please pick a star rating.'); return res.redirect('/orders'); }
+    try {
+      await pool.query('INSERT INTO reviews (user_id, order_id, rating, body) VALUES (?, ?, ?, ?)',
+        [req.user.id, orderId, rating, body || null]);
+      flash(req, 'success', 'Thanks for your review! 🌟');
+    } catch (err) {
+      if (err && err.code === 'ER_DUP_ENTRY') flash(req, 'error', 'You already reviewed this order.');
+      else throw err;
+    }
+  } catch (err) {
+    flash(req, 'error', 'Could not save your review. Please try again.');
   }
   res.redirect('/orders');
 });

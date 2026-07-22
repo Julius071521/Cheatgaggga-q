@@ -22,23 +22,20 @@
 
   <div class="container hero-inner">
     <div class="hero-copy" data-reveal>
-      <span class="hero-eyebrow">🇵🇭 #1 SMM Panel for Pinoy creators & businesses</span>
-      <h1 class="hero-title">Boost your <span class="grad-text">social media</span><br>in minutes, not months.</h1>
-      <p class="hero-sub">
-        Followers, likes, views, and engagement for every major platform —
-        instant automated delivery at the lowest prices in pesos.
-      </p>
+      <span class="hero-eyebrow"><%= t('hero.eyebrow') %></span>
+      <h1 class="hero-title"><%= t('hero.title_a') %> <span class="grad-text"><%= t('hero.title_b') %></span><br><%= t('hero.title_c') %></h1>
+      <p class="hero-sub"><%= t('hero.sub') %></p>
       <div class="hero-chips">
-        <span class="chip">⚡ Instant delivery</span>
-        <span class="chip">₱ Peso pricing</span>
-        <span class="chip">💳 GCash · Maya · BPI</span>
-        <span class="chip">🕐 24/7 support</span>
+        <span class="chip"><%= t('hero.chip1') %></span>
+        <span class="chip"><%= t('hero.chip2') %></span>
+        <span class="chip"><%= t('hero.chip3') %></span>
+        <span class="chip"><%= t('hero.chip4') %></span>
       </div>
       <div class="hero-cta">
-        <a href="/register" class="btn btn-primary btn-lg btn-glow">Get started — it's free</a>
-        <a href="/services" class="btn btn-outline btn-lg">Browse services</a>
+        <a href="/register" class="btn btn-primary btn-lg btn-glow"><%= t('hero.cta1') %></a>
+        <a href="/services" class="btn btn-outline btn-lg"><%= t('hero.cta2') %></a>
       </div>
-      <p class="hero-proof">Trusted by <strong data-count="<%= stats.users %>">0</strong>+ members · <strong data-count="<%= stats.orders %>">0</strong>+ orders delivered</p>
+      <p class="hero-proof"><%= t('hero.proof_a') %> <strong data-count="<%= stats.users %>">0</strong>+ <%= t('hero.proof_b') %> · <strong data-count="<%= stats.orders %>">0</strong>+ <%= t('hero.proof_c') %></p>
     </div>
 
     <div class="hero-visual" data-reveal data-reveal-delay="150">
@@ -80,19 +77,19 @@
   <div class="container stats-grid">
     <div class="stat" data-reveal>
       <span class="stat-num" data-count="<%= stats.orders %>">0</span>
-      <span class="stat-label">Total orders</span>
+      <span class="stat-label"><%= t('stat.orders') %></span>
     </div>
     <div class="stat" data-reveal data-reveal-delay="80">
       <span class="stat-num" data-count="<%= stats.users %>">0</span>
-      <span class="stat-label">Happy members</span>
+      <span class="stat-label"><%= t('stat.members') %></span>
     </div>
     <div class="stat" data-reveal data-reveal-delay="160">
       <span class="stat-num" data-count="<%= stats.services %>">0</span>
-      <span class="stat-label">Services available</span>
+      <span class="stat-label"><%= t('stat.services') %></span>
     </div>
     <div class="stat" data-reveal data-reveal-delay="240">
       <span class="stat-num" data-count="<%= stats.completed %>">0</span>
-      <span class="stat-label">Orders completed</span>
+      <span class="stat-label"><%= t('stat.completed') %></span>
     </div>
   </div>
 </section>
@@ -227,35 +224,33 @@
 </section>
 
 <!-- ═══ TESTIMONIALS ═══ -->
+<% if (typeof reviews !== 'undefined' && reviews.length) { %>
 <section class="section" id="reviews">
   <div class="container">
     <div class="section-head" data-reveal>
-      <span class="section-eyebrow">Wall of love</span>
+      <span class="section-eyebrow">Real reviews</span>
       <h2>What our members <span class="grad-text">say</span></h2>
+      <% if (reviewAvg) { %><p class="muted"><%= reviewAvg %> ★ average from <%= reviewCount %> verified order<%= reviewCount === 1 ? '' : 's' %></p><% } %>
     </div>
     <div class="reviews-grid">
-      <% const reviews = [
-        ['J***a M.', 'Online seller', 'Legit! Nag-top up ako via GCash, na-approve agad tapos yung IG followers ko dumating within minutes. Sulit na sulit.', 5],
-        ['R***l T.', 'Content creator', 'I use it for my TikTok views every posting day. Prices are way cheaper than other panels I tried, and it\'s in pesos na!', 5],
-        ['K***n D.', 'Reseller', 'The API works perfectly with my own panel. Auto refunds on partials is a lifesaver — walang drama.', 5],
-        ['A***e P.', 'Small business', 'Boosted our FB page before our product launch. Support chat actually answers questions, kahit madaling araw.', 4.5],
-        ['M***o S.', 'Streamer', 'YouTube subs and views delivered smoothly. The dashboard is super clean and easy to use on mobile.', 5],
-      ]; %>
       <% reviews.forEach(function(r, i) { %>
         <div class="review card" data-reveal data-reveal-delay="<%= (i % 3) * 100 %>">
           <div class="review-head">
-            <span class="avatar avatar-c<%= (i % 5) + 1 %>"><%= r[0][0] %></span>
+            <span class="avatar avatar-c<%= (i % 5) + 1 %>"><%= r.name[0] %></span>
             <div>
-              <strong><%= r[0] %></strong>
-              <small><%= r[1] %></small>
+              <strong><%= r.name %></strong>
+              <small><%= r.service.length > 34 ? r.service.slice(0,34) + '…' : r.service %></small>
             </div>
+            <span class="badge badge-completed" title="Verified purchase">✓ Verified</span>
           </div>
-          <p>“<%= r[2] %>”</p>
+          <span class="stars" aria-label="Rated <%= r.rating %> out of 5"><%= '★'.repeat(r.rating) %><span class="muted"><%= '★'.repeat(5 - r.rating) %></span></span>
+          <p>“<%= r.body %>”</p>
         </div>
       <% }); %>
     </div>
   </div>
 </section>
+<% } %>
 
 <!-- ═══ FAQ ═══ -->
 <section class="section section-alt" id="faq">

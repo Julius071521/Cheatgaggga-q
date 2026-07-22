@@ -1007,3 +1007,25 @@ summary:focus-visible, [tabindex]:focus-visible {
   }
   .btn-sm { min-height: 38px; }
 }
+
+/* ── Review star picker ── */
+.star-pick { display: inline-flex; flex-direction: row-reverse; gap: 4px; font-size: 1.9rem; line-height: 1; }
+.star-pick .star-opt { cursor: pointer; }
+.star-pick .star-opt input { position: absolute; opacity: 0; width: 0; height: 0; }
+.star-pick .star-opt span { color: var(--border); transition: color .12s; }
+.star-pick .star-opt:hover span,
+.star-pick .star-opt:hover ~ .star-opt span,
+.star-pick .star-opt input:checked ~ span,
+.star-pick .star-opt:has(input:checked) span,
+.star-pick .star-opt:has(input:checked) ~ .star-opt span { color: #f59e0b; }
+
+/* ── Skeleton loading shimmer (for async/awaiting content) ── */
+.skeleton { position: relative; overflow: hidden; background: var(--surface-2); border-radius: 8px; color: transparent !important; }
+.skeleton::after { content: ''; position: absolute; inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,.14), transparent);
+  transform: translateX(-100%); animation: shimmer 1.3s infinite; }
+@keyframes shimmer { 100% { transform: translateX(100%); } }
+@media (prefers-reduced-motion: reduce) { .skeleton::after { animation: none; } }
+
+/* ── Language toggle chip ── */
+.lang-toggle { font-size: .72rem; font-weight: 800; letter-spacing: .3px; text-decoration: none; padding: 0 6px; min-width: 34px; }

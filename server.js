@@ -103,6 +103,7 @@ app.use(session({
 }));
 
 app.use(attachUser);
+app.use(require('./src/utils/i18n').middleware);
 app.use(csrf);
 
 // ── View locals ───────────────────────────────────────────
