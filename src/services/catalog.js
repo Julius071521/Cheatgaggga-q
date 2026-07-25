@@ -204,10 +204,13 @@ async function syncProvider(code) {
     // One bad row must never abort the whole sync — skip it and keep going.
     try {
       await pool.query(
+        // created_at is set on INSERT only and deliberately left out of the
+        // UPDATE clause — a re-sync must not make an old service look new to
+        // the "new services" email digest.
         `INSERT INTO services
            (provider_id, provider_service_id, platform, category, name, type, rate_usd,
-            min_qty, max_qty, refill, cancelable, dripfeed, deleted, enabled)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)
+            min_qty, max_qty, refill, cancelable, dripfeed, deleted, enabled, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, NOW())
          ON DUPLICATE KEY UPDATE
            platform = VALUES(platform), category = VALUES(category), name = VALUES(name),
            type = VALUES(type), rate_usd = VALUES(rate_usd), min_qty = VALUES(min_qty),

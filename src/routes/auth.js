@@ -114,7 +114,7 @@ router.post('/register', authLimiter, verifyTurnstile, async (req, res, next) =>
       flash(req, 'success', 'Account created! Check your inbox for the verification link before signing in.');
       return res.redirect('/login');
     }
-    mailer.sendWelcome(email, username).catch(() => {});
+    require('../services/campaigns').sendWelcome(result.insertId).catch(() => {});
     flash(req, 'success', 'Account created! You can sign in now.');
     res.redirect('/login');
   } catch (err) { next(err); }
@@ -133,7 +133,8 @@ router.get('/verify/:token', async (req, res, next) => {
       'UPDATE users SET email_verified = 1, email_verification_token_hash = NULL, email_verification_expires_at = NULL WHERE id = ?',
       [user.id]);
     const [[vu]] = await pool.query('SELECT email, username FROM users WHERE id = ?', [user.id]);
-    if (vu) mailer.sendWelcome(vu.email, vu.username).catch(() => {});
+    // Rich welcome campaign (send-once, honours opt-out).
+    require('../services/campaigns').sendWelcome(user.id).catch(() => {});
     flash(req, 'success', 'Email verified! You can sign in now.');
     res.redirect('/login');
   } catch (err) { next(err); }

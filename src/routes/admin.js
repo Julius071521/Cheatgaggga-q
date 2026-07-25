@@ -620,6 +620,60 @@ router.post('/admin/tickets/:id/reply', async (req, res) => {
 });
 
 // ── Analytics: where the money comes from ───────────────────
+// ── Email automation ──────────────────────────────────────
+const campaigns = require('../services/campaigns');
+
+router.get('/admin/emails', async (req, res, next) => {
+  try {
+    const stats = await campaigns.stats();
+    const backfill = String(await campaigns.getSetting('email_welcome_backfill', 'off')).toLowerCase() === 'on';
+    const lastDigest = await campaigns.getSetting('last_service_digest_at');
+    const [recent] = await pool.query(
+      `SELECT e.kind, e.ref, e.status, e.error, e.created_at, u.username, u.email
+         FROM email_log e LEFT JOIN users u ON u.id = e.user_id
+        ORDER BY e.id DESC LIMIT 60`);
+    res.render('admin/emails', {
+      title: 'Admin · Email automation', crumb: 'Email automation',
+      stats, backfill, lastDigest, recent,
+    });
+  } catch (err) { next(err); }
+});
+
+router.post('/admin/emails/toggle', async (req, res, next) => {
+  try {
+    const on = req.body.campaigns === '1' || req.body.campaigns === 'on';
+    await campaigns.setSetting('email_campaigns', on ? 'on' : 'off');
+    flash(req, 'success', on
+      ? 'Email automation is ON — new customers get the welcome email and subscribers get new-service digests.'
+      : 'Email automation is OFF — no marketing email will be sent. Account emails still work.');
+    res.redirect('/admin/emails');
+  } catch (err) { next(err); }
+});
+
+router.post('/admin/emails/backfill', async (req, res, next) => {
+  try {
+    const on = req.body.backfill === '1' || req.body.backfill === 'on';
+    await campaigns.setSetting('email_welcome_backfill', on ? 'on' : 'off');
+    flash(req, 'success', on
+      ? 'Welcome backfill queued — existing verified customers will get the welcome email once, in batches.'
+      : 'Welcome backfill stopped.');
+    res.redirect('/admin/emails');
+  } catch (err) { next(err); }
+});
+
+// Run a pass now instead of waiting for the timer.
+router.post('/admin/emails/run', async (req, res) => {
+  try {
+    const r = await campaigns.runServiceDigest();
+    flash(req, r.ran ? 'success' : 'error', r.ran
+      ? `Digest pass done — ${r.newServices} new services, sent ${r.sent}, failed ${r.failed}, ${r.remaining} still queued.`
+      : `Nothing sent: ${r.reason}.`);
+  } catch (err) {
+    flash(req, 'error', `Digest failed: ${err.message}`);
+  }
+  res.redirect('/admin/emails');
+});
+
 router.get('/admin/analytics', async (req, res, next) => {
   try {
     // Headline tiles (this month).

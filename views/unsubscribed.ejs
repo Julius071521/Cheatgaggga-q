@@ -1,0 +1,20 @@
+<%- include('partials/head', { title }) %>
+<%- include('partials/nav') %>
+<main id="main-content" class="container page container-narrow">
+  <div class="card section-card" style="text-align:center">
+    <h1>You're unsubscribed ✅</h1>
+    <p class="muted mt-sm">
+      We won't send you any more product updates or new-service announcements.
+    </p>
+    <p class="muted mt-sm">
+      You'll still get the emails you need for your account — order updates, deposit
+      confirmations, password resets and security notices.
+    </p>
+    <p class="mt">
+      Changed your mind? You can turn updates back on any time in
+      <a href="/settings">your settings</a>.
+    </p>
+    <p class="mt"><a href="/" class="btn btn-primary">Back to <%= site.name %></a></p>
+  </div>
+</main>
+<%- include('partials/footer') %>

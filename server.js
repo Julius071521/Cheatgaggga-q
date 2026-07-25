@@ -249,6 +249,10 @@ runMigrations()
       try { require('./src/services/autopilot').startScheduler(); }
       catch (err) { console.warn('[server] autopilot failed to start:', err.message); }
 
+      // Customer email automation: welcome campaign + new-services digest.
+      try { require('./src/services/campaigns').startScheduler(); }
+      catch (err) { console.warn('[server] email campaigns failed to start:', err.message); }
+
       // One-time cleanup of any Cloudflare/local IPs wrongly recorded by an
       // older version (so past mistakes clear on upgrade).
       try { require('./src/services/security').cleanInfraIps(); }

@@ -518,14 +518,32 @@ router.post('/referrals/payout', async (req, res, next) => {
 // ── Settings ──────────────────────────────────────────────
 const totp = require('../utils/totp');
 
-router.get('/settings', (req, res) => {
-  // A pending 2FA setup (secret generated, not yet confirmed) lives in session.
-  const pending = req.session.pending2fa || null;
-  res.render('dashboard/settings', {
-    title: 'Account Settings',
-    twofaEnabled: !!req.user.totp_enabled,
-    pending2fa: pending,
-  });
+router.get('/settings', async (req, res, next) => {
+  try {
+    // A pending 2FA setup (secret generated, not yet confirmed) lives in session.
+    const pending = req.session.pending2fa || null;
+    const [[me]] = await pool.query('SELECT email_optout FROM users WHERE id = ?', [req.user.id]);
+    res.render('dashboard/settings', {
+      title: 'Account Settings',
+      twofaEnabled: !!req.user.totp_enabled,
+      pending2fa: pending,
+      emailUpdates: !(me && me.email_optout),
+    });
+  } catch (err) { next(err); }
+});
+
+// Marketing email preference. Transactional mail is unaffected either way.
+router.post('/settings/emails', async (req, res, next) => {
+  try {
+    const optIn = req.body.email_updates === 'on';
+    await pool.query(
+      'UPDATE users SET email_optout = ?, email_optout_at = IF(? = 1, NOW(), NULL) WHERE id = ?',
+      [optIn ? 0 : 1, optIn ? 0 : 1, req.user.id]);
+    flash(req, 'success', optIn
+      ? 'You\'ll now get product updates and new-service announcements.'
+      : 'Turned off. You\'ll still get order, deposit and security emails.');
+    res.redirect('/settings');
+  } catch (err) { next(err); }
 });
 
 // Start 2FA setup: generate a secret, stash it in the session, show the key.

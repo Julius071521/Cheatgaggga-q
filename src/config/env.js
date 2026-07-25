@@ -130,6 +130,14 @@ const env = {
   // only if the host allows more than this.
   DB_POOL_LIMIT: num('DB_POOL_LIMIT', 15),
 
+  // Marketing email automation (welcome + "new services" digest). Batches are
+  // bounded so one run stays short and inside shared-host SMTP limits; the
+  // remainder goes out on the next run.
+  EMAIL_BATCH_LIMIT: num('EMAIL_BATCH_LIMIT', 200),
+  EMAIL_SEND_GAP_MS: num('EMAIL_SEND_GAP_MS', 400),
+  // How often the digest job checks for newly added services.
+  EMAIL_DIGEST_HOURS: num('EMAIL_DIGEST_HOURS', 24),
+
   // Email (SMTP)
   EMAIL_HOST: str('EMAIL_HOST', ''),
   EMAIL_PORT: num('EMAIL_PORT', 465),

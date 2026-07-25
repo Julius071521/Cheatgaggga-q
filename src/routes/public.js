@@ -87,6 +87,22 @@ router.get('/lang/:code', (req, res) => {
   res.redirect(back && back.startsWith(`${req.protocol}://${req.get('host')}`) ? back : '/');
 });
 
+// One-click unsubscribe from marketing mail. Must work straight from an inbox,
+// so it is intentionally public — the HMAC in the link is the authorisation,
+// and it can only ever turn marketing mail OFF for that one account.
+router.get('/unsubscribe/:id/:token', async (req, res, next) => {
+  try {
+    const campaigns = require('../services/campaigns');
+    const userId = clampInt(req.params.id, 1, 2147483647);
+    if (!userId || !campaigns.verifyUnsub(userId, req.params.token)) {
+      return res.status(404).render('errors/404');
+    }
+    await pool.query(
+      'UPDATE users SET email_optout = 1, email_optout_at = NOW() WHERE id = ?', [userId]);
+    res.render('unsubscribed', { title: 'Unsubscribed' });
+  } catch (err) { next(err); }
+});
+
 router.get('/terms', (req, res) => res.render('terms', { title: 'Terms of Service' }));
 router.get('/api-docs', (req, res) => res.render('api-docs', {
   title: 'API Documentation',

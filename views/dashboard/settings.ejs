@@ -95,6 +95,23 @@
         <button type="submit" class="btn btn-outline"><%= user.api_key ? 'Regenerate key' : 'Generate API key' %></button>
       </form>
     </div>
+
+    <div class="card" data-reveal data-reveal-delay="300">
+      <h2>Email preferences</h2>
+      <p class="muted">Choose whether we can email you about new services, price drops and promos.</p>
+      <form method="post" action="/settings/emails" class="mt-sm">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <label class="drip-toggle">
+          <input type="checkbox" name="email_updates" value="on"<%= emailUpdates ? ' checked' : '' %>>
+          <span>📬 <strong>Send me product updates</strong> — new services, promos and bonus offers</span>
+        </label>
+        <p class="auth-fineprint" style="text-align:left">
+          Turning this off never affects your account emails: order updates, deposit
+          confirmations, password resets and security notices always go through.
+        </p>
+        <button type="submit" class="btn btn-primary btn-sm">Save preference</button>
+      </form>
+    </div>
   </div>
 </main>
 <%- include('../partials/app-foot') %>

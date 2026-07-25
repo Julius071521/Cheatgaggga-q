@@ -1,0 +1,120 @@
+<%- include('../partials/head', { title }) %>
+<%- include('../partials/nav') %>
+<main id="main-content" class="container page">
+  <div class="page-head"><h1>Email <span class="grad-text">automation</span> 📬</h1></div>
+  <%- include('../partials/admin-nav') %>
+
+  <div class="kpi-grid">
+    <div class="kpi card">
+      <span class="kpi-label">Subscribers</span>
+      <span class="kpi-value"><%= Number(stats.subscribers).toLocaleString() %></span>
+      <small class="muted">verified &amp; opted in</small>
+    </div>
+    <div class="kpi card">
+      <span class="kpi-label">Emails sent</span>
+      <span class="kpi-value"><%= Number(stats.sent).toLocaleString() %></span>
+      <% if (stats.failed > 0) { %><small class="neg"><%= stats.failed %> failed</small><% } %>
+    </div>
+    <div class="kpi card">
+      <span class="kpi-label">Unsubscribed</span>
+      <span class="kpi-value"><%= Number(stats.optouts).toLocaleString() %></span>
+    </div>
+    <div class="kpi card">
+      <span class="kpi-label">New services waiting</span>
+      <span class="kpi-value"><%= Number(stats.pendingNewServices).toLocaleString() %></span>
+      <small class="muted">queued for the next digest</small>
+    </div>
+  </div>
+
+  <div class="card section-card">
+    <div class="card-head"><h2>Automation</h2></div>
+    <p class="muted">
+      When this is on, every new customer gets the welcome email once their address is
+      verified, and subscribers get a digest whenever new services are added.
+      Account emails — verification, password reset, deposits, orders — always send
+      regardless of this setting.
+    </p>
+
+    <form method="post" action="/admin/emails/toggle" class="mt-sm inline-form">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <input type="hidden" name="campaigns" value="<%= stats.enabled ? '0' : '1' %>">
+      <span class="badge badge-<%= stats.enabled ? 'completed' : 'pending' %>">
+        <%= stats.enabled ? 'ON' : 'OFF' %>
+      </span>
+      <button type="submit" class="btn <%= stats.enabled ? 'btn-outline' : 'btn-primary' %> btn-sm">
+        Turn <%= stats.enabled ? 'off' : 'on' %>
+      </button>
+    </form>
+
+    <h3 class="mt">Send the digest now</h3>
+    <p class="muted">Runs one pass immediately instead of waiting for the timer. Safe to press twice — nobody is emailed the same digest more than once.</p>
+    <form method="post" action="/admin/emails/run" class="mt-sm">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <button type="submit" class="btn btn-primary btn-sm">Run digest pass</button>
+    </form>
+    <p class="auth-fineprint" style="text-align:left">
+      Last digest watermark: <strong><%= lastDigest || 'never run' %></strong>
+    </p>
+
+    <h3 class="mt">Welcome email for existing customers</h3>
+    <p class="muted">
+      Customers who signed up before this feature existed never got the welcome email.
+      Turning this on sends it to them once each, in batches, then switches itself off.
+    </p>
+    <form method="post" action="/admin/emails/backfill" class="mt-sm inline-form"<% if (!backfill) { %> data-confirm="Send the welcome email to every existing verified customer? Each person receives it once."<% } %>>
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <input type="hidden" name="backfill" value="<%= backfill ? '0' : '1' %>">
+      <span class="badge badge-<%= backfill ? 'processing' : 'pending' %>"><%= backfill ? 'RUNNING' : 'OFF' %></span>
+      <button type="submit" class="btn <%= backfill ? 'btn-outline' : 'btn-primary' %> btn-sm">
+        <%= backfill ? 'Stop backfill' : 'Start backfill' %>
+      </button>
+    </form>
+  </div>
+
+  <% if (stats.byKind && stats.byKind.length) { %>
+  <div class="card section-card">
+    <div class="card-head"><h2>By campaign</h2></div>
+    <div class="table-wrap">
+      <table class="table table-compact">
+        <thead><tr><th>Campaign</th><th class="num">Sent</th><th>Last sent</th></tr></thead>
+        <tbody>
+          <% stats.byKind.forEach(function (k) { %>
+          <tr>
+            <td><%= k.kind === 'welcome' ? '👋 Welcome' : k.kind === 'new_services' ? '✨ New services' : k.kind %></td>
+            <td class="num"><%= Number(k.n).toLocaleString() %></td>
+            <td class="muted"><%= h.formatDate(k.last_at) %></td>
+          </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <% } %>
+
+  <div class="card section-card">
+    <div class="card-head"><h2>Recent sends</h2></div>
+    <% if (recent.length) { %>
+    <div class="table-wrap">
+      <table class="table table-compact">
+        <thead><tr><th>Customer</th><th>Campaign</th><th>Status</th><th>When</th></tr></thead>
+        <tbody>
+          <% recent.forEach(function (r) { %>
+          <tr>
+            <td><%= r.username || '—' %><br><small class="muted"><%= r.email || '' %></small></td>
+            <td><%= r.kind %><% if (r.ref) { %><br><small class="muted"><%= r.ref %></small><% } %></td>
+            <td>
+              <span class="badge badge-<%= r.status === 'sent' ? 'completed' : 'failed' %>"><%= r.status %></span>
+              <% if (r.error) { %><br><small class="muted"><%= r.error %></small><% } %>
+            </td>
+            <td class="muted"><%= h.formatDate(r.created_at) %></td>
+          </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+    <% } else { %>
+      <p class="empty-note">No emails sent yet.</p>
+    <% } %>
+  </div>
+</main>
+<%- include('../partials/footer') %>

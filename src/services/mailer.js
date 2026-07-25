@@ -113,15 +113,18 @@ function sendDepositReceived(to, deposit) {
      <p style="color:#6b7280;font-size:12px;">Most deposits are verified within minutes to a few hours during business time.</p>`);
 }
 
-function sendWelcome(to, username) {
-  return send(to, `Welcome to ${env.SITE_NAME}! 🚀`, `Welcome aboard, ${username || 'friend'}!`,
-    `<p>Your ${env.SITE_NAME} account is ready. Here's how to get started:</p>
-     <ol style="padding-left:18px;color:#374151;">
-       <li>Add funds via GCash, Maya, or BPI.</li>
-       <li>Pick a service and paste your public link.</li>
-       <li>Place your order — delivery is automatic. 🎉</li>
-     </ol>
-     ${button(`${env.BASE_URL}/dashboard`, 'Go to my dashboard')}`);
+// True when SMTP is actually configured — campaign jobs check this before
+// claiming recipients, so a misconfigured server doesn't burn through the
+// send-once log with mail that never left.
+function ready() { return Boolean(transporter); }
+
+// Campaign mail: same shell as transactional mail, but the caller supplies the
+// full body (including its own unsubscribe footer).
+function sendRaw(to, subject, title, bodyHtml) {
+  return send(to, subject, title, bodyHtml);
 }
 
-module.exports = { send, sendVerification, sendPasswordReset, sendDepositResult, sendDepositReceived, sendWelcome };
+module.exports = {
+  send, sendRaw, ready,
+  sendVerification, sendPasswordReset, sendDepositResult, sendDepositReceived,
+};
