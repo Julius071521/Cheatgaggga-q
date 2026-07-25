@@ -1,6 +1,6 @@
 <%- include('partials/head', { title }) %>
 <%- include('partials/nav') %>
-<main class="container page">
+<main id="main-content" class="container page">
   <div class="page-head"><h1>API <span class="grad-text">documentation</span></h1></div>
 
   <div class="card section-card">
@@ -9,7 +9,7 @@
       <li><strong>Endpoint:</strong> <code>https://<%= site.domain %>/api/v2</code></li>
       <li><strong>Method:</strong> <code>POST</code> (form-encoded)</li>
       <li><strong>Your API key:</strong> get it in <a href="/settings">Settings → API key</a> (sign in first). Send it as the <code>key</code> field, or — recommended — as an <code>Authorization: Bearer YOUR_API_KEY</code> header so it stays out of request-body logs.</li>
-      <li><strong>Rate limit:</strong> up to <strong>300 requests/minute</strong> per IP. Exceeding it returns an error; back off and retry.</li>
+      <li><strong>Rate limit:</strong> up to <strong><%= apiRateLimit %> requests/minute</strong> per IP. Exceeding it returns an error; back off and retry.</li>
       <li><strong>Currency:</strong> all amounts are in <strong>PHP (₱)</strong>.</li>
     </ul>
   </div>

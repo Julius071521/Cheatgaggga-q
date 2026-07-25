@@ -12,7 +12,7 @@ const wallet = require('../services/wallet');
 const mailer = require('../services/mailer');
 const notifications = require('../services/notifications');
 const { requireAuth } = require('../middleware/auth');
-const { randomToken, isValidHttpUrl, clampInt, PLATFORM_LABELS } = require('../utils/helpers');
+const { randomToken, isValidHttpUrl, clampInt, strictInt, PLATFORM_LABELS } = require('../utils/helpers');
 const { hashSecret, verifySecret } = require('../utils/password');
 
 const router = express.Router();
@@ -130,8 +130,8 @@ router.get('/order/mass', async (req, res, next) => {
 
 router.post('/order/mass', async (req, res, next) => {
   try {
-    const serviceId = clampInt(req.body.service_id, 1, 2147483647);
-    const quantity = clampInt(req.body.quantity, 1, 100000000);
+    const serviceId = strictInt(req.body.service_id, 1, 2147483647);
+    const quantity = strictInt(req.body.quantity, 1, 100000000);
     const rawLinks = String(req.body.links || '').split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
     // Unique, valid links, capped so one submit can't fire thousands of orders.
     const links = [...new Set(rawLinks)].filter((l) => isValidHttpUrl(l)).slice(0, 50);
@@ -186,9 +186,9 @@ router.get('/order/services.json', async (req, res, next) => {
 
 router.post('/order/new', async (req, res, next) => {
   try {
-    const serviceId = clampInt(req.body.service_id, 1, 2147483647);
+    const serviceId = strictInt(req.body.service_id, 1, 2147483647);
     const link = String(req.body.link || '').trim().slice(0, 2000);
-    const quantity = clampInt(req.body.quantity, 1, 100000000);
+    const quantity = strictInt(req.body.quantity, 1, 100000000);
 
     if (!serviceId || !quantity) { flash(req, 'error', 'Please pick a service and quantity.'); return res.redirect('/order/new'); }
     if (!isValidHttpUrl(link)) { flash(req, 'error', 'Please enter a valid link (http:// or https://).'); return res.redirect('/order/new'); }
@@ -315,7 +315,7 @@ router.post('/orders/:id/ticket', async (req, res) => {
 router.post('/orders/:id/review', async (req, res) => {
   try {
     const orderId = clampInt(req.params.id, 1, 2147483647);
-    const rating = clampInt(req.body.rating, 1, 5);
+    const rating = strictInt(req.body.rating, 1, 5);
     const body = String(req.body.body || '').trim().slice(0, 600);
     const [[order]] = await pool.query('SELECT id, user_id, status FROM orders WHERE id = ?', [orderId]);
     if (!order || order.user_id !== req.user.id) return res.status(404).render('errors/404');

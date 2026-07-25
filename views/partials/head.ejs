@@ -1,16 +1,46 @@
-<!DOCTYPE html>
-<html lang="en">
+<%
+  const pageTitle = title ? `${title} · ${site.name}` : `${site.name} — Cheapest & Fastest SMM Panel in the Philippines`;
+  const pageDesc = (typeof metaDescription !== 'undefined' && metaDescription)
+    ? metaDescription
+    : `${site.name} is the most affordable social media boosting panel in the Philippines. Followers, likes, views and more — instant delivery, pay with GCash, Maya or BPI.`;
+  const curPath = (typeof path !== 'undefined' && path && path !== '/') ? path : '';
+  const pageUrl = `https://${site.domain}${curPath}`;
+  // Signed-in areas must never be indexed even if a crawler ignores robots.txt.
+  const privatePrefixes = ['/dashboard', '/admin', '/wallet', '/settings', '/support', '/notifications', '/orders'];
+  const isPrivate = privatePrefixes.some((p) => curPath.startsWith(p));
+%><!DOCTYPE html>
+<html lang="<%= typeof lang !== 'undefined' && lang === 'fil' ? 'fil' : 'en' %>">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title><%= title ? `${title} · ${site.name}` : `${site.name} — Cheapest & Fastest SMM Panel in the Philippines` %></title>
-  <meta name="description" content="<%= site.name %> is the most affordable social media boosting panel in the Philippines. Followers, likes, views and more — instant delivery, pay with GCash, Maya or BPI.">
-  <link rel="canonical" href="https://<%= site.domain %><%= (typeof path !== 'undefined' && path && path !== '/') ? path : '' %>">
+  <title><%= pageTitle %></title>
+  <meta name="description" content="<%= pageDesc %>">
+  <link rel="canonical" href="<%= pageUrl %>">
+  <% if (isPrivate) { %><meta name="robots" content="noindex, nofollow"><% } %>
+  <meta name="theme-color" content="#0b1020">
+
+  <meta property="og:site_name" content="<%= site.name %>">
+  <meta property="og:type" content="website">
+  <meta property="og:locale" content="<%= typeof lang !== 'undefined' && lang === 'fil' ? 'fil_PH' : 'en_PH' %>">
+  <meta property="og:title" content="<%= pageTitle %>">
+  <meta property="og:description" content="<%= pageDesc %>">
+  <meta property="og:url" content="<%= pageUrl %>">
+  <meta property="og:image" content="https://<%= site.domain %>/assets/img/og-cover.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="<%= site.name %> — SMM panel for the Philippines">
+
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="<%= pageTitle %>">
+  <meta name="twitter:description" content="<%= pageDesc %>">
+  <meta name="twitter:image" content="https://<%= site.domain %>/assets/img/og-cover.png">
+
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/assets/css/style.css?v=<%= assetVersion %>">
   <link rel="icon" href="/assets/img/favicon.svg" type="image/svg+xml">
   <script src="/assets/js/theme.js?v=<%= assetVersion %>"></script>
+  <% if (typeof jsonLd !== 'undefined' && jsonLd && !isPrivate) { %><script type="application/ld+json"><%- jsonLd %></script><% } %>
 </head>
 <body>

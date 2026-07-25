@@ -35,6 +35,11 @@
   --text: #ecf1fb;
   --text-soft: #93a0bd;
   --border: #223052;
+  /* The light-theme blue only reaches 3.35:1 on these backgrounds, so links and
+     accents get a lighter blue here (~6.8:1) to clear WCAG AA. --primary is
+     text-only; the one place it backs white text sets its own colour. */
+  --primary: #60a5fa;
+  --primary-2: #38bdf8;
   --primary-soft: rgba(56, 132, 255, 0.16);
   --shadow: 0 10px 30px -12px rgba(0, 0, 0, 0.55);
   --shadow-lg: 0 24px 60px -18px rgba(0, 0, 0, 0.7);
@@ -147,8 +152,14 @@ code { background: var(--surface-2); padding: 2px 7px; border-radius: 6px; font-
   transition: border-color 0.25s ease, box-shadow 0.25s ease;
 }
 .nav.scrolled { border-color: var(--border); box-shadow: 0 6px 24px -18px rgba(15, 23, 42, 0.35); }
-.nav-inner { display: flex; align-items: center; gap: 26px; padding: 14px 0; }
-.brand { display: inline-flex; align-items: center; gap: 9px; text-decoration: none !important; color: var(--text); }
+.nav-inner { display: flex; align-items: center; gap: 26px; padding: 14px 0; min-width: 0; }
+/* The wordmark is the only flexible part of the bar, so it absorbs the squeeze
+   at any viewport width — without this the row overflows and the menu button
+   ends up off-screen (body overflow-x:hidden hides it instead of scrolling). */
+.brand { display: inline-flex; align-items: center; gap: 9px; text-decoration: none !important; color: var(--text); min-width: 0; }
+.brand-mark { flex: none; }
+.brand-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nav-actions { flex: none; }
 .brand-mark {
   display: inline-flex; align-items: center; justify-content: center;
   width: 36px; height: 36px; border-radius: 11px; background: var(--grad-btn); color: #fff;
@@ -186,6 +197,10 @@ code { background: var(--surface-2); padding: 2px 7px; border-radius: 6px; font-
   .nav-links.open { display: flex; }
   .nav-burger { display: inline-flex; }
   .nav-balance { display: none; }
+  /* .nav-links carries margin-right:auto to push the actions right on desktop,
+     but it goes position:absolute here — so the actions need their own auto
+     margin or the row overflows and the burger lands off-screen. */
+  .nav-actions { margin-left: auto; }
 }
 
 /* ── Flash ── */
@@ -237,7 +252,15 @@ code { background: var(--surface-2); padding: 2px 7px; border-radius: 6px; font-
 }
 @media (max-width: 480px) {
   .nav-actions .btn-ghost { display: none; }
-  .nav-inner { gap: 12px; }
+  .nav-inner { gap: 8px; }
+  .nav-actions { gap: 6px; }
+  .nav-actions .btn-sm { padding: 8px 12px; font-size: 0.84rem; }
+  .lang-toggle { min-width: 30px; padding: 0 4px; }
+}
+@media (max-width: 400px) {
+  /* Logo mark only: the wordmark is what pushes the menu button past the right
+     edge here, and body{overflow-x:hidden} would hide it rather than scroll. */
+  .brand-text { display: none; }
 }
 
 .hero-inner { position: relative; z-index: 2; display: grid; grid-template-columns: 1.15fr 0.85fr; gap: 48px; align-items: center; }
@@ -468,8 +491,9 @@ code { background: var(--surface-2); padding: 2px 7px; border-radius: 6px; font-
   font-family: var(--font-head); font-weight: 700; font-size: 0.78rem;
   padding: 5px 12px; border-radius: 8px; color: #fff;
 }
+/* Brand colours darkened just enough that white text clears WCAG AA (4.5:1). */
 .pay-badge.pay-gcash { background: #0064d0; }
-.pay-badge.pay-maya { background: #10ac47; }
+.pay-badge.pay-maya { background: #0a7d33; }
 .pay-badge.pay-bpi { background: #b01116; }
 
 /* ── Pages / forms ── */
@@ -1006,7 +1030,22 @@ summary:focus-visible, [tabindex]:focus-visible {
     min-height: 40px;
   }
   .btn-sm { min-height: 38px; }
+  /* Dense text links need the height too — they are otherwise ~16–31px tall. */
+  .footer-col a, .kpi-link, .footer-bottom a {
+    display: inline-flex; align-items: center; min-height: 40px;
+  }
+  .footer-col a { display: flex; }
 }
+
+/* Keyboard users must be able to jump past the nav (WCAG 2.4.1). Visible only
+   while focused. */
+.skip-link {
+  position: absolute; left: 8px; top: -60px; z-index: 200;
+  padding: 10px 16px; border-radius: 0 0 10px 10px;
+  background: #1d4ed8; color: #fff; font-weight: 600;
+  text-decoration: none !important; transition: top 0.15s ease;
+}
+.skip-link:focus { top: 0; }
 
 /* ── Review star picker ── */
 .star-pick { display: inline-flex; flex-direction: row-reverse; gap: 4px; font-size: 1.9rem; line-height: 1; }

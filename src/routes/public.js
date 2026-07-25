@@ -88,7 +88,10 @@ router.get('/lang/:code', (req, res) => {
 });
 
 router.get('/terms', (req, res) => res.render('terms', { title: 'Terms of Service' }));
-router.get('/api-docs', (req, res) => res.render('api-docs', { title: 'API Documentation' }));
+router.get('/api-docs', (req, res) => res.render('api-docs', {
+  title: 'API Documentation',
+  apiRateLimit: require('../config/env').API_RATE_LIMIT_PER_MIN,
+}));
 
 // ── SEO: robots + sitemap ──
 router.get('/robots.txt', (req, res) => {

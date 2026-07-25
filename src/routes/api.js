@@ -10,7 +10,12 @@ const { isValidHttpUrl } = require('../utils/helpers');
 
 const router = express.Router();
 
-router.post('/api/v2', apiLimiter, express.urlencoded({ extended: false, limit: '16kb', parameterLimit: 200 }), async (req, res) => {
+// Form-encoded is the SMM Panel API v2 standard, but plenty of clients post
+// JSON — accept both so an integration doesn't fail as "Invalid API key".
+router.post('/api/v2', apiLimiter,
+  express.urlencoded({ extended: false, limit: '16kb', parameterLimit: 200 }),
+  express.json({ limit: '16kb' }),
+  async (req, res) => {
   try {
     // Accept the key from the standard `key` field OR an Authorization: Bearer
     // header (the latter keeps it out of request-body logs).

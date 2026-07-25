@@ -47,6 +47,18 @@ function clampInt(value, min, max) {
   return Math.min(max, Math.max(min, n));
 }
 
+// Like clampInt but returns null instead of silently moving an out-of-range
+// value into range. Use this wherever the number decides what the customer is
+// charged or what gets stored — clamping there would turn a typo into a real,
+// paid order for something they never asked for.
+function strictInt(value, min, max) {
+  const raw = String(value == null ? '' : value).trim();
+  if (!/^\d+$/.test(raw)) return null;
+  const n = parseInt(raw, 10);
+  if (!Number.isSafeInteger(n) || n < min || n > max) return null;
+  return n;
+}
+
 function formatDate(d) {
   if (!d) return '—';
   const date = d instanceof Date ? d : new Date(d);
@@ -154,7 +166,7 @@ function isAdminRole(role) {
 
 module.exports = {
   toCents, centsToPhp, money, moneyRate, randomToken, sha256,
-  isValidEmail, isValidHttpUrl, clampInt, formatDate,
+  isValidEmail, isValidHttpUrl, clampInt, strictInt, formatDate,
   platformLabel, platformFromText, statusLabel, statusSlug, isAdminRole, PLATFORM_LABELS,
   tidyCategory, tidyServiceName,
 };

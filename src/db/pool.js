@@ -9,7 +9,10 @@ const pool = mysql.createPool({
   password: env.DB_PASSWORD,
   database: env.DB_NAME,
   waitForConnections: true,
-  connectionLimit: 10,
+  connectionLimit: env.DB_POOL_LIMIT || 15,
+  queueLimit: 0,
+  enableKeepAlive: true,        // keep pooled sockets healthy under sustained load
+  keepAliveInitialDelay: 10000,
   charset: 'utf8mb4_general_ci',
   // Keep DECIMAL columns as strings so money never touches binary floats accidentally.
   decimalNumbers: false,

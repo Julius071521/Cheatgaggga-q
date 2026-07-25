@@ -114,12 +114,21 @@ const env = {
   PROVIDER_LOW_BALANCE_THRESHOLD_PHP: num('PROVIDER_LOW_BALANCE_THRESHOLD_PHP', 500),
   PROVIDER_BLOCK_ORDERS_BELOW_THRESHOLD: bool('PROVIDER_BLOCK_ORDERS_BELOW_THRESHOLD', false),
 
+  // Public API v2 throughput, per IP. Changing it means updating the number
+  // published on /api-docs too.
+  API_RATE_LIMIT_PER_MIN: num('API_RATE_LIMIT_PER_MIN', 300),
+  // Page requests per minute, per visitor IP (static assets are exempt).
+  RATE_LIMIT_PER_MIN: num('RATE_LIMIT_PER_MIN', 300),
+
   // Database
   DB_HOST: str('DB_HOST', 'localhost'),
   DB_PORT: num('DB_PORT', 3306),
   DB_USER: str('DB_USER', ''),
   DB_PASSWORD: str('DB_PASSWORD', ''),
   DB_NAME: str('DB_NAME', ''),
+  // Shared-hosting MySQL usually caps concurrent connections per user; raise
+  // only if the host allows more than this.
+  DB_POOL_LIMIT: num('DB_POOL_LIMIT', 15),
 
   // Email (SMTP)
   EMAIL_HOST: str('EMAIL_HOST', ''),

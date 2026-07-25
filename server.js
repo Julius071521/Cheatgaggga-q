@@ -24,11 +24,50 @@ app.set('trust proxy', 1);
 // before any middleware reads it — otherwise everything sees the CF edge IP.
 app.use(require('./src/utils/clientip').attachClientIp);
 
+// ── Structured data (schema.org) ──────────────────────────
+// Emitted inline in <head>, so its CSP hash is computed here from the exact
+// bytes the template prints — keep the two in sync via res.locals.jsonLd.
+const JSON_LD = JSON.stringify({
+  '@context': 'https://schema.org',
+  '@graph': [
+    {
+      '@type': 'Organization',
+      '@id': `https://${env.SITE_DOMAIN}/#organization`,
+      name: env.SITE_NAME,
+      url: `https://${env.SITE_DOMAIN}/`,
+      logo: `https://${env.SITE_DOMAIN}/assets/img/og-cover.png`,
+      areaServed: 'PH',
+      ...(env.SUPPORT_EMAIL ? { email: env.SUPPORT_EMAIL } : {}),
+    },
+    {
+      '@type': 'WebSite',
+      '@id': `https://${env.SITE_DOMAIN}/#website`,
+      name: env.SITE_NAME,
+      url: `https://${env.SITE_DOMAIN}/`,
+      inLanguage: 'en-PH',
+      publisher: { '@id': `https://${env.SITE_DOMAIN}/#organization` },
+      potentialAction: {
+        '@type': 'SearchAction',
+        target: { '@type': 'EntryPoint', urlTemplate: `https://${env.SITE_DOMAIN}/services?q={search_term_string}` },
+        'query-input': 'required name=search_term_string',
+      },
+    },
+    {
+      '@type': 'Service',
+      name: 'Social media marketing panel',
+      serviceType: 'Social media growth services',
+      provider: { '@id': `https://${env.SITE_DOMAIN}/#organization` },
+      areaServed: { '@type': 'Country', name: 'Philippines' },
+    },
+  ],
+});
+const JSON_LD_HASH = `'sha256-${require('crypto').createHash('sha256').update(JSON_LD, 'utf8').digest('base64')}'`;
+
 // ── Security headers ──────────────────────────────────────
 const isHttps = String(env.BASE_URL || '').startsWith('https');
 const cspDirectives = {
   defaultSrc: ["'self'"],
-  scriptSrc: ["'self'", 'https://challenges.cloudflare.com'],
+  scriptSrc: ["'self'", 'https://challenges.cloudflare.com', JSON_LD_HASH],
   styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
   fontSrc: ["'self'", 'https://fonts.gstatic.com'],
   imgSrc: ["'self'", 'data:'],
@@ -73,8 +112,18 @@ app.use((req, res, next) => {
 });
 
 app.use(generalLimiter);
+app.use(require('compression')());
 app.use(express.urlencoded({ extended: false, limit: '32kb' }));
-app.use('/assets', express.static(path.join(__dirname, 'public'), { maxAge: '7d' }));
+app.use('/assets', express.static(path.join(__dirname, 'public'), {
+  maxAge: '7d',
+  setHeaders(res) {
+    // ?v= URLs get a fresh value every deploy, so that exact byte stream never
+    // changes — safe to cache for a year and skip revalidation entirely.
+    if (res.req.query && res.req.query.v) {
+      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+    }
+  },
+}));
 
 // ── Sessions (stored in MySQL so they survive restarts) ───
 const sessionStore = new MySQLStore({
@@ -121,6 +170,7 @@ app.use((req, res, next) => {
   res.locals.h = helpers;
   res.locals.pricing = pricing;
   res.locals.assetVersion = ASSET_VERSION;
+  res.locals.jsonLd = JSON_LD;
   res.locals.path = req.path;
   res.locals.flash = req.session.flash || null;
   delete req.session.flash;
