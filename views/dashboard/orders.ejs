@@ -7,7 +7,7 @@
   <div class="filter-bar card">
     <form class="filter-search" method="get" action="/orders">
       <input type="search" name="q" value="<%= typeof q !== 'undefined' ? q : '' %>" placeholder="Search order code, service, or link…" maxlength="80">
-      <select name="status" class="input-sm">
+      <select name="status" class="input-sm" aria-label="Filter by order status">
         <option value="">All statuses</option>
         <% ['Pending','In progress','Processing','Completed','Partial','Canceled','Failed'].forEach(function(s){ %>
           <option value="<%= s %>" <%= (typeof status !== 'undefined' && status === s) ? 'selected' : '' %>><%= s %></option>

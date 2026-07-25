@@ -27,7 +27,7 @@
       <h2>📣 Your referral link</h2>
       <p class="muted">Share this link (or just your code) — anyone who signs up through it is yours forever.</p>
       <div class="ref-link-row">
-        <input type="text" readonly value="<%= link %>" id="ref-link" class="ref-link-input" data-select>
+        <input type="text" readonly value="<%= link %>" id="ref-link" class="ref-link-input" data-select aria-label="Your referral link">
         <button type="button" class="btn btn-primary btn-sm copy-btn" data-copy="<%= link %>">Copy link</button>
       </div>
       <p class="ref-code-row">Your code: <code class="ref-code"><%= code %></code>

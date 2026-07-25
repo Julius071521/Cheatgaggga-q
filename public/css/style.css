@@ -10,6 +10,9 @@
   --primary-2: #0ea5e9;
   --primary-soft: rgba(37, 99, 235, 0.1);
   --accent: #10b981;
+  /* --accent is a fill colour; at 2.4:1 on our backgrounds it fails AA as text.
+     Anything that renders green *text* uses --accent-text instead. */
+  --accent-text: #047857;
   --danger: #ef4444;
   --warning: #f59e0b;
 
@@ -40,6 +43,7 @@
      text-only; the one place it backs white text sets its own colour. */
   --primary: #60a5fa;
   --primary-2: #38bdf8;
+  --accent-text: #34d399;
   --primary-soft: rgba(56, 132, 255, 0.16);
   --shadow: 0 10px 30px -12px rgba(0, 0, 0, 0.55);
   --shadow-lg: 0 24px 60px -18px rgba(0, 0, 0, 0.7);
@@ -84,9 +88,9 @@ code { background: var(--surface-2); padding: 2px 7px; border-radius: 6px; font-
 .muted { color: var(--text-soft); }
 .mt { margin-top: 28px; }
 .mt-sm { margin-top: 12px; }
-.pos { color: var(--accent); }
+.pos { color: var(--accent-text); }
 .neg { color: var(--danger); }
-.refund { color: var(--accent); }
+.refund { color: var(--accent-text); }
 
 .grad-text {
   background: var(--grad);
@@ -132,9 +136,9 @@ code { background: var(--surface-2); padding: 2px 7px; border-radius: 6px; font-
 .btn-outline:hover { border-color: var(--primary); color: var(--primary); transform: translateY(-2px); }
 .btn-ghost { background: transparent; color: var(--text-soft); }
 .btn-ghost:hover { background: var(--surface-2); color: var(--text); }
-.btn-white { background: #fff; color: var(--primary); }
+.btn-white { background: #fff; color: #1d4ed8; }
 .btn-white:hover { transform: translateY(-2px) scale(1.02); box-shadow: 0 12px 28px -10px rgba(0,0,0,0.35); }
-.btn-success { background: var(--accent); color: #fff; }
+.btn-success { background: #047857; color: #fff; }
 .btn-danger { background: var(--danger); color: #fff; }
 .btn-google { background: var(--surface); border-color: var(--border); color: var(--text); }
 .btn-google:hover { border-color: var(--primary); }
@@ -173,7 +177,7 @@ code { background: var(--surface-2); padding: 2px 7px; border-radius: 6px; font-
 }
 .nav-link:hover, .nav-link.active { color: var(--primary); background: var(--primary-soft); }
 .nav-actions { display: flex; align-items: center; gap: 10px; }
-.nav-balance { font-weight: 700; font-family: var(--font-head); color: var(--accent); font-size: 0.95rem; }
+.nav-balance { font-weight: 700; font-family: var(--font-head); color: var(--accent-text); font-size: 0.95rem; }
 .icon-btn {
   display: inline-flex; align-items: center; justify-content: center;
   width: 38px; height: 38px; border-radius: 11px; border: 1.5px solid var(--border);
@@ -306,7 +310,7 @@ code { background: var(--surface-2); padding: 2px 7px; border-radius: 6px; font-
 .avatar-c5 { background: linear-gradient(135deg, #f59e0b, #ea580c); }
 .live-pill {
   margin-left: auto; display: inline-flex; align-items: center; gap: 6px;
-  font-size: 0.7rem; font-weight: 700; color: var(--accent);
+  font-size: 0.7rem; font-weight: 700; color: var(--accent-text);
   background: rgba(16, 185, 129, 0.12); padding: 4px 10px; border-radius: 999px;
 }
 .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); animation: pulse 1.6s ease-in-out infinite; }
@@ -315,7 +319,7 @@ code { background: var(--surface-2); padding: 2px 7px; border-radius: 6px; font-
 .phone-stat { margin-bottom: 18px; }
 .ps-label { display: block; color: var(--text-soft); font-size: 0.85rem; }
 .ps-value { font-family: var(--font-head); font-size: 2.3rem; font-weight: 800; letter-spacing: -0.02em; }
-.ps-delta { display: block; color: var(--accent); font-weight: 600; font-size: 0.88rem; }
+.ps-delta { display: block; color: var(--accent-text); font-weight: 600; font-size: 0.88rem; }
 
 .phone-bars { display: flex; align-items: flex-end; gap: 8px; height: 90px; margin-bottom: 18px; }
 .phone-bars span {
@@ -450,7 +454,7 @@ code { background: var(--surface-2); padding: 2px 7px; border-radius: 6px; font-
 .review-head { display: flex; align-items: center; gap: 12px; }
 .review-head strong { display: block; font-family: var(--font-head); font-size: 0.95rem; }
 .review-head small { color: var(--text-soft); }
-.verified { margin-left: auto; color: var(--accent); font-weight: 700; }
+.verified { margin-left: auto; color: var(--accent-text); font-weight: 700; }
 .review p { color: var(--text-soft); font-size: 0.93rem; }
 
 /* ── FAQ ── */
@@ -934,7 +938,7 @@ code { background: var(--surface-2); padding: 2px 7px; border-radius: 6px; font-
 }
 .qty-chip:hover { border-color: var(--primary); }
 .qty-chip.active { border-color: var(--primary); background: var(--primary-soft); color: var(--primary); }
-.qty-chip em { font-style: normal; color: var(--accent); font-weight: 800; margin-left: 2px; }
+.qty-chip em { font-style: normal; color: var(--accent-text); font-weight: 800; margin-left: 2px; }
 
 .link-warn {
   background: rgba(245, 158, 11, 0.14); border: 1px solid rgba(245, 158, 11, 0.4);
