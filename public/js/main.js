@@ -214,4 +214,44 @@
       tilt.style.animation = '';
     });
   }
+
+  // ── Dashboard sidebar: mobile drawer + desktop collapse ──
+  var shell = document.getElementById('app-shell');
+  if (shell) {
+    var burger = document.getElementById('app-burger');
+    var scrim = document.getElementById('app-scrim');
+    var collapseBtn = document.getElementById('as-collapse');
+    var sidebar = document.getElementById('app-sidebar');
+
+    function setDrawer(open) {
+      shell.classList.toggle('nav-open', open);
+      if (scrim) scrim.hidden = !open;
+      if (burger) burger.setAttribute('aria-expanded', open ? 'true' : 'false');
+      document.body.style.overflow = open ? 'hidden' : '';
+      if (open && sidebar) {
+        var first = sidebar.querySelector('a, button');
+        if (first) first.focus();
+      }
+    }
+    if (burger) burger.addEventListener('click', function () { setDrawer(!shell.classList.contains('nav-open')); });
+    if (scrim) scrim.addEventListener('click', function () { setDrawer(false); });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && shell.classList.contains('nav-open')) { setDrawer(false); if (burger) burger.focus(); }
+    });
+    // Following a link inside the drawer should close it (same-page anchors too).
+    if (sidebar) sidebar.addEventListener('click', function (e) {
+      if (e.target.closest('a') && window.matchMedia('(max-width: 1000px)').matches) setDrawer(false);
+    });
+
+    // Collapsed state is a preference, so it survives navigation.
+    try {
+      if (localStorage.getItem('apex.sidebar') === 'collapsed') shell.classList.add('collapsed');
+    } catch (_) {}
+    if (collapseBtn) collapseBtn.addEventListener('click', function () {
+      var nowCollapsed = !shell.classList.contains('collapsed');
+      shell.classList.toggle('collapsed', nowCollapsed);
+      collapseBtn.setAttribute('aria-label', nowCollapsed ? 'Expand sidebar' : 'Collapse sidebar');
+      try { localStorage.setItem('apex.sidebar', nowCollapsed ? 'collapsed' : 'open'); } catch (_) {}
+    });
+  }
 })();

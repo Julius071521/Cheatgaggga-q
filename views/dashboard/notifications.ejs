@@ -1,6 +1,6 @@
 <%- include('../partials/head', { title }) %>
-<%- include('../partials/nav') %>
-<main id="main-content" class="container page container-narrow">
+<%- include('../partials/app-shell') %>
+<main id="main-content" class="app-page">
   <div class="page-head"><h1>🔔 <span class="grad-text">Notifications</span></h1></div>
 
   <% if (feed.length) { %>
@@ -21,4 +21,4 @@
     <p class="empty-note">No notifications yet — we'll let you know here about deposits, order updates, new promos and new services. 🔔</p>
   <% } %>
 </main>
-<%- include('../partials/footer') %>
+<%- include('../partials/app-foot') %>

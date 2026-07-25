@@ -1,8 +1,7 @@
 <%- include('../partials/head', { title }) %>
-<%- include('../partials/nav') %>
-<main id="main-content" class="container page">
+<%- include('../partials/app-shell') %>
+<main id="main-content" class="app-page">
   <div class="page-head"><h1>Mass <span class="grad-text">order</span> 📦</h1></div>
-  <%- include('../partials/dash-nav') %>
 
   <div class="order-layout">
     <form class="card order-form" method="post" action="/order/mass" id="mass-form">
@@ -60,4 +59,4 @@
   </div>
 </main>
 <script src="/assets/js/mass-order.js?v=<%= assetVersion %>" defer></script>
-<%- include('../partials/footer') %>
+<%- include('../partials/app-foot') %>

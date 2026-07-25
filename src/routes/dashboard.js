@@ -115,7 +115,12 @@ router.get('/order/new', async (req, res, next) => {
     const rawLink = String(req.query.link || '').slice(0, 500);
     const prefillLink = isValidHttpUrl(rawLink) ? rawLink : '';
     const prefillQty = clampInt(req.query.qty, 1, 100000000000) || '';
-    res.render('dashboard/order-new', { title: 'New Order', platforms: platforms.map((r) => r.platform), preselected, prefillLink, prefillQty });
+    const [[{ svcCount }]] = await pool.query(
+      'SELECT COUNT(*) AS svcCount FROM services WHERE enabled = 1 AND deleted = 0');
+    res.render('dashboard/order-new', {
+      title: 'New Order', crumb: 'Place an order',
+      platforms: platforms.map((r) => r.platform), preselected, prefillLink, prefillQty, svcCount,
+    });
   } catch (err) { next(err); }
 });
 

@@ -1,11 +1,10 @@
 <%- include('../partials/head', { title }) %>
-<%- include('../partials/nav') %>
-<main id="main-content" class="container page">
+<%- include('../partials/app-shell') %>
+<main id="main-content" class="app-page">
   <div class="page-head">
     <h1>Wallet & <span class="grad-text">add funds</span></h1>
     <p>Current balance: <strong class="price">₱<%= h.money(user.balance) %></strong></p>
   </div>
-  <%- include('../partials/dash-nav') %>
 
   <div class="wallet-layout">
     <div class="card" data-reveal>
@@ -122,4 +121,4 @@
   </div>
 </main>
 <script src="/assets/js/wallet.js?v=<%= assetVersion %>" defer></script>
-<%- include('../partials/footer') %>
+<%- include('../partials/app-foot') %>

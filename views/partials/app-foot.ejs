@@ -1,0 +1,38 @@
+<%# Each view closes its own </main> (some render dialogs/scripts after it). %>
+  </div>
+</div>
+
+<% if (site.aiEnabled) { %>
+<button type="button" class="chat-fab" id="chat-fab" aria-label="Open support chat" aria-expanded="false">
+  <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 9 9 0 0 1-4.2-1L3 20l1.2-4.2A8.4 8.4 0 0 1 12 3.1a8.4 8.4 0 0 1 9 8.4z"/></svg>
+  <% if (typeof supportUnread !== 'undefined' && supportUnread > 0) { %><span class="notif-dot"><%= supportUnread %></span><% } %>
+</button>
+<div class="chat-panel" id="chat-panel" hidden>
+  <div class="chat-head">
+    <strong><%= site.name %> Assistant</strong>
+    <button type="button" class="chat-close" id="chat-close" aria-label="Close chat">✕</button>
+  </div>
+  <div class="chat-body" id="chat-body">
+    <div class="chat-msg bot">Hi! 👋 I'm the <%= site.name %> assistant. Ask me anything about services, pricing, or payments — or tap a quick option below if you have an order concern.</div>
+    <div class="chat-quick" id="chat-quick">
+      <button type="button" class="chat-chip" data-report="Refill">♻️ Refill my order</button>
+      <button type="button" class="chat-chip" data-report="Not completed">⚠️ Order not completed</button>
+      <button type="button" class="chat-chip" data-report="Stuck">🐢 Order still stuck</button>
+      <button type="button" class="chat-chip" data-report="Speed up">⚡ Speed up</button>
+      <button type="button" class="chat-chip" data-report="Cancel">✖ Cancel order</button>
+    </div>
+  </div>
+  <form class="chat-input" id="chat-form">
+    <input type="text" id="chat-text" maxlength="1000" placeholder="Type your question…" autocomplete="off" required>
+    <button type="submit" class="btn btn-primary btn-sm" aria-label="Send">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m22 2-7 20-4-9-9-4z"/><path d="M22 2 11 13"/></svg>
+    </button>
+  </form>
+</div>
+<meta name="csrf-token" content="<%= csrfToken %>">
+<script src="/assets/js/chat.js?v=<%= assetVersion %>" defer></script>
+<% } %>
+
+<script src="/assets/js/main.js?v=<%= assetVersion %>" defer></script>
+</body>
+</html>

@@ -1,11 +1,10 @@
 <%- include('../partials/head', { title }) %>
-<%- include('../partials/nav') %>
-<main id="main-content" class="container page">
+<%- include('../partials/app-shell') %>
+<main id="main-content" class="app-page">
   <div class="page-head">
     <h1>Hi<%= user.name ? `, ${user.name.split(' ')[0]}` : '' %> 👋</h1>
     <p>Here's how your account is doing.</p>
   </div>
-  <%- include('../partials/dash-nav') %>
 
   <div class="kpi-grid">
     <div class="kpi card" data-reveal>
@@ -56,4 +55,4 @@
     <% } %>
   </div>
 </main>
-<%- include('../partials/footer') %>
+<%- include('../partials/app-foot') %>

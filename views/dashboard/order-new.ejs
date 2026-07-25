@@ -1,8 +1,7 @@
 <%- include('../partials/head', { title }) %>
-<%- include('../partials/nav') %>
-<main id="main-content" class="container page">
+<%- include('../partials/app-shell') %>
+<main id="main-content" class="app-page">
   <div class="page-head"><h1>Place a <span class="grad-text">new order</span></h1></div>
-  <%- include('../partials/dash-nav') %>
 
   <div class="order-layout">
     <form class="card order-form" method="post" action="/order/new" id="order-form"
@@ -10,7 +9,10 @@
       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
 
       <div class="field">
-        <span>Platform</span>
+        <div class="plat-head">
+          <span>Platform</span>
+          <span class="plat-count"><%= Number(svcCount).toLocaleString() %> services</span>
+        </div>
         <div class="plat-grid" id="plat-grid" role="group" aria-label="Choose a platform">
           <% platforms.forEach(function(p) { %>
           <button type="button" class="plat-btn <%= preselected && preselected.platform === p ? 'active' : '' %>" data-platform="<%= p %>">
@@ -97,12 +99,16 @@
         <input type="text" name="promo_code" maxlength="50" placeholder="Enter a coupon code" autocomplete="off" style="text-transform:uppercase">
       </label>
 
-      <div class="of-total">
-        <span>Total charge <small class="muted">(before promo)</small></span>
-        <strong id="of-total">₱0.00</strong>
+      <div class="order-bar">
+        <div class="order-total">
+          <span>Total amount</span>
+          <strong id="of-total">₱0.00</strong>
+        </div>
+        <button type="submit" class="btn btn-primary btn-lg" id="of-submit" disabled>
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+          Place order
+        </button>
       </div>
-
-      <button type="submit" class="btn btn-primary btn-lg btn-block" id="of-submit" disabled>Place order</button>
       <p class="auth-fineprint">Your balance: <strong>₱<%= h.money(user.balance) %></strong> · <a href="/wallet">add funds</a></p>
     </form>
 
@@ -135,4 +141,4 @@
   </div>
 </main>
 <script src="/assets/js/order-form.js?v=<%= assetVersion %>" defer></script>
-<%- include('../partials/footer') %>
+<%- include('../partials/app-foot') %>

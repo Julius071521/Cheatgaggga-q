@@ -1,6 +1,6 @@
 <%- include('../partials/head', { title }) %>
-<%- include('../partials/nav') %>
-<main id="main-content" class="container page">
+<%- include('../partials/app-shell') %>
+<main id="main-content" class="app-page">
   <div class="page-head">
     <h1>Ticket <span class="grad-text">#<%= ticket.id %></span></h1>
     <a href="/support" class="btn btn-ghost btn-sm">← All tickets</a>
@@ -48,4 +48,4 @@
   .chat-compose { display:flex; gap:10px; align-items:flex-end; padding:12px; }
   .chat-compose textarea { flex:1; resize:vertical; }
 </style>
-<%- include('../partials/footer') %>
+<%- include('../partials/app-foot') %>

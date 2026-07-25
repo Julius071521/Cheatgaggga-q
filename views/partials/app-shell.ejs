@@ -1,0 +1,108 @@
+<%
+  // Sidebar app shell for the signed-in area. Public/marketing pages keep the
+  // top nav; everything behind login uses this so the panel reads as one tool.
+  const nav = [
+    { group: 'Main menu', items: [
+      { href: '/dashboard', label: 'Dashboard', icon: 'grid', match: (p) => p === '/dashboard' },
+      { href: '/order/new', label: 'New order', icon: 'cart', match: (p) => p.startsWith('/order/new') },
+      { href: '/order/mass', label: 'Bulk order', icon: 'layers', match: (p) => p.startsWith('/order/mass') },
+      { href: '/wallet', label: 'Add funds', icon: 'wallet', match: (p) => p.startsWith('/wallet') || p.startsWith('/receipt') },
+      { href: '/orders', label: 'My orders', icon: 'list', match: (p) => p.startsWith('/orders') },
+    ] },
+    { group: 'Services', items: [
+      { href: '/services', label: 'Service list', icon: 'box', match: (p) => p.startsWith('/services') },
+      { href: '/referrals', label: 'Invite & earn', icon: 'users', match: (p) => p.startsWith('/referrals') },
+    ] },
+    { group: 'Support', items: [
+      { href: '/support', label: 'Support', icon: 'headset', match: (p) => p.startsWith('/support'), badge: (typeof supportUnread !== 'undefined' && supportUnread > 0) ? supportUnread : 0 },
+      { href: '/notifications', label: 'Notifications', icon: 'bell', match: (p) => p.startsWith('/notifications'), badge: (typeof notifCount !== 'undefined' && notifCount > 0) ? notifCount : 0 },
+      { href: '/api-docs', label: 'API', icon: 'plug', match: (p) => p.startsWith('/api-docs') },
+      { href: '/settings', label: 'Settings', icon: 'gear', match: (p) => p.startsWith('/settings') },
+      { href: '/terms', label: 'Terms', icon: 'doc', match: (p) => p.startsWith('/terms') },
+    ] },
+  ];
+  const initial = String(user.name || user.username || user.email || '?').trim().charAt(0).toUpperCase();
+%>
+<a href="#main-content" class="skip-link">Skip to main content</a>
+
+<div class="app-shell" id="app-shell">
+  <aside class="app-sidebar" id="app-sidebar" aria-label="Dashboard navigation">
+    <div class="as-top">
+      <a href="/dashboard" class="as-brand">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="20" height="20"><path d="M12 2 3 13h6l-1 9 10-12h-6l1-8z" fill="currentColor"/></svg>
+        </span>
+        <span class="as-brand-text">
+          <strong><%= site.name %></strong>
+          <small>SMM Dashboard</small>
+        </span>
+      </a>
+      <button type="button" class="as-collapse" id="as-collapse" aria-label="Collapse sidebar" title="Collapse sidebar">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
+      </button>
+    </div>
+
+    <a href="/settings" class="as-user">
+      <span class="as-avatar" aria-hidden="true"><%= initial %></span>
+      <span class="as-user-text">
+        <strong><%= user.username || user.name || 'Account' %></strong>
+        <small><%= user.email %></small>
+      </span>
+    </a>
+
+    <nav class="as-nav">
+      <% nav.forEach(function (section) { %>
+        <p class="as-group"><%= section.group %></p>
+        <% section.items.forEach(function (it) { const on = it.match(path); %>
+          <a href="<%= it.href %>" class="as-link <%= on ? 'active' : '' %>"<% if (on) { %> aria-current="page"<% } %>>
+            <span class="as-icon" aria-hidden="true"><%- include('icon', { name: it.icon }) %></span>
+            <span class="as-label"><%= it.label %></span>
+            <% if (it.badge) { %><span class="as-badge"><%= it.badge > 99 ? '99+' : it.badge %></span><% } %>
+          </a>
+        <% }); %>
+      <% }); %>
+    </nav>
+
+    <div class="as-foot">
+      <a href="/wallet" class="btn btn-primary btn-sm as-foot-btn">Add funds</a>
+      <form method="post" action="/logout" class="as-logout">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <button type="submit" class="btn btn-ghost btn-sm as-foot-btn">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/></svg>
+          Log out
+        </button>
+      </form>
+    </div>
+  </aside>
+
+  <div class="app-scrim" id="app-scrim" hidden></div>
+
+  <div class="app-main">
+    <header class="app-topbar">
+      <button type="button" class="icon-btn app-burger" id="app-burger" aria-label="Open menu" aria-expanded="false" aria-controls="app-sidebar">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+      </button>
+
+      <div class="app-crumb">
+        <span class="app-dot" aria-hidden="true"></span>
+        <span><%= typeof crumb !== 'undefined' && crumb ? crumb : title %></span>
+      </div>
+
+      <div class="app-topbar-actions">
+        <a class="icon-btn lang-toggle" href="/lang/<%= lang === 'fil' ? 'en' : 'fil' %>" title="<%= lang === 'fil' ? 'Switch to English' : 'Palitan sa Filipino' %>" aria-label="Language"><%= lang === 'fil' ? 'EN' : 'FIL' %></a>
+        <button class="icon-btn" id="theme-toggle" type="button" aria-label="Toggle dark mode">
+          <svg class="icon-sun" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M2 12h2m16 0h2M4.9 19.1l1.4-1.4m11.4-11.4 1.4-1.4"/></svg>
+          <svg class="icon-moon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+        </button>
+        <a href="/notifications" class="icon-btn notif-bell" aria-label="Notifications<%= notifCount > 0 ? ` (${notifCount} unread)` : '' %>">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>
+          <% if (notifCount > 0) { %><span class="notif-dot"><%= notifCount > 99 ? '99+' : notifCount %></span><% } %>
+        </a>
+        <a href="/wallet" class="app-balance" title="Wallet balance">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h13a1 1 0 0 1 1 1v2"/><path d="M3 7v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2H5"/><circle cx="17" cy="14" r="1.2" fill="currentColor" stroke="none"/></svg>
+          <span>₱<%= h.money(user.balance) %></span>
+        </a>
+      </div>
+    </header>
+
+    <%- include('flash') %>

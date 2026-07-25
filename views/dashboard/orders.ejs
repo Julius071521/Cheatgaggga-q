@@ -1,8 +1,7 @@
 <%- include('../partials/head', { title }) %>
-<%- include('../partials/nav') %>
-<main id="main-content" class="container page">
+<%- include('../partials/app-shell') %>
+<main id="main-content" class="app-page">
   <div class="page-head"><h1>My <span class="grad-text">orders</span></h1></div>
-  <%- include('../partials/dash-nav') %>
 
   <div class="filter-bar card">
     <form class="filter-search" method="get" action="/orders">
@@ -129,4 +128,4 @@
     </div>
   </form>
 </dialog>
-<%- include('../partials/footer') %>
+<%- include('../partials/app-foot') %>
