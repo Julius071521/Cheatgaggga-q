@@ -26,8 +26,25 @@
     </div>
   </div>
 
+  <% if (!stats.smtpReady) { %>
+  <div class="card section-card" style="border-color:var(--danger)">
+    <h2 class="neg">⚠️ SMTP is not configured — nothing can be sent</h2>
+    <p class="muted">
+      No email will leave the server until <code>EMAIL_HOST</code>, <code>EMAIL_USER</code> and
+      <code>EMAIL_PASS</code> are set in your <code>.env</code> and the app is restarted.
+      Everything below still works, it just has nowhere to send to.
+    </p>
+  </div>
+  <% } %>
+
   <div class="card section-card">
     <div class="card-head"><h2>Automation</h2></div>
+    <p class="muted">
+      Status: <strong><%= stats.smtpReady ? 'SMTP connected ✅' : 'SMTP missing ❌' %></strong> ·
+      checks for new services every <strong><%= stats.digestHours %>h</strong> ·
+      up to <strong><%= stats.batchLimit %></strong> emails per pass ·
+      stays quiet under <strong><%= stats.minNewServices %></strong> new services.
+    </p>
     <p class="muted">
       When this is on, every new customer gets the welcome email once their address is
       verified, and subscribers get a digest whenever new services are added.

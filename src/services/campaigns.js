@@ -396,6 +396,12 @@ async function stats() {
     byKind: byKind || [],
     pendingNewServices: pending ? pending.total : 0,
     enabled: await enabled(),
+    // Without SMTP nothing can leave the server, however healthy the rest
+    // looks — surface it so an empty send log is explainable at a glance.
+    smtpReady: mailer.ready(),
+    minNewServices: MIN_NEW_SERVICES,
+    batchLimit: BATCH_LIMIT,
+    digestHours: Math.max(1, Number(env.EMAIL_DIGEST_HOURS) || 24),
   };
 }
 
