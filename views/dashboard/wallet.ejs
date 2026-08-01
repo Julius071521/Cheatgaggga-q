@@ -106,7 +106,7 @@
             <tbody>
               <% transactions.forEach(function(t) { %>
               <tr>
-                <td><span class="badge badge-tx-<%= t.type %>"><%= t.type %></span><% if (t.description) { %><br><small class="muted"><%= t.description.slice(0, 40) %></small><% } %></td>
+                <td><span class="badge badge-tx-<%= t.type %>"><%= t.type %></span><% if (t.description) { %><br><small class="muted ledger-note" title="<%= t.description %>"><%= t.description %></small><% } %></td>
                 <td class="num <%= Number(t.amount) >= 0 ? 'pos' : 'neg' %>"><%= Number(t.amount) >= 0 ? '+' : '' %>₱<%= h.money(t.amount) %></td>
                 <td class="num">₱<%= h.money(t.new_balance) %></td>
                 <td class="muted"><%= h.formatDate(t.created_at) %></td>

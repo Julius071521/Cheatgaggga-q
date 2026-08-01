@@ -16,7 +16,7 @@
         </div>
         <span class="muted"><%= h.formatDate(t.created_at) %></span>
       </div>
-      <p class="ticket-meta muted"><% if (t.order_id) { %>Order <code><%= t.order_id %></code> · <% } %>Tap to open the conversation →</p>
+      <p class="ticket-meta muted"><% if (t.display_order_code || t.order_id) { %>Order <code><%= t.display_order_code || t.order_id %></code> · <% } %>Tap to open the conversation →</p>
     </a>
     <% }); %>
   </div>

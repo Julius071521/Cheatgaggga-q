@@ -37,7 +37,8 @@
         <% orders.forEach(function(o) { %>
         <tr>
           <td class="order-idcell">
-            <code class="order-code"><%= o.order_id %></code>
+            <code class="order-code"><%= o.public_code || o.order_id %></code>
+            <% if (o.legacy_code && o.legacy_code !== o.public_code) { %><br><small class="muted" title="Legacy code"><%= o.legacy_code %></small><% } %>
             <div class="prov-ref">↔ Provider <strong><%= o.provider_order_id || '—' %></strong></div>
           </td>
           <td><%= o.email %></td>

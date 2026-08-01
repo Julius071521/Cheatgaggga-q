@@ -243,7 +243,7 @@
             </div>
             <span class="badge badge-completed" title="Verified purchase">✓ Verified</span>
           </div>
-          <span class="stars" aria-label="Rated <%= r.rating %> out of 5"><%= '★'.repeat(r.rating) %><span class="muted"><%= '★'.repeat(5 - r.rating) %></span></span>
+          <span class="stars" aria-label="Rated <%= r.rating %> out of 5"><%= '★'.repeat(r.rating) %><span class="stars-empty"><%= '☆'.repeat(5 - r.rating) %></span></span>
           <p>“<%= r.body %>”</p>
         </div>
       <% }); %>

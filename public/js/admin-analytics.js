@@ -1,4 +1,14 @@
 (function () {
+  // Labels arrive as "2026-07-07" (daily) or "2026-07" (monthly). Render a
+  // short human date; the previous slice(5) turned "Jul 07" into "ul 07".
+  var MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  function shortDate(raw) {
+    var m = String(raw == null ? '' : raw).match(/^(\d{4})-(\d{2})(?:-(\d{2}))?/);
+    if (!m) return String(raw || '');
+    var mon = MONTHS[Number(m[2]) - 1] || m[2];
+    return m[3] ? mon + ' ' + m[3] : mon + " '" + m[1].slice(2);
+  }
+
   'use strict';
   // CSP-safe: data comes from data-* attributes on the containers, not an
   // inline <script> (the site's CSP has no 'unsafe-inline').
@@ -97,7 +107,8 @@
     [0, rows.length - 1].forEach(function (i) {
       if (i < 0) return;
       var tx = el('text', { x: P.l + i * (iw / rows.length) + bw / 2, y: H - 8, 'font-size': 10, fill: 'var(--text-soft)', 'text-anchor': i === 0 ? 'start' : 'middle' });
-      tx.textContent = String(rows[i].l).slice(5); svg.appendChild(tx);
+      // slice(5) chopped "Jul 07" into "ul 07" — format from the raw date instead.
+      tx.textContent = shortDate(rows[i].l); svg.appendChild(tx);
     });
     box.appendChild(svg);
   }

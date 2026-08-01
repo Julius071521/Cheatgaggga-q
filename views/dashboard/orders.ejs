@@ -5,7 +5,7 @@
 
   <div class="filter-bar card">
     <form class="filter-search" method="get" action="/orders">
-      <input type="search" name="q" value="<%= typeof q !== 'undefined' ? q : '' %>" placeholder="Search order code, service, or link…" maxlength="80">
+      <input type="search" name="q" value="<%= typeof q !== 'undefined' ? q : '' %>" placeholder="Search order code, service, or link…" title="Works with APX-000163, 163, or the link" maxlength="80">
       <select name="status" class="input-sm" aria-label="Filter by order status">
         <option value="">All statuses</option>
         <% ['Pending','In progress','Processing','Completed','Partial','Canceled','Failed'].forEach(function(s){ %>
@@ -24,12 +24,15 @@
       <tbody>
         <% orders.forEach(function(o) { %>
         <tr>
-          <td class="muted" title="<%= o.order_id %>">#<%= o.id %></td>
+          <td>
+            <code class="order-code" title="Order code — click to copy"><%= o.public_code || ('APX-' + String(o.id).padStart(6,'0')) %></code>
+            <button type="button" class="copy-btn btn-copy-inline" data-copy="<%= o.public_code || ('APX-' + String(o.id).padStart(6,'0')) %>" aria-label="Copy order code">⧉</button>
+          </td>
           <td><div class="svc-cell"><%- include('../partials/platform-badge', { platform: h.platformFromText(o.service_name), size: 26 }) %><span class="svc-name"><%= o.service_name.length > 45 ? o.service_name.slice(0,45) + '…' : o.service_name %></span></div></td>
           <td><a href="<%= o.url %>" target="_blank" rel="noopener nofollow" class="link-cell"><%= String(o.url).replace(/^https?:\/\//,'').slice(0, 28) %>…</a></td>
           <td class="num"><%= Number(o.quantity).toLocaleString() %></td>
           <td class="num">₱<%= h.money(o.charge) %><% if (Number(o.refund_amount) > 0) { %><br><small class="refund">↩ ₱<%= h.money(o.refund_amount) %></small><% } %></td>
-          <td class="num"><%= o.start_count == null ? '—' : Number(o.start_count).toLocaleString() %></td>
+          <td class="num"><%= o.start_count == null || o.start_count === '' ? '—' : Number(o.start_count).toLocaleString() %></td>
           <td class="num">
             <% var qty = Number(o.quantity) || 0;
                var rem = o.remains == null ? null : Number(o.remains);
@@ -70,10 +73,10 @@
                href="/order/new?service=<%= o.local_service_id %>&link=<%= encodeURIComponent(o.url) %>&qty=<%= o.quantity %>">🔁 Reorder</a>
             <% } %>
             <button type="button" class="btn btn-ghost btn-sm" data-report
-                    data-order-id="<%= o.id %>" data-order-code="<%= o.order_id %>">Report</button>
+                    data-order-id="<%= o.id %>" data-order-code="<%= o.public_code || o.order_id %>">Report</button>
             <% if (o.status === 'Completed' && typeof reviewed !== 'undefined' && !reviewed.has(o.id)) { %>
             <button type="button" class="btn btn-outline btn-sm" data-review
-                    data-order-id="<%= o.id %>" data-order-code="<%= o.order_id %>">★ Review</button>
+                    data-order-id="<%= o.id %>" data-order-code="<%= o.public_code || o.order_id %>">★ Review</button>
             <% } %>
           </td>
         </tr>

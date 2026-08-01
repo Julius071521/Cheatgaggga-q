@@ -10,7 +10,7 @@
     <p class="muted" style="margin:0 0 4px">
       <strong><%= ticket.subject || 'Concern' %></strong>
       <span class="badge badge-<%= h.statusSlug(ticket.status || 'open') %>"><%= h.statusLabel(ticket.status || 'open') %></span>
-      <% if (ticket.order_id) { %> · order <code><%= ticket.order_id %></code><% } %>
+      <% if (ticket.display_order_code || ticket.order_id) { %> · order <code><%= ticket.display_order_code || ticket.order_id %></code><% } %>
     </p>
   </div>
 

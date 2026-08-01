@@ -11,6 +11,7 @@ const notifications = require('../services/notifications');
 const { requireAuth, requireAdmin } = require('../middleware/auth');
 const { invalidate: invalidateGate } = require('../middleware/gate');
 const { clampInt, isValidHttpUrl } = require('../utils/helpers');
+const orderRef = require('../services/orderRef');
 
 const router = express.Router();
 router.use('/admin', requireAuth, requireAdmin);
@@ -489,9 +490,12 @@ router.get('/admin/orders', async (req, res, next) => {
     const params = [];
     if (status) { clauses.push('o.status = ?'); params.push(status); }
     if (q) {
-      clauses.push('(o.order_id LIKE ? OR o.provider_order_id LIKE ? OR u.username LIKE ? OR u.email LIKE ? OR o.url LIKE ?)');
+      // Same resolver the customer's search uses, so staff can paste whatever
+      // the customer quoted — public code, legacy code, bare id, provider id —
+      // plus the account fields only staff can search on.
+      clauses.push(`(${orderRef.searchClause('o')} OR u.username LIKE ? OR u.email LIKE ?)`);
       const like = `%${q}%`;
-      params.push(like, like, like, like, like);
+      params.push(...orderRef.searchParams(q), like, like);
     }
     const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
 

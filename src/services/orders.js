@@ -75,6 +75,7 @@ async function placeOrder(user, service, link, quantity, promoCode, opts = {}) {
   const netProfit = promos.round4(finalCharge - q.apiCost);
 
   let orderId;
+  let publicCode = '';
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();
@@ -95,7 +96,14 @@ async function placeOrder(user, service, link, quantity, promoCode, opts = {}) {
       ]
     );
     orderId = result.insertId;
-    await applyBalanceChange(conn, user.id, -finalCharge, 'order', `Order ${orderCode} — ${String(service.name).slice(0, 60)}`);
+    // The public code is derived from the row id, so it can only be set once
+    // the insert has one. legacy_code keeps the old APX-<ts>-<rand> value so
+    // older emails, notifications and ledger rows still resolve.
+    publicCode = `APX-${String(orderId).padStart(6, '0')}`;
+    await conn.query(
+      'UPDATE orders SET public_code = ?, legacy_code = ?, provider_key = ? WHERE id = ?',
+      [publicCode, orderCode, service.provider_code === 'smmworld' ? 'smmworld' : 'rkd', orderId]);
+    await applyBalanceChange(conn, user.id, -finalCharge, 'order', `Order ${publicCode} — ${String(service.name).slice(0, 60)}`);
     if (promo) await promos.redeem(conn, promo, user.id, orderCode);
     await conn.commit();
   } catch (err) {
@@ -105,9 +113,9 @@ async function placeOrder(user, service, link, quantity, promoCode, opts = {}) {
     // unique key — return the ORIGINAL order instead of charging again.
     if (err.code === 'ER_DUP_ENTRY' && String(err.message).includes('uniq_client_order') && opts.clientOrderId) {
       const [[existing]] = await pool.query(
-        'SELECT id, order_id, charge FROM orders WHERE user_id = ? AND client_order_id = ? LIMIT 1',
+        'SELECT id, order_id, public_code, charge FROM orders WHERE user_id = ? AND client_order_id = ? LIMIT 1',
         [user.id, String(opts.clientOrderId).slice(0, 64)]);
-      if (existing) return { orderId: existing.id, orderCode: existing.order_id, charge: Number(existing.charge), discount: 0, duplicate: true };
+      if (existing) return { orderId: existing.id, orderCode: existing.public_code || existing.order_id, publicCode: existing.public_code, charge: Number(existing.charge), discount: 0, duplicate: true };
     }
     // Two simultaneous orders racing the same promo hit the unique key —
     // surface it as the same friendly message (nothing was charged).
@@ -123,8 +131,23 @@ async function placeOrder(user, service, link, quantity, promoCode, opts = {}) {
     if (!client) throw new Error('Provider is not configured');
     const res = await client.addOrder({ service: service.provider_service_id, link, quantity, runs, interval });
     if (!res || res.order === undefined) throw new Error('Provider did not return an order id');
-    await pool.query('UPDATE orders SET provider_order_id = ? WHERE id = ?', [String(res.order), orderId]);
-    return { orderId, orderCode, charge: finalCharge, discount };
+    try {
+      await pool.query(
+        'UPDATE orders SET provider_order_id = ?, last_synced_at = NOW() WHERE id = ?',
+        [String(res.order), orderId]);
+    } catch (bindErr) {
+      // The composite unique key (provider_key, provider_order_id) rejected it:
+      // this upstream order is already bound to a different local row, which
+      // means the provider echoed an existing id — almost always a retry of a
+      // request that already succeeded. Refunding is right; say so precisely so
+      // it can be reconciled instead of looking like a generic failure.
+      if (bindErr && bindErr.code === 'ER_DUP_ENTRY') {
+        console.error(`[orders] provider ${service.provider_code} returned already-bound order id ${res.order} for local order ${orderId} — treating as duplicate submission`);
+        throw new Error(`Provider returned an order id that is already in use (${res.order})`);
+      }
+      throw bindErr;
+    }
+    return { orderId, orderCode: publicCode, publicCode, legacyCode: orderCode, charge: finalCharge, discount };
   } catch (err) {
     const msg = String(err.message || '');
     await refundOrder(orderId, `Provider error: ${msg}`);

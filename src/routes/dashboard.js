@@ -13,6 +13,7 @@ const mailer = require('../services/mailer');
 const notifications = require('../services/notifications');
 const { requireAuth } = require('../middleware/auth');
 const { randomToken, isValidHttpUrl, clampInt, strictInt, PLATFORM_LABELS } = require('../utils/helpers');
+const orderRef = require('../services/orderRef');
 const { hashSecret, verifySecret } = require('../utils/password');
 
 const router = express.Router();
@@ -234,7 +235,10 @@ router.get('/orders', async (req, res, next) => {
     // Build an optional search/status filter over the customer's own orders.
     const filt = ['o.user_id = ?'];
     const fparams = [req.user.id];
-    if (q) { filt.push('(o.order_id LIKE ? OR o.service_name LIKE ? OR o.url LIKE ?)'); fparams.push(`%${q}%`, `%${q}%`, `%${q}%`); }
+    // One resolver for every identifier a customer might paste: the code they
+    // see (APX-000163), a bare or #-prefixed row id, the legacy APX code, a
+    // provider id, a client_order_id, the service name, or the link.
+    if (q) { filt.push(orderRef.searchClause('o')); fparams.push(...orderRef.searchParams(q)); }
     if (status) { filt.push('o.status = ?'); fparams.push(status); }
     const whereSql = filt.join(' AND ');
 
@@ -257,13 +261,20 @@ router.get('/orders', async (req, res, next) => {
     // Latest concern/ticket per order on this page, so the list can show live
     // refill/cancel progress ("Refill in progress", "Refill done", …).
     const ticketByOrder = {};
-    const codes = orders.map((o) => o.order_id).filter(Boolean);
+    const codes = [...new Set(orders.flatMap((o) => [o.public_code, o.legacy_code, o.order_id]).filter(Boolean))];
     if (codes.length) {
       const [tks] = await pool.query(
         `SELECT order_id, request_type, status, provider_action_status FROM tickets
          WHERE user_id = ? AND order_id IN (${codes.map(() => '?').join(',')}) ORDER BY id DESC`,
         [req.user.id, ...codes]);
-      for (const t of tks) if (!ticketByOrder[t.order_id]) ticketByOrder[t.order_id] = t;
+      // Index by every code the order answers to, so the lookup below hits
+      // regardless of which one the ticket was filed against.
+      const byCode = {};
+      for (const t of tks) if (!byCode[t.order_id]) byCode[t.order_id] = t;
+      for (const o of orders) {
+        const hit = byCode[o.public_code] || byCode[o.legacy_code] || byCode[o.order_id];
+        if (hit) ticketByOrder[o.order_id] = hit;
+      }
     }
 
     // Which of these orders the customer has already reviewed (to toggle the button).
@@ -305,7 +316,7 @@ router.post('/orders/:id/ticket', async (req, res) => {
     const [tRes] = await pool.query(
       `INSERT INTO tickets (user_id, subject, order_id, request_type, message, status, priority, provider_order_id, api_provider)
        VALUES (?, ?, ?, ?, ?, 'open', 'normal', ?, ?)`,
-      [req.user.id, `Order concern: ${requestType}`, order.order_id, requestType, message, order.provider_order_id, order.api_provider]);
+      [req.user.id, `Order concern: ${requestType}`, order.public_code || order.order_id, requestType, message, order.provider_order_id, order.api_provider]);
     // AI autopilot triages the new ticket right away (fire-and-forget).
     require('../services/autopilot').handleTicket(tRes.insertId).catch(() => {});
     flash(req, 'success', 'Your concern has been submitted — our team will take a look shortly.');
@@ -341,11 +352,35 @@ router.post('/orders/:id/review', async (req, res) => {
 });
 
 // ── Support inbox (two-way chat) ──────────────────────────
+// Legacy tickets stored whatever code was handy — sometimes the raw upstream
+// order id, which meant a customer saw a number that appears nowhere in their
+// order list. Resolve each ticket to the order's public code for display.
+async function attachOrderCodes(tickets, userId) {
+  const refs = [...new Set(tickets.map((t) => t.order_id).filter(Boolean))];
+  if (!refs.length) return tickets;
+  const [rows] = await pool.query(
+    `SELECT id, public_code, legacy_code, order_id, provider_order_id FROM orders
+      WHERE user_id = ? AND (public_code IN (?) OR legacy_code IN (?) OR order_id IN (?) OR provider_order_id IN (?))`,
+    [userId, refs, refs, refs, refs]);
+  const map = {};
+  for (const o of rows) {
+    const code = o.public_code || o.order_id;
+    for (const key of [o.public_code, o.legacy_code, o.order_id, o.provider_order_id]) {
+      if (key) map[String(key)] = code;
+    }
+  }
+  for (const t of tickets) {
+    t.display_order_code = t.order_id ? (map[String(t.order_id)] || t.order_id) : null;
+  }
+  return tickets;
+}
+
 router.get('/support', async (req, res, next) => {
   try {
     const [tickets] = await pool.query(
       `SELECT id, subject, request_type, order_id, status, customer_unread, created_at
        FROM tickets WHERE user_id = ? ORDER BY id DESC LIMIT 100`, [req.user.id]);
+    await attachOrderCodes(tickets, req.user.id);
     res.render('dashboard/support', { title: 'Support', tickets });
   } catch (err) { next(err); }
 });
@@ -359,6 +394,7 @@ router.get('/support/:id', async (req, res, next) => {
     const data = await tickets.thread(id);
     // Customer opened it → clear their unread flag.
     await pool.query('UPDATE tickets SET customer_unread = 0 WHERE id = ?', [id]);
+    await attachOrderCodes([data.ticket], req.user.id);
     res.render('dashboard/support-thread', { title: `Ticket #${id}`, ticket: data.ticket, messages: data.messages });
   } catch (err) { next(err); }
 });

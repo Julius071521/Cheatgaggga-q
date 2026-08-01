@@ -283,4 +283,4 @@ async function unsyncProvider(code) {
   return { provider: code, removed: r.affectedRows };
 }
 
-module.exports = { syncProvider, unsyncProvider, detectPlatform, scrubBrands, scrubExistingBrands };
+module.exports = { syncProvider, unsyncProvider, detectPlatform, scrubBrands, scrubExistingBrands, isJunkService };
