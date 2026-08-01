@@ -1040,10 +1040,12 @@ summary:focus-visible, [tabindex]:focus-visible {
   }
   .btn-sm { min-height: 38px; }
   /* Dense text links need the height too — they are otherwise ~16–31px tall. */
-  .footer-col a, .kpi-link, .footer-bottom a {
+  .footer-col a, .kpi-link, .footer-bottom a,
+  .order-code-link, .link-cell, .back-link {
     display: inline-flex; align-items: center; min-height: 40px;
   }
   .footer-col a { display: flex; }
+  .btn-copy-inline { min-width: 40px; min-height: 40px; }
 }
 
 /* Keyboard users must be able to jump past the nav (WCAG 2.4.1). Visible only
@@ -1239,9 +1241,10 @@ summary:focus-visible, [tabindex]:focus-visible {
 
 /* ── Order detail ── */
 .back-link { display: inline-block; margin-bottom: 8px; font-size: 0.88rem; color: var(--text-soft); font-weight: 600; }
-.order-code-link { text-decoration: none !important; }
+.order-code-link { display: inline-block; white-space: nowrap; text-decoration: none !important; }
 .order-code-link:hover .order-code { color: var(--primary); }
 .order-detail-grid { display: grid; grid-template-columns: 1.6fr 1fr; gap: 18px; align-items: start; }
+.order-detail-grid > * { min-width: 0; }
 @media (max-width: 900px) { .order-detail-grid { grid-template-columns: 1fr; } }
 .od-head { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
 .od-head-text { display: flex; flex-direction: column; min-width: 0; flex: 1; }
@@ -1264,3 +1267,13 @@ summary:focus-visible, [tabindex]:focus-visible {
 }
 .od-tickets { list-style: none; display: flex; flex-direction: column; gap: 9px; }
 .od-tickets li { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
+
+/* The inline copy button sits next to a code string, so it stays visually
+   small but keeps a usable hit area. */
+.btn-copy-inline {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; padding: 0; margin-left: 4px;
+  border: 1px solid var(--border); border-radius: 8px;
+  background: var(--surface); color: var(--text-soft); cursor: pointer; font-size: 0.9rem;
+}
+.btn-copy-inline:hover { color: var(--primary); border-color: var(--primary); }
