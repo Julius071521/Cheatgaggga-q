@@ -18,7 +18,12 @@ const orderActions = require('../services/orderActions');
 const { hashSecret, verifySecret } = require('../utils/password');
 
 const router = express.Router();
-router.use(['/dashboard', '/order', '/orders', '/wallet', '/settings', '/receipt', '/referrals'], requireAuth);
+// Every path this router serves is customer-only. /support was missing from
+// this list, so a signed-out request reached the handler with req.user = null
+// and crashed on req.user.id instead of being redirected to the login page.
+router.use(
+  ['/dashboard', '/order', '/orders', '/wallet', '/settings', '/receipt', '/referrals', '/support', '/notifications'],
+  requireAuth);
 
 function flash(req, type, message) {
   req.session.flash = { type, message };

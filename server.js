@@ -112,7 +112,14 @@ app.use((req, res, next) => {
 });
 
 app.use(generalLimiter);
-app.use(require('compression')());
+// Optional: Cloudflare already compresses at the edge, so if this module is
+// not installed (a deploy where npm install was skipped) the site must still
+// boot rather than crash on require.
+try {
+  app.use(require('compression')());
+} catch (err) {
+  console.warn('[server] compression not installed — continuing without origin gzip');
+}
 app.use(express.urlencoded({ extended: false, limit: '32kb' }));
 app.use('/assets', express.static(path.join(__dirname, 'public'), {
   maxAge: '7d',
@@ -156,6 +163,34 @@ app.use(require('./src/utils/i18n').middleware);
 app.use(csrf);
 
 // ── View locals ───────────────────────────────────────────
+// Defaults live on app.locals so every template — including errors/500 — can
+// render even when the per-request middleware below never ran (an exception
+// thrown earlier in the chain, e.g. the DB being unreachable). Express merges
+// app.locals first and lets res.locals override, so the real request values
+// still win on a healthy request.
+app.locals.site = {
+  name: env.SITE_NAME,
+  domain: env.SITE_DOMAIN,
+  supportEmail: env.SUPPORT_EMAIL,
+  turnstileSiteKey: '',
+  googleEnabled: false,
+  aiEnabled: false,
+  blockMessage: env.SECURITY_BLOCK_MESSAGE,
+  year: new Date().getFullYear(),
+};
+app.locals.h = helpers;
+app.locals.pricing = pricing;
+app.locals.assetVersion = ASSET_VERSION;
+app.locals.jsonLd = JSON_LD;
+app.locals.path = '/';
+app.locals.flash = null;
+app.locals.user = null;
+app.locals.csrfToken = '';
+app.locals.notifCount = 0;
+app.locals.supportUnread = 0;
+app.locals.lang = 'en';
+app.locals.t = require('./src/utils/i18n').translator('en');
+
 app.use((req, res, next) => {
   res.locals.site = {
     name: env.SITE_NAME,
@@ -225,14 +260,28 @@ app.use(require('./src/routes/dashboard'));
 app.use(require('./src/routes/admin'));
 
 // ── Errors ────────────────────────────────────────────────
-app.use((req, res) => res.status(404).render('errors/404'));
+// render() with a callback so a template failure degrades to plain text
+// instead of bubbling back into the error handler and crashing the response.
+function safeRender(res, view, status, fallback) {
+  res.status(status).render(view, (err, html) => {
+    if (!err) return res.send(html);
+    console.error(`[server] ${view} failed to render:`, err.message);
+    res.type('text/plain').send(fallback);
+  });
+}
+
+app.use((req, res) => safeRender(res, 'errors/404', 404, 'Page not found.'));
 
 // eslint-disable-next-line no-unused-vars
 app.use((err, req, res, next) => {
   console.error('[server] Unhandled error:', err.stack || err.message);
   if (res.headersSent) return;
-  res.status(500).render('errors/500');
+  safeRender(res, 'errors/500', 500, 'Something went wrong on our side. Please try again in a moment.');
 });
+
+// Exported so tests can render a view with app.locals only — the exact state a
+// request is in when it fails before the per-request locals middleware runs.
+module.exports = app;
 
 // Run pending DB migrations on boot (idempotent + additive) so a cPanel
 // deploy is self-provisioning — no separate terminal step required.

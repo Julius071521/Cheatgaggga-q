@@ -121,7 +121,14 @@ const env = {
   RATE_LIMIT_PER_MIN: num('RATE_LIMIT_PER_MIN', 300),
 
   // Database
-  DB_HOST: str('DB_HOST', 'localhost'),
+  // Node 17+ no longer sorts DNS results, so "localhost" can resolve to ::1
+  // first. cPanel MySQL only listens on IPv4, which produces a boot-time
+  // "connect ECONNREFUSED ::1:3306". Pin the loopback name to IPv4 so a
+  // default (or an .env that still says localhost) connects.
+  DB_HOST: (() => {
+    const h = str('DB_HOST', '127.0.0.1');
+    return h === 'localhost' ? '127.0.0.1' : h;
+  })(),
   DB_PORT: num('DB_PORT', 3306),
   DB_USER: str('DB_USER', ''),
   DB_PASSWORD: str('DB_PASSWORD', ''),
