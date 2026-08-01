@@ -1,0 +1,154 @@
+<%- include('../partials/head', { title }) %>
+<%- include('../partials/app-shell') %>
+<main id="main-content" class="app-page">
+  <div class="page-head">
+    <a href="/orders" class="back-link">← Back to my orders</a>
+    <h1>Order <span class="grad-text"><%= code %></span></h1>
+  </div>
+
+  <div class="order-detail-grid">
+    <div class="card" data-reveal>
+      <div class="od-head">
+        <%- include('../partials/platform-badge', { platform: h.platformFromText(order.service_name), size: 38 }) %>
+        <div class="od-head-text">
+          <strong><%= order.service_name %></strong>
+          <small class="muted"><%= Number(order.quantity).toLocaleString() %> ordered</small>
+        </div>
+        <span class="badge badge-<%= h.statusSlug(order.status) %>"><%= h.statusLabel(order.status) %></span>
+      </div>
+
+      <%
+        var qty = Number(order.quantity) || 0;
+        var rem = order.remains == null ? null : Number(order.remains);
+        var pct = order.status === 'Completed' ? 100
+          : (rem != null && qty > 0 ? Math.max(0, Math.min(100, Math.round((qty - rem) / qty * 100))) : null);
+      %>
+      <% if (pct != null) { %>
+      <div class="od-progress">
+        <div class="oprog" title="<%= pct %>% delivered"><span class="oprog-fill" style="width:<%= pct %>%"></span></div>
+        <small class="muted"><%= pct %>% delivered</small>
+      </div>
+      <% } %>
+
+      <dl class="od-facts">
+        <div><dt>Order code</dt><dd><code class="order-code"><%= code %></code>
+          <button type="button" class="copy-btn btn-copy-inline" data-copy="<%= code %>" aria-label="Copy order code">⧉</button></dd></div>
+        <div><dt>Link</dt><dd><a href="<%= order.url %>" target="_blank" rel="noopener nofollow"><%= order.url %></a></dd></div>
+        <div><dt>Quantity</dt><dd><%= Number(order.quantity).toLocaleString() %></dd></div>
+        <div><dt>Start count</dt><dd><%= order.start_count == null || order.start_count === '' ? '—' : Number(order.start_count).toLocaleString() %></dd></div>
+        <div><dt>Remains</dt><dd><%= order.remains == null || order.remains === '' ? '—' : Number(order.remains).toLocaleString() %></dd></div>
+        <div><dt>Charged</dt><dd>₱<%= h.money(order.charge) %><% if (Number(order.refund_amount) > 0) { %> <small class="refund">↩ ₱<%= h.money(order.refund_amount) %> refunded</small><% } %></dd></div>
+        <div><dt>Placed</dt><dd><%= h.formatDate(order.created_at) %></dd></div>
+        <% if (order.completed_at) { %><div><dt>Completed</dt><dd><%= h.formatDate(order.completed_at) %></dd></div><% } %>
+        <% if (order.refill_status) { %><div><dt>Refill status</dt><dd><%= order.refill_status %></dd></div><% } %>
+      </dl>
+    </div>
+
+    <aside class="card od-actions" data-reveal data-reveal-delay="80">
+      <h2>Need something?</h2>
+
+      <% if (elig.pending) { %>
+        <p class="od-note">
+          ⏳ A <strong><%= elig.pending %></strong> request is already in progress for this order.
+          We're on it — you'll get a notification as soon as it resolves.
+        </p>
+      <% } %>
+
+      <div class="od-action">
+        <% if (elig.canRefill) { %>
+          <form method="post" action="/orders/<%= code %>/refill" data-confirm="Request a refill for this order?">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+            <button type="submit" class="btn btn-primary btn-block">♻️ Request refill</button>
+          </form>
+          <small class="muted">Drops are topped back up by our network — usually within a day.</small>
+        <% } else { %>
+          <button type="button" class="btn btn-outline btn-block" disabled>♻️ Request refill</button>
+          <small class="muted"><%= elig.refillReason %>
+            <% if (elig.refillAvailableAt) { %><br>Available from <strong><%= h.formatDate(elig.refillAvailableAt) %></strong>.<% } %>
+          </small>
+        <% } %>
+      </div>
+
+      <div class="od-action">
+        <% if (elig.canCancel) { %>
+          <form method="post" action="/orders/<%= code %>/cancel" data-confirm="Cancel this order? If it hasn't started, you get a full refund.">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+            <button type="submit" class="btn btn-outline btn-block">✖ Cancel order</button>
+          </form>
+          <small class="muted">Anything not delivered is refunded to your wallet.</small>
+        <% } else { %>
+          <button type="button" class="btn btn-outline btn-block" disabled>✖ Cancel order</button>
+          <small class="muted"><%= elig.cancelReason %></small>
+        <% } %>
+      </div>
+
+      <div class="od-action">
+        <button type="button" class="btn btn-ghost btn-block" data-report
+                data-order-id="<%= order.id %>" data-order-code="<%= code %>">💬 Report another concern</button>
+        <small class="muted">For anything the two buttons above don't cover.</small>
+      </div>
+    </aside>
+  </div>
+
+  <% if (actions.length) { %>
+  <div class="card section-card" data-reveal>
+    <div class="card-head"><h2>Request history</h2></div>
+    <div class="table-wrap">
+      <table class="table table-compact">
+        <thead><tr><th>Request</th><th>Status</th><th class="num">Attempts</th><th>When</th></tr></thead>
+        <tbody>
+          <% actions.forEach(function (a) { %>
+          <tr>
+            <td><%= a.kind === 'refill' ? '♻️ Refill' : '✖ Cancel' %></td>
+            <td>
+              <% var map = { queued: ['Queued', 'pending'], sent: ['Sent to network', 'processing'],
+                             completed: ['Completed', 'completed'], rejected: ['Not possible', 'failed'],
+                             failed: ['Failed', 'failed'] };
+                 var m = map[a.status] || [a.status, 'pending']; %>
+              <span class="badge badge-<%= m[1] %>"><%= m[0] %></span>
+              <% if (a.status === 'queued' && a.next_attempt_at) { %><br><small class="muted">retrying <%= h.formatDate(a.next_attempt_at) %></small><% } %>
+            </td>
+            <td class="num"><%= a.attempts %></td>
+            <td class="muted"><%= h.formatDate(a.created_at) %></td>
+          </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <% } %>
+
+  <% if (tickets.length) { %>
+  <div class="card section-card" data-reveal>
+    <div class="card-head"><h2>Support threads for this order</h2></div>
+    <ul class="od-tickets">
+      <% tickets.forEach(function (t) { %>
+      <li><a href="/support/<%= t.id %>">#<%= t.id %> · <%= t.request_type || 'Concern' %></a>
+        <span class="badge badge-<%= h.statusSlug(t.status) %>"><%= h.statusLabel(t.status) %></span>
+        <small class="muted"><%= h.formatDate(t.created_at) %></small></li>
+      <% }); %>
+    </ul>
+  </div>
+  <% } %>
+</main>
+
+<dialog id="report-sheet" class="report-dialog">
+  <form method="post" id="report-form" class="report-dialog-form">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <div class="report-dialog-head">
+      <strong>Report a concern</strong>
+      <span class="muted" id="report-order-label"></span>
+    </div>
+    <label>What's the issue?
+      <select name="request_type" class="input-sm">
+        <option>Speed up</option><option>Other</option>
+      </select>
+    </label>
+    <textarea name="message" required minlength="3" maxlength="2000" rows="3" placeholder="Describe your concern…"></textarea>
+    <div class="report-dialog-actions">
+      <button type="button" class="btn btn-ghost btn-sm" data-report-close>Cancel</button>
+      <button type="submit" class="btn btn-primary btn-sm">Submit concern</button>
+    </div>
+  </form>
+</dialog>
+<%- include('../partials/app-foot') %>

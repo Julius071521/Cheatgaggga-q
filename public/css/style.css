@@ -1236,3 +1236,31 @@ summary:focus-visible, [tabindex]:focus-visible {
 /* ── Platform picker cards ── */
 .plat-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
 .plat-count { color: var(--text-soft); font-size: 0.84rem; font-weight: 600; white-space: nowrap; }
+
+/* ── Order detail ── */
+.back-link { display: inline-block; margin-bottom: 8px; font-size: 0.88rem; color: var(--text-soft); font-weight: 600; }
+.order-code-link { text-decoration: none !important; }
+.order-code-link:hover .order-code { color: var(--primary); }
+.order-detail-grid { display: grid; grid-template-columns: 1.6fr 1fr; gap: 18px; align-items: start; }
+@media (max-width: 900px) { .order-detail-grid { grid-template-columns: 1fr; } }
+.od-head { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+.od-head-text { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.od-head-text strong { overflow-wrap: anywhere; }
+.od-progress { margin-bottom: 16px; display: flex; flex-direction: column; gap: 5px; }
+.od-facts { display: grid; grid-template-columns: 1fr; gap: 0; }
+.od-facts > div {
+  display: flex; gap: 14px; padding: 9px 0; border-top: 1px solid var(--border);
+  align-items: baseline; flex-wrap: wrap;
+}
+.od-facts dt { color: var(--text-soft); font-size: 0.88rem; min-width: 120px; }
+.od-facts dd { font-weight: 600; overflow-wrap: anywhere; flex: 1; min-width: 0; }
+.od-actions h2 { margin-bottom: 6px; }
+.od-action { padding: 14px 0; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 6px; }
+.od-action:first-of-type { border-top: 0; }
+.od-action small { line-height: 1.45; }
+.od-note {
+  background: var(--primary-soft); border-radius: var(--radius-sm);
+  padding: 11px 13px; font-size: 0.9rem; margin-bottom: 6px;
+}
+.od-tickets { list-style: none; display: flex; flex-direction: column; gap: 9px; }
+.od-tickets li { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }

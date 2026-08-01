@@ -260,8 +260,14 @@ async function applyStatusUpdate(order, payload) {
   const remainsRaw = payload.remains !== undefined && payload.remains !== null ? parseInt(payload.remains, 10) : null;
   const remainsStr = remainsRaw !== null && !Number.isNaN(remainsRaw) ? String(remainsRaw) : order.remains;
 
-  await pool.query('UPDATE orders SET status = ?, start_count = ?, remains = ? WHERE id = ?',
-    [status, startCount, remainsStr, order.id]);
+  // completed_at is what the refill eligibility rule reads (providers only
+  // accept a refill some hours after completion), so stamp it on the
+  // transition and never move it once set.
+  await pool.query(
+    `UPDATE orders SET status = ?, start_count = ?, remains = ?, last_synced_at = NOW(),
+            completed_at = IF(? = 'Completed' AND completed_at IS NULL, NOW(), completed_at)
+      WHERE id = ?`,
+    [status, startCount, remainsStr, status, order.id]);
 
   const alreadyRefunded = toUnits(order.refund_amount || 0) > 0;
   if (REFUNDABLE.includes(status) && !alreadyRefunded) {

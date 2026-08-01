@@ -321,8 +321,13 @@ router.post('/admin/tickets/:id/status', async (req, res, next) => {
     const status = ['open', 'in_progress', 'resolved', 'closed'].includes(req.body.status) ? req.body.status : 'open';
     const note = String(req.body.internal_notes || '').trim().slice(0, 1000) || null;
     const ticketId = clampInt(req.params.id, 1, 2147483647);
-    await pool.query('UPDATE tickets SET status = ?, internal_notes = COALESCE(?, internal_notes), assigned_to = ? WHERE id = ?',
-      [status, note, req.user.id, ticketId]);
+    // Closing a ticket releases its dedupe slot, so the customer can raise the
+    // same concern type again later if they need to.
+    await pool.query(
+      `UPDATE tickets SET status = ?, internal_notes = COALESCE(?, internal_notes), assigned_to = ?,
+              dedupe_key = IF(LOWER(?) IN ('open','in_progress'), dedupe_key, NULL)
+        WHERE id = ?`,
+      [status, note, req.user.id, status, ticketId]);
     if (['resolved', 'closed'].includes(status)) {
       const [[tk]] = await pool.query('SELECT user_id, order_id FROM tickets WHERE id = ?', [ticketId]);
       if (tk && tk.user_id) notifications.notifyUser(tk.user_id, 'ticket', 'Your concern was resolved ✅',
@@ -617,7 +622,11 @@ router.post('/admin/tickets/:id/reply', async (req, res) => {
     const posted = await require('../services/tickets').postMessage(id, 'staff', body);
     if (!posted) { flash(req, 'error', 'Ticket not found.'); return res.redirect('/admin/tickets'); }
     const status = ['open', 'in_progress', 'resolved', 'closed'].includes(req.body.status) ? req.body.status : 'in_progress';
-    await pool.query('UPDATE tickets SET status = ?, assigned_to = ? WHERE id = ?', [status, req.user.id, id]);
+    await pool.query(
+      `UPDATE tickets SET status = ?, assigned_to = ?,
+              dedupe_key = IF(LOWER(?) IN ('open','in_progress'), dedupe_key, NULL)
+        WHERE id = ?`,
+      [status, req.user.id, status, id]);
     flash(req, 'success', 'Reply sent to the customer.');
   } catch (err) { flash(req, 'error', `Could not send: ${err.message}`); }
   res.redirect(`/admin/tickets/${id}/thread`);

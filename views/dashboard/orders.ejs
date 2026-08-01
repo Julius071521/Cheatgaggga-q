@@ -25,8 +25,9 @@
         <% orders.forEach(function(o) { %>
         <tr>
           <td>
-            <code class="order-code" title="Order code — click to copy"><%= o.public_code || ('APX-' + String(o.id).padStart(6,'0')) %></code>
-            <button type="button" class="copy-btn btn-copy-inline" data-copy="<%= o.public_code || ('APX-' + String(o.id).padStart(6,'0')) %>" aria-label="Copy order code">⧉</button>
+            <a href="/orders/<%= o.public_code || o.id %>" class="order-code-link" title="Open this order">
+              <code class="order-code"><%= o.public_code || ('APX-' + String(o.id).padStart(6,'0')) %></code>
+            </a>
           </td>
           <td><div class="svc-cell"><%- include('../partials/platform-badge', { platform: h.platformFromText(o.service_name), size: 26 }) %><span class="svc-name"><%= o.service_name.length > 45 ? o.service_name.slice(0,45) + '…' : o.service_name %></span></div></td>
           <td><a href="<%= o.url %>" target="_blank" rel="noopener nofollow" class="link-cell"><%= String(o.url).replace(/^https?:\/\//,'').slice(0, 28) %>…</a></td>

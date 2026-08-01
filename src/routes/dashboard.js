@@ -14,6 +14,7 @@ const notifications = require('../services/notifications');
 const { requireAuth } = require('../middleware/auth');
 const { randomToken, isValidHttpUrl, clampInt, strictInt, PLATFORM_LABELS } = require('../utils/helpers');
 const orderRef = require('../services/orderRef');
+const orderActions = require('../services/orderActions');
 const { hashSecret, verifySecret } = require('../utils/password');
 
 const router = express.Router();
@@ -301,6 +302,47 @@ router.post('/orders/:id/refresh', async (req, res) => {
   res.redirect('/orders');
 });
 
+// ── Order detail ──────────────────────────────────────────
+// Reachable by the code the customer is shown (APX-000163) or the row id.
+router.get('/orders/:ref', async (req, res, next) => {
+  try {
+    const order = await orderRef.resolve(req.params.ref, req.user.id);
+    if (!order) return res.status(404).render('errors/404');
+
+    const elig = await orderActions.eligibility(order);
+    const [actions] = await pool.query(
+      'SELECT * FROM order_actions WHERE order_id = ? ORDER BY id DESC LIMIT 10', [order.id]);
+    const [ticketRows] = await pool.query(
+      `SELECT id, request_type, status, created_at FROM tickets
+        WHERE user_id = ? AND order_id IN (?, ?, ?) ORDER BY id DESC LIMIT 10`,
+      [req.user.id, order.public_code, order.legacy_code, order.order_id]);
+
+    res.render('dashboard/order-detail', {
+      title: `Order ${orderRef.publicCode(order)}`,
+      crumb: orderRef.publicCode(order),
+      order, elig, actions, tickets: ticketRows,
+      code: orderRef.publicCode(order),
+    });
+  } catch (err) { next(err); }
+});
+
+// Self-service refill / cancel. Eligibility is checked inside request(), and
+// the unique live_key makes a double-click a no-op rather than two requests.
+for (const kind of ['refill', 'cancel']) {
+  router.post(`/orders/:ref/${kind}`, async (req, res) => {
+    try {
+      const order = await orderRef.resolve(req.params.ref, req.user.id);
+      if (!order) return res.status(404).render('errors/404');
+      const out = await orderActions.request(order, kind);
+      flash(req, out.ok ? 'success' : 'error', out.message);
+      return res.redirect(`/orders/${orderRef.publicCode(order)}`);
+    } catch (err) {
+      flash(req, 'error', 'Could not send that request right now. Please try again shortly.');
+      return res.redirect('/orders');
+    }
+  });
+}
+
 // Raise a concern/ticket about an order (Cancel / Refill / Speed up / Other).
 router.post('/orders/:id/ticket', async (req, res) => {
   try {
@@ -313,10 +355,26 @@ router.post('/orders/:id/ticket', async (req, res) => {
     const message = String(req.body.message || '').trim().slice(0, 2000);
     if (message.length < 3) { flash(req, 'error', 'Please describe your concern.'); return res.redirect('/orders'); }
 
-    const [tRes] = await pool.query(
-      `INSERT INTO tickets (user_id, subject, order_id, request_type, message, status, priority, provider_order_id, api_provider)
-       VALUES (?, ?, ?, ?, ?, 'open', 'normal', ?, ?)`,
-      [req.user.id, `Order concern: ${requestType}`, order.public_code || order.order_id, requestType, message, order.provider_order_id, order.api_provider]);
+    // dedupe_key is unique while the ticket is open, so a double-click or a
+    // second submit of the same concern re-opens the existing thread instead of
+    // creating tickets #67 and #68 a minute apart.
+    const code = order.public_code || order.order_id;
+    let tRes;
+    try {
+      [tRes] = await pool.query(
+        `INSERT INTO tickets (user_id, subject, order_id, request_type, message, status, priority, provider_order_id, api_provider, dedupe_key)
+         VALUES (?, ?, ?, ?, ?, 'open', 'normal', ?, ?, ?)`,
+        [req.user.id, `Order concern: ${requestType}`, code, requestType, message,
+         order.provider_order_id, order.api_provider, `${code}:${requestType}`]);
+    } catch (dupErr) {
+      if (dupErr && dupErr.code === 'ER_DUP_ENTRY') {
+        const [[existing]] = await pool.query(
+          'SELECT id FROM tickets WHERE dedupe_key = ? LIMIT 1', [`${code}:${requestType}`]);
+        flash(req, 'error', 'You already have an open request of this type for that order — here it is.');
+        return res.redirect(existing ? `/support/${existing.id}` : '/support');
+      }
+      throw dupErr;
+    }
     // AI autopilot triages the new ticket right away (fire-and-forget).
     require('../services/autopilot').handleTicket(tRes.insertId).catch(() => {});
     flash(req, 'success', 'Your concern has been submitted — our team will take a look shortly.');

@@ -532,6 +532,11 @@ async function tick() {
     catch (err) { console.warn('[autopilot] telegram brief failed:', err.message); }
   } catch (err) {
     console.warn('[autopilot] tick failed:', err.message);
+    // Retry queued refills/cancels and poll the ones already at the provider.
+    try {
+      const q = await require('./orderActions').processQueue();
+      if (q.retried || q.resolved) console.log(`[autopilot] order actions: retried ${q.retried}, resolved ${q.resolved}`);
+    } catch (err) { console.warn('[autopilot] order action queue failed:', err.message); }
   } finally {
     running = false;
   }
