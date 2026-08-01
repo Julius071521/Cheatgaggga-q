@@ -54,7 +54,8 @@
       <% nav.forEach(function (section) { %>
         <p class="as-group"><%= section.group %></p>
         <% section.items.forEach(function (it) { const on = it.match(path); %>
-          <a href="<%= it.href %>" class="as-link <%= on ? 'active' : '' %>"<% if (on) { %> aria-current="page"<% } %>>
+          <% /* title carries the label for the collapsed rail, where only the icon shows. */ %>
+          <a href="<%= it.href %>" class="as-link <%= on ? 'active' : '' %>" title="<%= it.label %>"<% if (on) { %> aria-current="page"<% } %>>
             <span class="as-icon" aria-hidden="true"><%- include('icon', { name: it.icon }) %></span>
             <span class="as-label"><%= it.label %></span>
             <% if (it.badge) { %><span class="as-badge"><%= it.badge > 99 ? '99+' : it.badge %></span><% } %>
@@ -67,12 +68,17 @@
       <% /* On a narrow phone the top bar cannot fit five 44px controls, so the
             language switch lives here instead — CSS shows one or the other. */ %>
       <a class="as-lang" href="/lang/<%= lang === 'fil' ? 'en' : 'fil' %>"><%= lang === 'fil' ? '🇬🇧 English' : '🇵🇭 Filipino' %></a>
-      <a href="/wallet" class="btn btn-primary btn-sm as-foot-btn">Add funds</a>
+      <% /* Labels sit in a span so the collapsed rail can hide them and leave a
+            centred icon — bare text would overflow the 74px sidebar. */ %>
+      <a href="/wallet" class="btn btn-primary btn-sm as-foot-btn" title="Add funds">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h13a1 1 0 0 1 1 1v2"/><path d="M3 7v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2H5"/><circle cx="17" cy="14" r="1.2" fill="currentColor" stroke="none"/></svg>
+        <span>Add funds</span>
+      </a>
       <form method="post" action="/logout" class="as-logout">
         <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-        <button type="submit" class="btn btn-ghost btn-sm as-foot-btn">
+        <button type="submit" class="btn btn-ghost btn-sm as-foot-btn" title="Log out">
           <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/></svg>
-          Log out
+          <span>Log out</span>
         </button>
       </form>
     </div>
