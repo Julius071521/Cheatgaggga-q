@@ -161,22 +161,23 @@ code { background: var(--surface-2); padding: 2px 7px; border-radius: 6px; font-
    at any viewport width — without this the row overflows and the menu button
    ends up off-screen (body overflow-x:hidden hides it instead of scrolling). */
 .brand { display: inline-flex; align-items: center; gap: 9px; text-decoration: none !important; color: var(--text); min-width: 0; }
-.brand-mark { flex: none; }
-.brand-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.nav-actions { flex: none; }
 .brand-mark {
+  flex: none;
   display: inline-flex; align-items: center; justify-content: center;
   width: 36px; height: 36px; border-radius: 11px; background: var(--grad-btn); color: #fff;
   box-shadow: 0 6px 16px -6px rgba(37, 99, 235, 0.6);
 }
-.brand-text { font-family: var(--font-head); font-weight: 800; font-size: 1.2rem; }
+.brand-text {
+  font-family: var(--font-head); font-weight: 800; font-size: 1.2rem;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 .nav-links { display: flex; gap: 4px; margin-right: auto; }
 .nav-link {
   padding: 8px 13px; border-radius: 10px; color: var(--text-soft); font-weight: 500; font-size: 0.94rem;
   text-decoration: none !important; transition: color 0.15s, background 0.15s;
 }
 .nav-link:hover, .nav-link.active { color: var(--primary); background: var(--primary-soft); }
-.nav-actions { display: flex; align-items: center; gap: 10px; }
+.nav-actions { display: flex; align-items: center; gap: 10px; flex: none; }
 .nav-balance { font-weight: 700; font-family: var(--font-head); color: var(--accent-text); font-size: 0.95rem; }
 .icon-btn {
   display: inline-flex; align-items: center; justify-content: center;
