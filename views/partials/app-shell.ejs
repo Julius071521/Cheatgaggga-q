@@ -64,6 +64,9 @@
     </nav>
 
     <div class="as-foot">
+      <% /* On a narrow phone the top bar cannot fit five 44px controls, so the
+            language switch lives here instead — CSS shows one or the other. */ %>
+      <a class="as-lang" href="/lang/<%= lang === 'fil' ? 'en' : 'fil' %>"><%= lang === 'fil' ? '🇬🇧 English' : '🇵🇭 Filipino' %></a>
       <a href="/wallet" class="btn btn-primary btn-sm as-foot-btn">Add funds</a>
       <form method="post" action="/logout" class="as-logout">
         <input type="hidden" name="_csrf" value="<%= csrfToken %>">

@@ -35,6 +35,11 @@
   function lineChart(boxId, rows) {
     var box = document.getElementById(boxId); if (!box || !rows.length) { if (box) box.innerHTML = '<p class="empty-note">No data yet.</p>'; return; }
     var W = Math.max(560, box.clientWidth), H = 260, P = { t: 16, r: 74, b: 26, l: 10 };
+    // The viewBox is a fixed 560 units wide but the box is only ~330px on a
+    // phone, so every length is scaled down by that ratio when painted. Label
+    // sizes are given in CSS pixels and converted here, otherwise a "10" label
+    // renders at about 6px and is unreadable.
+    var px = function (n) { return Math.round(n * W / Math.max(1, box.clientWidth || W)); };
     var max = Math.max(1, Math.max.apply(null, rows.map(function (d) { return Math.max(d.r, d.p); })));
     var iw = W - P.l - P.r, ih = H - P.t - P.b;
     var X = function (i) { return P.l + (rows.length === 1 ? iw / 2 : i * iw / (rows.length - 1)); };
@@ -43,19 +48,19 @@
     for (var g = 0; g <= 3; g++) {
       var gy = P.t + ih * g / 3;
       svg.appendChild(el('line', { x1: P.l, x2: P.l + iw, y1: gy, y2: gy, stroke: 'var(--border)', 'stroke-width': 1 }));
-      var lab = el('text', { x: P.l + iw + 6, y: gy + 4, 'font-size': 10, fill: 'var(--text-soft)' });
+      var lab = el('text', { x: P.l + iw + 6, y: gy + 4, 'font-size': px(12), fill: 'var(--text-soft)' });
       lab.textContent = peso(max * (1 - g / 3)); svg.appendChild(lab);
     }
     [['r', '#2563eb'], ['p', '#10b981']].forEach(function (S) {
       var path = rows.map(function (d, i) { return (i ? 'L' : 'M') + X(i).toFixed(1) + ' ' + Y(d[S[0]]).toFixed(1); }).join(' ');
       svg.appendChild(el('path', { d: path, fill: 'none', stroke: S[1], 'stroke-width': 2, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }));
       var last = rows[rows.length - 1];
-      var dl = el('text', { x: X(rows.length - 1) + 6, y: Y(last[S[0]]) + 4, 'font-size': 11, 'font-weight': 700, fill: 'var(--text)' });
+      var dl = el('text', { x: X(rows.length - 1) + 6, y: Y(last[S[0]]) + 4, 'font-size': px(12), 'font-weight': 700, fill: 'var(--text)' });
       dl.textContent = peso(last[S[0]]); svg.appendChild(dl);
     });
     [0, Math.floor((rows.length - 1) / 2), rows.length - 1].forEach(function (i) {
       if (i < 0 || i >= rows.length) return;
-      var t = el('text', { x: X(i), y: H - 8, 'font-size': 10, fill: 'var(--text-soft)', 'text-anchor': 'middle' });
+      var t = el('text', { x: X(i), y: H - 8, 'font-size': px(12), fill: 'var(--text-soft)', 'text-anchor': 'middle' });
       t.textContent = rows[i].l; svg.appendChild(t);
     });
     var hover = el('g', {}); svg.appendChild(hover);
@@ -80,6 +85,7 @@
   function barChart(boxId, rows) {
     var box = document.getElementById(boxId); if (!box || !rows.length) { if (box) box.innerHTML = '<p class="empty-note">No data yet.</p>'; return; }
     var W = Math.max(560, box.clientWidth), H = 220, P = { t: 14, r: 74, b: 26, l: 10 };
+    var px = function (n) { return Math.round(n * W / Math.max(1, box.clientWidth || W)); };
     var max = Math.max(1, Math.max.apply(null, rows.map(function (d) { return d.r; })));
     var iw = W - P.l - P.r, ih = H - P.t - P.b;
     var bw = Math.max(3, iw / rows.length - 2);
@@ -87,7 +93,7 @@
     for (var g = 0; g <= 2; g++) {
       var gy = P.t + ih * g / 2;
       svg.appendChild(el('line', { x1: P.l, x2: P.l + iw, y1: gy, y2: gy, stroke: 'var(--border)', 'stroke-width': 1 }));
-      var lab = el('text', { x: P.l + iw + 6, y: gy + 4, 'font-size': 10, fill: 'var(--text-soft)' });
+      var lab = el('text', { x: P.l + iw + 6, y: gy + 4, 'font-size': px(12), fill: 'var(--text-soft)' });
       lab.textContent = peso(max * (1 - g / 2)); svg.appendChild(lab);
     }
     var t = tip(box);
@@ -106,7 +112,7 @@
     });
     [0, rows.length - 1].forEach(function (i) {
       if (i < 0) return;
-      var tx = el('text', { x: P.l + i * (iw / rows.length) + bw / 2, y: H - 8, 'font-size': 10, fill: 'var(--text-soft)', 'text-anchor': i === 0 ? 'start' : 'middle' });
+      var tx = el('text', { x: P.l + i * (iw / rows.length) + bw / 2, y: H - 8, 'font-size': px(12), fill: 'var(--text-soft)', 'text-anchor': i === 0 ? 'start' : 'middle' });
       // slice(5) chopped "Jul 07" into "ul 07" — format from the raw date instead.
       tx.textContent = shortDate(rows[i].l); svg.appendChild(tx);
     });

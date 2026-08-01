@@ -1281,3 +1281,90 @@ summary:focus-visible, [tabindex]:focus-visible {
   background: var(--surface); color: var(--text-soft); cursor: pointer; font-size: 0.9rem;
 }
 .btn-copy-inline:hover { color: var(--primary); border-color: var(--primary); }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   MOBILE PASS — measured on real Chromium at 320/360/375/390/414px.
+   Everything below only applies to phones; the desktop layout is untouched.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* Icon buttons must never be squeezed by a crowded flex row: at 320px the
+   theme toggle was collapsing to 20px wide. */
+.icon-btn { flex: none; }
+
+@media (max-width: 768px) {
+  /* ── Touch targets ──────────────────────────────────────────────────────
+     A finger needs ~44px. Buttons measured 38px, chips 35px, small selects
+     31px and checkboxes 13px. min-height keeps this true whatever the font
+     metrics do, and padding stops the label from touching the edges. */
+  .btn { min-height: 44px; }
+  .btn-sm { min-height: 44px; padding: 9px 14px; }
+  .icon-btn { width: 44px; height: 44px; }
+  .qty-chip { min-height: 44px; padding: 10px 16px; }
+  .input-sm { min-height: 44px; padding: 9px 12px; }
+  .btn-copy-inline { width: 36px; height: 36px; }
+  /* 24px is the WCAG 2.5.8 AA minimum; the label next to it is clickable too,
+     so the real hit area is the whole row. */
+  input[type="checkbox"], input[type="radio"] { width: 24px; height: 24px; }
+
+  /* ── iOS zoom ───────────────────────────────────────────────────────────
+     Safari zooms the whole page when a focused field is under 16px and never
+     zooms back out. Every field is pinned to 16px here — this is the single
+     most noticeable mobile bug on the site. */
+  input, select, textarea,
+  .field input, .field select, .field textarea,
+  .input-sm, .input-xs, .ref-link-input { font-size: 16px; }
+
+  /* ── Minimum readable type ──────────────────────────────────────────────
+     Nothing below 12px. `code` used a relative size, so nested inside a
+     <small> it shrank to 9.3px; an absolute rem stops that compounding. */
+  .badge { font-size: 0.78rem; }
+  code { font-size: 0.8rem; }
+  small, .kpi-link, .as-group, .lang-toggle { font-size: 0.78rem; }
+  .as-group { letter-spacing: 0.07em; }
+  .order-total span { font-size: 0.75rem; }
+  .chart svg text, svg.chart text { font-size: 12px; }
+}
+
+/* Long CTA labels have to wrap instead of being clipped: "Get started — it's
+   free" needed 273px inside a 270px button on every phone width. */
+@media (max-width: 520px) {
+  .hero-cta { flex-direction: column; align-items: stretch; }
+  .hero-cta .btn { white-space: normal; }
+}
+
+/* Four full-width cards made the dashboard a scrolling column of mostly empty
+   space. Two-up holds down to 400px; big money values shrink to fit. */
+@media (max-width: 520px) {
+  .kpi-grid, .kpi-grid-wide { grid-template-columns: repeat(2, 1fr); gap: 12px; }
+  .kpi { padding: 15px 16px; }
+  /* Money has to fit a half-width card without breaking mid-number: the admin
+     "wallet liabilities" figure was rendering as "₱100,008,0 / 46.63". The
+     clamp shrinks long values instead, and the wrap stays only as a backstop. */
+  .kpi-value { font-size: clamp(1rem, 4.2vw, 1.35rem); overflow-wrap: anywhere; }
+  /* The admin grid carries far longer figures (wallet liabilities runs to
+     ₱100,008,046.63) in the same half-width card, so it shrinks further. */
+  .kpi-grid-wide .kpi-value { font-size: clamp(0.75rem, 3.6vw, 1.35rem); }
+}
+/* Only the very narrowest phones drop to a single column — two-up still reads
+   comfortably at 360px and up. */
+@media (max-width: 344px) {
+  .kpi-grid, .kpi-grid-wide { grid-template-columns: 1fr; }
+}
+
+/* Top bar at 320-420px: burger + language + theme + bell + balance cannot all
+   be 44px wide. The language switch moves into the drawer, where it has a
+   full-width row, instead of every control being squeezed. */
+@media (max-width: 420px) {
+  .app-topbar { gap: 8px; padding: 10px 12px; }
+  .app-topbar-actions { gap: 8px; }
+  .app-topbar-actions .lang-toggle { display: none; }
+}
+@media (min-width: 421px) { .as-lang { display: none; } }
+.as-lang {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  min-height: 44px; margin-bottom: 8px; border-radius: 12px;
+  border: 1.5px solid var(--border); background: var(--surface);
+  color: var(--text-soft); font-weight: 700; font-size: 0.85rem;
+  text-decoration: none !important;
+}
+.as-lang:hover { color: var(--primary); border-color: var(--primary); }
