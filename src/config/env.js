@@ -94,6 +94,19 @@ const env = {
   CLOUDFLARE_API_TOKEN: str('CLOUDFLARE_API_TOKEN', ''),
   CLOUDFLARE_ZONE_ID: str('CLOUDFLARE_ZONE_ID', ''),
   // "Under attack" mode: N distinct attacker IPs within the window trips it.
+  // Network Guard — VPN / proxy / Tor / datacenter (VPS) filtering.
+  // off = disabled, monitor = log only, guard = defend signup+deposit+order,
+  // block = refuse the whole site. The admin panel overrides this at runtime;
+  // this value is only the fallback when the settings row cannot be read.
+  NETGUARD_MODE: str('NETGUARD_MODE', 'block'),
+  // Turning the lookup off leaves only the shipped datacenter ranges, which
+  // still catches most VPS traffic without any outbound request.
+  NETGUARD_LOOKUP: bool('NETGUARD_LOOKUP', true),
+  NETGUARD_TIMEOUT_MS: num('NETGUARD_TIMEOUT_MS', 1500),
+  NETGUARD_CACHE_DAYS: num('NETGUARD_CACHE_DAYS', 14),
+  // How long an admin-panel policy change takes to reach the request path.
+  NETGUARD_SETTINGS_TTL_MS: num('NETGUARD_SETTINGS_TTL_MS', 20000),
+
   SECURITY_UNDER_ATTACK_IPS: num('SECURITY_UNDER_ATTACK_IPS', 5),
   SECURITY_UNDER_ATTACK_WINDOW_MIN: num('SECURITY_UNDER_ATTACK_WINDOW_MIN', 5),
 

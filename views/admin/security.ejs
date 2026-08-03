@@ -45,6 +45,94 @@
   </div>
 
   <div class="card section-card">
+    <div class="card-head"><h2>🛰️ Network Guard — VPN · Proxy · Tor · VPS</h2></div>
+    <p class="muted">
+      Identifies visitors on a VPN, a proxy, a Tor exit node, or a rented server (VPS / datacenter) —
+      the networks fraud and chargebacks come from. <strong><%= netguard.ranges %></strong> datacenter ranges are matched
+      instantly with no lookup<% if (netguard.lookupOn) { %>, and anything else is checked against a live intelligence source<% } %>.
+    </p>
+
+    <div class="kpi-grid kpi-grid-wide">
+      <div class="kpi card"><span class="kpi-label">Datacenter / VPS</span><span class="kpi-value"><%= netguard.stats.hosting.toLocaleString() %></span></div>
+      <div class="kpi card"><span class="kpi-label">VPN</span><span class="kpi-value"><%= netguard.stats.vpn.toLocaleString() %></span></div>
+      <div class="kpi card"><span class="kpi-label">Proxy</span><span class="kpi-value"><%= netguard.stats.proxy.toLocaleString() %></span></div>
+      <div class="kpi card"><span class="kpi-label">Tor</span><span class="kpi-value"><%= netguard.stats.tor.toLocaleString() %></span></div>
+      <div class="kpi card"><span class="kpi-label">Normal connections seen</span><span class="kpi-value"><%= netguard.stats.residential.toLocaleString() %></span></div>
+      <div class="kpi card"><span class="kpi-label">Requests refused</span><span class="kpi-value"><%= netguard.stats.blockedHits.toLocaleString() %></span></div>
+    </div>
+
+    <h3 style="margin:18px 0 8px;font-size:1rem">Mode</h3>
+    <div class="ticket-actions">
+      <% const MODES = [
+           ['off', 'Off', 'No detection at all.'],
+           ['monitor', 'Monitor', 'Records everything, blocks nothing. Safest way to see who is actually on a VPN before you decide.'],
+           ['guard', 'Guard', 'Browsing and login stay open; sign-up, deposit and placing an order are refused. Keeps real customers, stops the fraud paths.'],
+           ['block', 'Block everything', 'The whole site is refused. Strictest — some genuine customers on a VPN will be turned away.'],
+         ]; %>
+      <% MODES.forEach(function (m) { const on = netguard.mode === m[0]; %>
+        <form method="post" action="/admin/security/netguard" class="inline-form"<% if (m[0] === 'block' && !on) { %> data-confirm="Block the ENTIRE site for VPN/proxy/VPS visitors? Real customers who leave a VPN on will not be able to reach your site at all."<% } %>>
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <input type="hidden" name="mode" value="<%= m[0] %>">
+          <button type="submit" class="btn <%= on ? 'btn-primary' : 'btn-outline' %>" title="<%= m[2] %>"<%= on ? ' aria-current="true"' : '' %>><%= on ? '● ' : '' %><%= m[1] %></button>
+        </form>
+      <% }); %>
+    </div>
+    <p class="muted" style="margin-top:8px"><small>
+      <% const CUR = { off: 'Nothing is being detected.',
+                       monitor: 'Recording only — nobody is being turned away.',
+                       guard: 'Sign-up, deposit and order are protected. Browsing stays open.',
+                       block: 'The whole site is closed to these networks.' }; %>
+      <strong>Now:</strong> <%= CUR[netguard.mode] || netguard.mode %>
+    </small></p>
+
+    <h3 style="margin:18px 0 8px;font-size:1rem">What counts as blocked</h3>
+    <div class="ticket-actions">
+      <% [['hosting','🖥️ Datacenter / VPS'],['vpn','🛰️ VPN'],['proxy','🔀 Proxy'],['tor','🧅 Tor']].forEach(function (k) { const on = netguard[k[0]]; %>
+        <form method="post" action="/admin/security/netguard" class="inline-form">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <input type="hidden" name="kind" value="<%= k[0] %>">
+          <input type="hidden" name="value" value="<%= on ? '0' : '1' %>">
+          <button type="submit" class="btn btn-sm <%= on ? 'btn-primary' : 'btn-outline' %>"><%= on ? '✓ ' : '○ ' %><%= k[1] %></button>
+        </form>
+      <% }); %>
+    </div>
+    <p class="muted" style="margin-top:8px"><small>
+      🔑 Your reseller <strong>API is never filtered</strong> — a request with a valid API key is allowed from any network, because
+      your API customers call it from their own servers. Signed-in admins and trusted IPs are also always allowed.
+    </small></p>
+
+    <% if (netguard.recent && netguard.recent.length) { %>
+      <h3 style="margin:18px 0 8px;font-size:1rem">Recently seen on these networks</h3>
+      <div class="table-wrap">
+        <table class="table">
+          <thead><tr><th>IP</th><th>Type</th><th>Network</th><th class="num">Requests</th><th class="num">Refused</th><th>Last seen</th><th></th></tr></thead>
+          <tbody>
+            <% netguard.recent.forEach(function (r) { %>
+              <tr>
+                <td><code><%= r.ip %></code></td>
+                <td><span class="badge"><%= r.label %></span></td>
+                <td><%= r.org || '—' %><%= r.countryCode ? ` · ${r.countryCode}` : '' %></td>
+                <td class="num"><%= r.hits %></td>
+                <td class="num"><%= r.blockedHits %></td>
+                <td><%= r.lastSeen ? new Date(r.lastSeen).toLocaleString('en-PH') : '—' %></td>
+                <td>
+                  <form method="post" action="/admin/security/netguard/clear" class="inline-form">
+                    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                    <input type="hidden" name="ip" value="<%= r.ip %>">
+                    <button type="submit" class="btn btn-sm btn-outline" title="Treat as a normal connection from now on">✅ Let in</button>
+                  </form>
+                </td>
+              </tr>
+            <% }); %>
+          </tbody>
+        </table>
+      </div>
+    <% } else { %>
+      <p class="muted" style="margin-top:14px"><small>No VPN, proxy or datacenter visitors recorded yet.</small></p>
+    <% } %>
+  </div>
+
+  <div class="card section-card">
     <div class="card-head"><h2>✅ Trusted IPs (never flagged or blocked)</h2></div>
     <p class="muted">Your own IP, office, or the VPS you manage from. Signed-in admins are already exempt automatically — this covers you even when logged out, and never lets your own IP look "suspicious".</p>
     <div class="trust-me">

@@ -248,6 +248,11 @@ app.use(require('./src/middleware/threatRadar'));
 // maintenance/blocked pages render with full context.
 app.use(require('./src/middleware/gate').gate);
 
+// Network Guard: VPN / proxy / Tor / datacenter filtering. Sits after the gate
+// so an admin can always reach the panel to change the policy, and after the
+// body parser because the money-path checks look at POSTs.
+app.use(require('./src/middleware/networkGuard').networkGuard);
+
 // ── Routes ────────────────────────────────────────────────
 app.use(require('./src/routes/telegram'));
 app.use(require('./src/routes/internal'));

@@ -10,6 +10,8 @@ const { setSetting, getSetting } = require('../services/stats');
 const notifications = require('../services/notifications');
 const { requireAuth, requireAdmin } = require('../middleware/auth');
 const { invalidate: invalidateGate } = require('../middleware/gate');
+const { invalidate: invalidateNetguard } = require('../middleware/networkGuard');
+const env = require('../config/env');
 const { clampInt, isValidHttpUrl } = require('../utils/helpers');
 const orderRef = require('../services/orderRef');
 
@@ -144,8 +146,20 @@ router.get('/admin/security', async (req, res, next) => {
       try { cfEdgeBlocked = (await cloudflare.listBlocked(100)).length; } catch (_) {}
     }
     const allowed = await security.listAllowed();
+    const ipintel = require('../services/ipintel');
+    const netguard = {
+      mode: String(await getSetting('netguard_mode', env.NETGUARD_MODE)).toLowerCase(),
+      hosting: ['1', 'true', 'on', 'yes'].includes(String(await getSetting('netguard_hosting', 'on')).toLowerCase()),
+      vpn: ['1', 'true', 'on', 'yes'].includes(String(await getSetting('netguard_vpn', 'on')).toLowerCase()),
+      proxy: ['1', 'true', 'on', 'yes'].includes(String(await getSetting('netguard_proxy', 'on')).toLowerCase()),
+      tor: ['1', 'true', 'on', 'yes'].includes(String(await getSetting('netguard_tor', 'on')).toLowerCase()),
+      stats: await ipintel.stats(),
+      recent: await ipintel.recent(40).catch(() => []),
+      ranges: ipintel.rangeCount,
+      lookupOn: env.NETGUARD_LOOKUP,
+    };
     res.render('admin/security', {
-      title: 'Admin · Security', enabled, autoBlock, threats, recent, stat, blockedCount: blk.c,
+      title: 'Admin · Security', enabled, autoBlock, threats, recent, stat, blockedCount: blk.c, netguard,
       telegramOn: require('../services/telegram').enabled,
       underAttack: await security.underAttack(),
       threatLevel: security.threatLevel, flagEmoji: security.flagEmoji, kindLabel: security.KIND_LABEL,
@@ -161,6 +175,40 @@ router.post('/admin/security/toggle', async (req, res, next) => {
     const on = req.body.value === '1';
     await setSetting(key, on ? 'on' : 'off');
     flash(req, 'success', `${key === 'auto' ? 'Auto-block' : 'Threat Radar'} turned ${on ? 'ON' : 'OFF'}.`);
+    res.redirect('/admin/security');
+  } catch (err) { next(err); }
+});
+
+// ── Network Guard (VPN / proxy / Tor / VPS) ───────────────
+router.post('/admin/security/netguard', async (req, res, next) => {
+  try {
+    const mode = String(req.body.mode || '').toLowerCase();
+    if (['off', 'monitor', 'guard', 'block'].includes(mode)) {
+      await setSetting('netguard_mode', mode);
+      flash(req, 'success', `Network Guard set to ${mode.toUpperCase()}.`);
+    } else {
+      // Individual kind toggle.
+      const kinds = { hosting: 'netguard_hosting', vpn: 'netguard_vpn', proxy: 'netguard_proxy', tor: 'netguard_tor' };
+      const key = kinds[String(req.body.kind || '')];
+      if (!key) { flash(req, 'error', 'Unknown Network Guard setting.'); return res.redirect('/admin/security'); }
+      const on = req.body.value === '1';
+      await setSetting(key, on ? 'on' : 'off');
+      flash(req, 'success', `${req.body.kind.toUpperCase()} filtering turned ${on ? 'ON' : 'OFF'}.`);
+    }
+    invalidateNetguard();
+    res.redirect('/admin/security');
+  } catch (err) { next(err); }
+});
+
+// Clear one IP so a customer wrongly identified as VPN/VPS gets straight back
+// in. Also trusts the IP outright, which short-circuits every later lookup.
+router.post('/admin/security/netguard/clear', async (req, res, next) => {
+  try {
+    const ip = String(req.body.ip || '').trim().slice(0, 45);
+    if (!/^[0-9a-fA-F:.]{3,45}$/.test(ip)) { flash(req, 'error', 'Invalid IP.'); return res.redirect('/admin/security'); }
+    await require('../services/ipintel').markResidential(ip);
+    await security.allowIp(ip);
+    flash(req, 'success', `${ip} cleared — this visitor can use the site normally now.`);
     res.redirect('/admin/security');
   } catch (err) { next(err); }
 });
