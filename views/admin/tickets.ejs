@@ -44,27 +44,42 @@
         <p class="muted"><small>Last action: <strong><%= t.provider_action_status %></strong><% if (t.provider_refill_id) { %> · refill #<%= t.provider_refill_id %><% } %> — <%= String(t.provider_action_response || '').slice(0,120) %></small></p>
       <% } %>
 
+      <% /* What has already been done, so the team can see it at a glance
+            instead of guessing from a single "last action" line. */ %>
+      <% if (t.doneActions && t.doneActions.length) { %>
+        <p class="ticket-done muted"><small>
+          <% var DONE_LABEL = { refill: '♻️ Refill sent', speedup: '⚡ Speed-up requested', cancel: '✖ Cancel sent', refund: '💸 Refunded' }; %>
+          Already done: <% t.doneActions.forEach(function (d, i) { %><strong><%= DONE_LABEL[d] || d %></strong><%= i < t.doneActions.length - 1 ? ' · ' : '' %><% }); %>
+        </small></p>
+      <% } %>
+
       <div class="ticket-actions">
         <% var rt = String(t.request_type || '').toLowerCase();
-           var order = [
-             { a:'refill',  label:'♻️ Refill',  hot: rt.indexOf('refill') > -1 },
-             { a:'speedup', label:'⚡ Speed up', hot: rt.indexOf('speed') > -1 },
-             { a:'cancel',  label:'✖ Cancel',   hot: rt.indexOf('cancel') > -1 },
-           ];
-           order.forEach(function(b) { %>
+           var LABEL = {
+             refill:  { label: '♻️ Refill',   hot: rt.indexOf('refill') > -1 },
+             speedup: { label: '⚡ Speed up',  hot: rt.indexOf('speed') > -1 },
+             cancel:  { label: '✖ Cancel',    hot: rt.indexOf('cancel') > -1 },
+           };
+           /* Only the actions that still apply — one that has been done, or that
+              the order's state rules out, is not rendered at all. */
+           (t.availableActions || []).filter(function (a) { return a !== 'refund'; }).forEach(function (a) {
+             var b = LABEL[a]; %>
         <form method="post" action="/admin/tickets/<%= t.id %>/action" class="inline-form">
           <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-          <input type="hidden" name="action" value="<%= b.a %>">
+          <input type="hidden" name="action" value="<%= a %>">
           <button type="submit" class="btn btn-sm <%= b.hot ? 'btn-primary' : 'btn-outline' %>"><%= b.label %></button>
         </form>
         <% }); %>
-        <% if (t.order_id) { %>
+        <% if ((t.availableActions || []).indexOf('refund') > -1) { %>
         <form method="post" action="/admin/tickets/<%= t.id %>/action" class="inline-form"
               data-confirm="Refund this order to the customer’s wallet? This cannot be undone." data-confirm-type="refund">
           <input type="hidden" name="_csrf" value="<%= csrfToken %>">
           <input type="hidden" name="action" value="refund">
           <button type="submit" class="btn btn-sm <%= (rt.indexOf('stuck') > -1 || rt.indexOf('not complet') > -1 || rt.indexOf('refund') > -1) ? 'btn-danger' : 'btn-ghost' %>">💸 Refund</button>
         </form>
+        <% } %>
+        <% if (t.closedReason) { %>
+          <span class="badge badge-completed"><%= t.closedReason === 'refunded' ? 'Refunded — nothing left to do' : 'Handled' %></span>
         <% } %>
         <form method="post" action="/admin/tickets/<%= t.id %>/status" class="inline-form">
           <input type="hidden" name="_csrf" value="<%= csrfToken %>">

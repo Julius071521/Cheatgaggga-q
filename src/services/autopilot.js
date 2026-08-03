@@ -212,6 +212,129 @@ async function flagStuckOrders() {
   return stuck.length;
 }
 
+// ── Slow-start chase ────────────────────────────────────────
+// An order that is still sitting at "Pending" hours after it was placed has not
+// been picked up by the provider at all. There is no "speed up" call in the SMM
+// API — no panel can make a provider go faster — so what this does is the three
+// things that are actually possible: re-read the real status from the provider
+// (ours can be stale), refund immediately if the provider says it failed, and
+// otherwise escalate to the team and tell the customer they have not been
+// forgotten. Each order is chased once.
+async function nudgeSlowOrders(limit = 20) {
+  const hours = Math.max(1, env.AUTOPILOT_SPEEDUP_HOURS);
+  const [slow] = await pool.query(
+    `SELECT o.* FROM orders o
+      WHERE o.status = 'Pending'
+        AND o.provider_order_id IS NOT NULL
+        AND o.created_at < DATE_SUB(NOW(), INTERVAL ? HOUR)
+        AND NOT EXISTS (SELECT 1 FROM autopilot_log l
+                        WHERE l.order_ref = o.order_id AND l.action = 'speedup_chased')
+      ORDER BY o.id ASC LIMIT ?`, [hours, limit]);
+
+  let chased = 0;
+  for (const o of slow) {
+    let live = null;
+    try {
+      const client = getClient(o.provider_key === 'smmworld' ? 'smmworld' : 'rkd');
+      if (client) live = await client.orderStatus(o.provider_order_id);
+    } catch (err) {
+      // The provider being unreachable is not the order's fault — try again on
+      // the next pass rather than burning this order's one chase.
+      console.warn(`[autopilot] speed-up status check for ${o.order_id} failed:`, err.message);
+      continue;
+    }
+
+    const status = String((live && live.status) || '').toLowerCase();
+    if (status.includes('progress') || status.includes('processing') || status.includes('complet')) {
+      // It had already started; our copy was just stale. Nothing to escalate.
+      await pool.query('UPDATE orders SET status = ? WHERE id = ?', [live.status, o.id]);
+      await log({ order_ref: o.order_id, user_id: o.user_id, action: 'speedup_chased', outcome: 'done',
+        detail: `Order ${o.order_id} was already "${live.status}" at the provider — status corrected.` });
+      chased += 1;
+      continue;
+    }
+
+    if (status.includes('cancel') || status.includes('fail')) {
+      // Dead at the provider: give the money back now instead of at day 7.
+      try {
+        const r = await orderService.adminRefund(o.id, `Auto-refunded: provider reported "${live.status}"`, null, true);
+        if (r.refunded > 0) {
+          notifications.notifyUser(o.user_id, 'order', 'Order refunded 💸',
+            `Your order ${o.order_id} could not be started, so we refunded ₱${r.refunded.toFixed(2)} to your wallet.`).catch(() => {});
+        }
+        await log({ order_ref: o.order_id, user_id: o.user_id, action: 'speedup_chased', outcome: 'done',
+          detail: `Order ${o.order_id} was "${live.status}" at the provider — refunded ₱${(r.refunded || 0).toFixed(2)}.` });
+        chased += 1;
+      } catch (err) {
+        console.warn(`[autopilot] refund after speed-up check for ${o.id} failed:`, err.message);
+      }
+      continue;
+    }
+
+    // Genuinely not started. Escalate and tell the customer once.
+    await log({ order_ref: o.order_id, user_id: o.user_id, action: 'speedup_chased', outcome: 'needs_admin',
+      detail: `Order ${o.order_id} still not started ${hours}h after ordering (provider says "${(live && live.status) || 'no answer'}").` });
+    notifications.notifyUser(o.user_id, 'order', 'We are chasing your order ⚡',
+      `Your order ${o.order_id} hasn't started yet, so we've escalated it to our fulfillment team. If it still doesn't move, it is refunded automatically — you won't lose anything.`).catch(() => {});
+    chased += 1;
+  }
+
+  if (chased) {
+    await notifyAdmins('⚡ Slow orders chased',
+      `${chased} order(s) had not started ${hours}h after being placed. Autopilot re-checked them with the provider and escalated the ones still stuck.`);
+  }
+  return chased;
+}
+
+// ── Auto-cancel ─────────────────────────────────────────────
+// Undelivered for days: ask the provider to cancel. This runs BEFORE the
+// day-7 auto-refund on purpose — a provider-side cancellation returns our
+// money upstream, where a plain refund to the customer would just be a loss.
+// It goes through orderActions so it inherits that service's retry queue,
+// duplicate guard, and the rule that a failed cancel on an unstarted order
+// refunds the customer anyway.
+async function autoCancelStuckOrders(limit = 15) {
+  const days = Math.max(1, env.AUTOPILOT_AUTOCANCEL_DAYS);
+  const orderActions = require('./orderActions');
+  const [stuck] = await pool.query(
+    `SELECT o.* FROM orders o
+      WHERE o.status IN ('Pending', 'In progress', 'Processing')
+        AND o.provider_order_id IS NOT NULL
+        AND o.stuck_refunded_at IS NULL
+        AND o.created_at < DATE_SUB(NOW(), INTERVAL ? DAY)
+        AND NOT EXISTS (SELECT 1 FROM order_actions a
+                        WHERE a.order_id = o.id AND a.kind = 'cancel')
+        AND NOT EXISTS (SELECT 1 FROM autopilot_log l
+                        WHERE l.order_ref = o.order_id AND l.action = 'auto_cancel')
+      ORDER BY o.id ASC LIMIT ?`, [days, limit]);
+
+  let asked = 0;
+  for (const o of stuck) {
+    try {
+      const r = await orderActions.request(o, 'cancel');
+      await log({ order_ref: o.order_id, user_id: o.user_id, action: 'auto_cancel',
+        outcome: r.ok ? 'done' : 'needs_admin',
+        detail: r.ok
+          ? `Cancellation requested from the provider — order ${o.order_id} undelivered after ${days} days.`
+          : `Could not request cancellation for ${o.order_id}: ${r.message}` });
+      if (r.ok) {
+        asked += 1;
+        notifications.notifyUser(o.user_id, 'order', 'Cancelling your stuck order ⏹️',
+          `Your order ${o.order_id} hasn't been delivered after ${days} days, so we asked to cancel it. Any amount not delivered goes back to your wallet automatically.`).catch(() => {});
+      }
+    } catch (err) {
+      console.warn(`[autopilot] auto-cancel for order ${o.id} failed:`, err.message);
+      await log({ order_ref: o.order_id, user_id: o.user_id, action: 'auto_cancel', outcome: 'needs_admin',
+        detail: `Auto-cancel failed for ${o.order_id}: ${err.message}` }).catch(() => {});
+    }
+  }
+  if (asked) {
+    await notifyAdmins('⏹️ Stuck orders sent for cancellation',
+      `${asked} order(s) undelivered after ${days} days were sent to the provider for cancellation. Anything the provider refuses is auto-refunded on day ${env.AUTOPILOT_AUTOREFUND_DAYS}.`);
+  }
+  return asked;
+}
+
 // Auto-refund orders still undelivered after AUTOPILOT_AUTOREFUND_DAYS.
 async function autoRefundStuckOrders() {
   const days = Math.max(1, env.AUTOPILOT_AUTOREFUND_DAYS);
@@ -516,9 +639,18 @@ async function tick() {
     catch (err) { console.warn('[autopilot] refill follow-up failed:', err.message); }
     try { result.deposits = await processPendingDeposits(); }
     catch (err) { console.warn('[autopilot] deposit pass failed:', err.message); }
+    // Chased every tick, not hourly: 5 hours late already feels long to a
+    // customer, and the pass is a no-op once each order has been chased.
+    try { result.chased = await nudgeSlowOrders(); }
+    catch (err) { console.warn('[autopilot] speed-up pass failed:', err.message); }
+
     if (Date.now() - lastWatchdogAt > 60 * 60 * 1000) {
       lastWatchdogAt = Date.now();
       result.flagged = await flagStuckOrders();
+      // Cancel first, refund later: asking the provider to cancel is what
+      // recovers our own money, so it must run before the day-7 refund.
+      try { result.autoCanceled = await autoCancelStuckOrders(); }
+      catch (err) { console.warn('[autopilot] auto-cancel pass failed:', err.message); }
       try { result.autoRefunded = await autoRefundStuckOrders(); }
       catch (err) { console.warn('[autopilot] auto-refund pass failed:', err.message); }
       try { result.balanceAlerts = await checkProviderBalances(); }
@@ -532,12 +664,15 @@ async function tick() {
     catch (err) { console.warn('[autopilot] telegram brief failed:', err.message); }
   } catch (err) {
     console.warn('[autopilot] tick failed:', err.message);
+  } finally {
     // Retry queued refills/cancels and poll the ones already at the provider.
+    // This lives in `finally`: it used to sit inside the catch, so the retry
+    // queue only ever ran on a tick that had already crashed — meaning in
+    // normal operation it effectively never ran.
     try {
       const q = await require('./orderActions').processQueue();
       if (q.retried || q.resolved) console.log(`[autopilot] order actions: retried ${q.retried}, resolved ${q.resolved}`);
-    } catch (err) { console.warn('[autopilot] order action queue failed:', err.message); }
-  } finally {
+    } catch (e) { console.warn('[autopilot] order action queue failed:', e.message); }
     running = false;
   }
   return result;
@@ -553,6 +688,7 @@ function startScheduler() {
 
 module.exports = {
   isOn, handleTicket, processPendingTickets, syncRefillStatuses, flagStuckOrders, autoRefundStuckOrders,
+  nudgeSlowOrders, autoCancelStuckOrders,
   processPendingDeposits, checkProviderBalances, sendDailyDigest, sendMorningBrief,
   tick, startScheduler,
 };

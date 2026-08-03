@@ -298,6 +298,30 @@ router.get('/admin/tickets', async (req, res, next) => {
     const [tickets] = await pool.query(
       `SELECT t.*, u.username, u.email FROM tickets t LEFT JOIN users u ON u.id = t.user_id
        ${where} ORDER BY t.id DESC LIMIT 100`, params);
+
+    // The linked order's own status decides what is still worth offering — you
+    // cannot cancel a completed order, or refund one that is already refunded.
+    // Looked up as a separate query rather than a join: tickets.order_id and
+    // orders.order_id carry different collations, so comparing the two columns
+    // directly errors, and a join could also duplicate a ticket row.
+    const refs = [...new Set(tickets.map((t) => t.order_id).filter(Boolean).map(String))];
+    const byRef = new Map();
+    if (refs.length) {
+      const [linked] = await pool.query(
+        `SELECT id, order_id, status, provider_order_id FROM orders
+          WHERE order_id IN (${refs.map(() => '?').join(',')})`, refs);
+      for (const o of linked) byRef.set(String(o.order_id), o);
+    }
+    const ticketsSvc = require('../services/tickets');
+    const done = await ticketsSvc.doneMap(tickets.map((t) => t.id));
+    for (const t of tickets) {
+      const order = byRef.get(String(t.order_id)) || null;
+      const doneSet = done.get(t.id) || new Set();
+      const avail = ticketsSvc.availableActions(t, order, doneSet);
+      t.availableActions = avail.actions;
+      t.closedReason = avail.closedReason;
+      t.doneActions = [...doneSet];
+    }
     res.render('admin/tickets', { title: 'Admin · Customer Concerns', tickets, status, q });
   } catch (err) { next(err); }
 });
@@ -321,6 +345,22 @@ router.post('/admin/tickets/:id/action', async (req, res) => {
   try {
     const [[ticket]] = await pool.query('SELECT * FROM tickets WHERE id = ?', [clampInt(req.params.id, 1, 2147483647)]);
     if (!ticket) { flash(req, 'error', 'Ticket not found.'); return res.redirect('/admin/tickets'); }
+
+    // Re-check on the server. The buttons are already hidden once an action is
+    // done, but a stale tab or a back-button could still POST — and refunding
+    // the same order twice would really pay out twice.
+    const ticketsSvc = require('../services/tickets');
+    const [[linked]] = await pool.query(
+      'SELECT id, status, provider_order_id FROM orders WHERE order_id = ? OR id = ? LIMIT 1',
+      [ticket.order_id, /^\d+$/.test(String(ticket.order_id)) ? ticket.order_id : 0]);
+    const doneSet = (await ticketsSvc.doneMap([ticket.id])).get(ticket.id) || new Set();
+    const allowed = ticketsSvc.availableActions(ticket, linked || null, doneSet).actions;
+    if (!allowed.includes(action)) {
+      flash(req, 'error', doneSet.has(action)
+        ? `"${action}" was already done for concern #${ticket.id}.`
+        : `"${action}" no longer applies to concern #${ticket.id}.`);
+      return res.redirect('/admin/tickets');
+    }
 
     let statusText = '';
     let response = '';
@@ -355,10 +395,17 @@ router.post('/admin/tickets/:id/action', async (req, res) => {
     await pool.query(
       'UPDATE tickets SET provider_action_status = ?, provider_action_response = ?, status = ?, assigned_to = ? WHERE id = ?',
       [statusText, response, newStatus, req.user.id, ticket.id]);
+    // Recorded only on success, so a failed attempt leaves the button available
+    // for a retry rather than pretending the work is finished.
+    await ticketsSvc.recordAction(ticket.id, action, { ok: true, detail: response, adminId: req.user.id });
     if (ticket.user_id) notifications.notifyUser(ticket.user_id, 'ticket', 'Update on your order concern',
       `Our team is processing your "${ticket.request_type || action}" request${ticket.order_id ? ' for order ' + ticket.order_id : ''}.`).catch(() => {});
     flash(req, 'success', action === 'refund' ? `${response} for ticket #${ticket.id}.` : `Action "${action}" sent for ticket #${ticket.id}.`);
   } catch (err) {
+    try {
+      await require('../services/tickets').recordAction(clampInt(req.params.id, 1, 2147483647), action,
+        { ok: false, detail: err.message, adminId: req.user && req.user.id });
+    } catch (_) { /* logging the failure must not mask it */ }
     flash(req, 'error', `Action failed: ${err.message}`);
   }
   res.redirect('/admin/tickets');

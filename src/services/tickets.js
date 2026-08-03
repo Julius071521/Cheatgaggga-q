@@ -42,4 +42,66 @@ async function thread(ticketId) {
   return { ticket: t, messages: [opening, ...msgs] };
 }
 
-module.exports = { postMessage, thread };
+// ── Concern action state ────────────────────────────────────
+// A concern used to keep only the LAST action in a single column, so the panel
+// showed every button forever — you could refund an order twice, or send a
+// speed-up on a concern that was already resolved. Actions are recorded here
+// instead, and the panel offers only the ones that still make sense.
+
+const ACTIONS = ['refill', 'speedup', 'cancel', 'refund'];
+
+async function recordAction(ticketId, action, { ok = true, detail = '', adminId = null } = {}) {
+  if (!ACTIONS.includes(action)) return;
+  await pool.query(
+    'INSERT INTO ticket_actions (ticket_id, action, ok, detail, admin_id) VALUES (?, ?, ?, ?, ?)',
+    [ticketId, action, ok ? 1 : 0, String(detail || '').slice(0, 500), adminId]);
+}
+
+// Successful actions per ticket → { ticketId: Set('refill', …) }. A failed
+// attempt is deliberately not counted, so a button that errored comes back.
+async function doneMap(ticketIds) {
+  const ids = (ticketIds || []).filter((n) => Number.isInteger(Number(n)));
+  const out = new Map();
+  if (!ids.length) return out;
+  const [rows] = await pool.query(
+    `SELECT ticket_id, action FROM ticket_actions
+      WHERE ok = 1 AND ticket_id IN (${ids.map(() => '?').join(',')})`, ids);
+  for (const r of rows) {
+    if (!out.has(r.ticket_id)) out.set(r.ticket_id, new Set());
+    out.get(r.ticket_id).add(r.action);
+  }
+  return out;
+}
+
+// Which buttons this concern should still show, and why the others are gone.
+// `order` may be null when nothing is linked.
+function availableActions(ticket, order, done = new Set()) {
+  const status = String(ticket.status || 'open').toLowerCase();
+  const finished = ['resolved', 'closed'].includes(status);
+  const orderStatus = String((order && order.status) || '').toLowerCase();
+  const hasProviderOrder = Boolean(ticket.provider_order_id || (order && order.provider_order_id));
+  const orderOver = ['completed', 'canceled', 'cancelled', 'refunded', 'failed', 'partial'].includes(orderStatus);
+  const moneyBack = done.has('refund') || ['refunded', 'canceled', 'cancelled'].includes(orderStatus);
+
+  // A closed concern, or one whose money is already back, is done — the status
+  // dropdown stays so it can be reopened, but no action can still apply.
+  if (finished || moneyBack) return { actions: [], closedReason: finished ? 'resolved' : 'refunded' };
+
+  const actions = [];
+  // Refill only makes sense on a delivered order, and only once.
+  if (!done.has('refill') && hasProviderOrder && orderStatus !== 'canceled' && orderStatus !== 'refunded') {
+    actions.push('refill');
+  }
+  // Speeding up a finished order is meaningless.
+  if (!done.has('speedup') && !orderOver) actions.push('speedup');
+  // Cancelling needs a live provider order that has not finished.
+  if (!done.has('cancel') && hasProviderOrder && !orderOver) actions.push('cancel');
+  // Refund stays until the money actually moves.
+  if (order) actions.push('refund');
+
+  return { actions, closedReason: null };
+}
+
+module.exports = {
+  postMessage, thread, recordAction, doneMap, availableActions, ACTIONS,
+};

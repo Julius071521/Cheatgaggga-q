@@ -64,6 +64,12 @@ const env = {
   DAILY_DIGEST_HOUR: num('DAILY_DIGEST_HOUR', 8),
   // Open orders still not delivered after this many days are auto-refunded.
   AUTOPILOT_AUTOREFUND_DAYS: num('AUTOPILOT_AUTOREFUND_DAYS', 7),
+  // An order that has not started moving this many hours after it was placed
+  // gets chased: re-synced with the provider, escalated, and the customer told.
+  AUTOPILOT_SPEEDUP_HOURS: num('AUTOPILOT_SPEEDUP_HOURS', 5),
+  // Still undelivered after this many days → cancellation is asked of the
+  // provider, which is what gets the money back before we refund the customer.
+  AUTOPILOT_AUTOCANCEL_DAYS: num('AUTOPILOT_AUTOCANCEL_DAYS', 2),
 
   // Growth: deposit bonus tiers ("min:percent,...") + referral commission
   DEPOSIT_BONUS_TIERS: str('DEPOSIT_BONUS_TIERS', '500:5,1000:10,5000:50'),
