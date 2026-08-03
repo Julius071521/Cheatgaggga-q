@@ -113,6 +113,13 @@ const env = {
   // How long an admin-panel policy change takes to reach the request path.
   NETGUARD_SETTINGS_TTL_MS: num('NETGUARD_SETTINGS_TTL_MS', 20000),
 
+  // Per-account brute-force lockout. Counted against the ACCOUNT, so a
+  // stuffing run spread over a thousand IPs is still stopped.
+  LOGIN_MAX_ATTEMPTS: num('LOGIN_MAX_ATTEMPTS', 5),
+  // Failures older than this stop counting, so a forgetful customer next month
+  // does not start already half-way to a lockout.
+  LOGIN_ATTEMPT_WINDOW_MIN: num('LOGIN_ATTEMPT_WINDOW_MIN', 60),
+
   SECURITY_UNDER_ATTACK_IPS: num('SECURITY_UNDER_ATTACK_IPS', 5),
   SECURITY_UNDER_ATTACK_WINDOW_MIN: num('SECURITY_UNDER_ATTACK_WINDOW_MIN', 5),
 

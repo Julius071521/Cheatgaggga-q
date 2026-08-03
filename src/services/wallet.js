@@ -80,13 +80,24 @@ async function approveDeposit(depositId, adminId, note, { auto = false } = {}) {
     // enforced by the unique key on referral_commissions.deposit_id).
     let commission = 0;
     let referrerId = null;
+    let skippedCommissionReason = null;
     const pct = Number(env.REFERRAL_COMMISSION_PERCENT) || 0;
     if (pct > 0) {
       const [[depositor]] = await conn.query('SELECT referred_by FROM users WHERE id = ?', [deposit.user_id]);
       if (depositor && depositor.referred_by && depositor.referred_by !== deposit.user_id) {
         const [[referrer]] = await conn.query(
           "SELECT id FROM users WHERE id = ? AND LOWER(COALESCE(status,'Active')) = 'active'", [depositor.referred_by]);
-        if (referrer) {
+        // Paying a commission to the depositor's own second account is just
+        // handing money away. Checked here rather than at signup because the
+        // link may only become visible later (a shared payment reference).
+        const selfRef = referrer
+          ? await require('./fraud').selfReferral(referrer.id, deposit.user_id).catch(() => null)
+          : null;
+        if (selfRef) {
+          console.warn(`[wallet] referral commission withheld on deposit ${deposit.id}: ${selfRef}`);
+          skippedCommissionReason = selfRef;
+        }
+        if (referrer && !selfRef) {
           commission = Math.round(Number(deposit.amount) * pct) / 100;
           if (commission > 0) {
             try {
@@ -111,7 +122,7 @@ async function approveDeposit(depositId, adminId, note, { auto = false } = {}) {
       [note ? String(note).slice(0, 500) : null, adminId || null,
         bonus.amount > 0 ? bonus.amount.toFixed(4) : null, auto ? 1 : 0, depositId]);
     await conn.commit();
-    return { deposit, bonus: bonus.amount, bonusPct: bonus.pct, commission, referrerId };
+    return { deposit, bonus: bonus.amount, bonusPct: bonus.pct, commission, referrerId, skippedCommissionReason };
   } catch (err) {
     await conn.rollback();
     throw err;

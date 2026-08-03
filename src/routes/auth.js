@@ -8,6 +8,10 @@ const { authLimiter } = require('../middleware/rateLimit');
 const { randomToken, isValidEmail } = require('../utils/helpers');
 const { hashSecret, verifySecret, sha256 } = require('../utils/password');
 const totp = require('../utils/totp');
+const audit = require('../services/audit');
+const loginGuard = require('../services/loginGuard');
+const twofactor = require('../services/twofactor');
+const fraud = require('../services/fraud');
 
 const router = express.Router();
 
@@ -34,6 +38,11 @@ function safeDest(dest, fallback) {
 }
 
 function loginSession(req, user, res, fallback = '/dashboard') {
+  audit.loginAttempt(req, { userId: user.id, outcome: 'success', usernameTried: user.username || user.email });
+  // last_ip/last_device power the linked-account view; kept current on
+  // every sign-in so an account that moves is still traceable.
+  pool.query('UPDATE users SET last_ip = ?, last_device = ? WHERE id = ?',
+    [String(req.clientIp || req.ip || '').slice(0, 45), fraud.deviceOf(req), user.id]).catch(() => {});
   req.session.regenerate((err) => {
     if (err) return res.status(500).render('errors/500');
     req.session.userId = user.id;
@@ -109,6 +118,11 @@ router.post('/register', authLimiter, verifyTurnstile, async (req, res, next) =>
     );
     delete req.session.refCode;
 
+    // Record where this signup came from and link it to any account that
+    // shares the address or device. Nothing is blocked here — the point is
+    // that a farm of twenty accounts becomes visible in the panel.
+    fraud.onSignup(result.insertId, req).catch(() => {});
+
     if (env.EMAIL_VERIFICATION_REQUIRED) {
       await sendVerifyEmail({ id: result.insertId, email });
       flash(req, 'success', 'Account created! Check your inbox for the verification link before signing in.');
@@ -152,12 +166,45 @@ router.post('/login', authLimiter, verifyTurnstile, async (req, res, next) => {
     const password = String(req.body.password || '');
     const user = await getUserByIdentifier(identifier);
 
-    if (!user || !(await verifySecret(password, user.password))) {
-      // Feed failed logins to the Threat Radar (brute-force scoring).
+    if (!user) {
       try { require('../services/security').record(req.clientIp || req.ip, 'brute', req, 'failed login'); } catch (_) {}
+      audit.loginAttempt(req, { outcome: 'unknown_user', usernameTried: identifier });
       flash(req, 'error', 'Incorrect username/email or password.');
       return res.redirect('/login');
     }
+
+    // Checked before the password so a locked account cannot be probed to find
+    // out whether a guess was right.
+    const lock = await loginGuard.lockState(user);
+    if (lock) {
+      audit.loginAttempt(req, { userId: user.id, outcome: 'locked', usernameTried: identifier,
+        detail: `locked for ${lock.minutes}m` });
+      flash(req, 'error',
+        `Too many failed sign-in attempts. This account is locked for ${lock.minutes} minute${lock.minutes === 1 ? '' : 's'}. `
+        + 'You can reset your password to get straight back in.');
+      return res.redirect('/login');
+    }
+
+    if (!(await verifySecret(password, user.password))) {
+      // Feed failed logins to the Threat Radar (brute-force scoring).
+      try { require('../services/security').record(req.clientIp || req.ip, 'brute', req, 'failed login'); } catch (_) {}
+      const locked = await loginGuard.recordFailure(user);
+      audit.loginAttempt(req, { userId: user.id, outcome: 'bad_password', usernameTried: identifier,
+        detail: locked ? `locked ${locked.minutes}m after ${locked.fails} tries` : null });
+      if (locked) {
+        try {
+          require('../services/telegram').send(
+            `🔒 <b>Account locked</b>\n<b>${String(user.username || user.email)}</b> was locked for ${locked.minutes} minutes `
+            + `after ${locked.fails} failed sign-ins.\nLast attempt from <code>${req.clientIp || req.ip}</code>.`).catch(() => {});
+        } catch (_) { /* alerting is best-effort */ }
+        flash(req, 'error',
+          `Too many failed attempts. This account is locked for ${locked.minutes} minutes. Reset your password to get back in sooner.`);
+        return res.redirect('/login');
+      }
+      flash(req, 'error', 'Incorrect username/email or password.');
+      return res.redirect('/login');
+    }
+    await loginGuard.clear(user.id);
     if (String(user.status || 'Active').toLowerCase() !== 'active') {
       flash(req, 'error', 'This account has been suspended. Contact support.');
       return res.redirect('/login');
@@ -184,12 +231,33 @@ router.post('/login/2fa', authLimiter, async (req, res, next) => {
     if (!pendingId) return res.redirect('/login');
     const [[user]] = await pool.query('SELECT * FROM users WHERE id = ? LIMIT 1', [pendingId]);
     if (!user || !user.totp_enabled) { delete req.session.pending2faUser; return res.redirect('/login'); }
-    if (!totp.verify(user.totp_secret, req.body.code)) {
-      try { require('../services/security').record(req.clientIp || req.ip, 'brute', req, 'bad 2FA code'); } catch (_) {}
-      flash(req, 'error', 'Incorrect code. Please try again.');
-      return res.redirect('/login/2fa');
+    const code = String(req.body.code || '').trim();
+    let usedRecovery = false;
+    if (!totp.verify(user.totp_secret, code)) {
+      // A recovery code is the way back in when the phone is gone. Each one
+      // works once, and using one is worth telling the owner about.
+      usedRecovery = await twofactor.consume(user.id, code);
+      if (!usedRecovery) {
+        try { require('../services/security').record(req.clientIp || req.ip, 'brute', req, 'bad 2FA code'); } catch (_) {}
+        await loginGuard.recordFailure(user);
+        audit.loginAttempt(req, { userId: user.id, outcome: 'bad_2fa', usernameTried: user.username || user.email });
+        flash(req, 'error', 'Incorrect code. Please try again, or use one of your recovery codes.');
+        return res.redirect('/login/2fa');
+      }
     }
+    await loginGuard.clear(user.id);
     delete req.session.pending2faUser;
+    if (usedRecovery) {
+      const left = await twofactor.remaining(user.id);
+      audit.loginAttempt(req, { userId: user.id, outcome: 'recovery', usernameTried: user.username || user.email,
+        detail: `${left} recovery codes left` });
+      try {
+        require('../services/telegram').send(
+          `🔑 <b>Recovery code used</b>\n<b>${String(user.username || user.email)}</b> signed in with a 2FA recovery code `
+          + `from <code>${req.clientIp || req.ip}</code>. ${left} left.`).catch(() => {});
+      } catch (_) { /* best effort */ }
+      flash(req, 'success', `Signed in with a recovery code — ${left} left. Generate a new set in Settings.`);
+    }
     loginSession(req, user, res);
   } catch (err) { next(err); }
 });

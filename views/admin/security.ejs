@@ -45,6 +45,122 @@
   </div>
 
   <div class="card section-card">
+    <div class="card-head"><h2>🔐 Account security</h2></div>
+
+    <div class="kpi-grid kpi-grid-wide">
+      <div class="kpi card"><span class="kpi-label">Admin actions (24h)</span><span class="kpi-value"><%= accounts.audit.actions24.toLocaleString() %></span></div>
+      <div class="kpi card"><span class="kpi-label">Sign-ins (24h)</span><span class="kpi-value"><%= accounts.audit.logins24.toLocaleString() %></span></div>
+      <div class="kpi card <%= accounts.audit.failed24 > 50 ? 'kpi-alert' : '' %>"><span class="kpi-label">Failed attempts (24h)</span><span class="kpi-value"><%= accounts.audit.failed24.toLocaleString() %></span></div>
+      <div class="kpi card"><span class="kpi-label">Accounts locked now</span><span class="kpi-value"><%= accounts.locked.length %></span></div>
+    </div>
+
+    <h3 style="margin:18px 0 8px;font-size:1rem">Policies</h3>
+    <div class="ticket-actions">
+      <% [['require2fa', accounts.require2fa, '🔐 Require 2FA for admins',
+            'Turn OFF the 2FA requirement for admin accounts? A single leaked password would then be enough to reach every customer balance.'],
+          ['lockout', accounts.lockoutOn, '🔒 Per-account lockout',
+            'Turn OFF per-account lockout? Password guessing spread across many IPs would no longer be stopped.'],
+          ['fraud', accounts.fraudOn, '🕵️ Multi-account detection',
+            'Turn OFF multi-account detection? Linked accounts will stop being recorded.']].forEach(function (p) { %>
+        <form method="post" action="/admin/security/policy" class="inline-form"<% if (p[1]) { %> data-confirm="<%= p[3] %>"<% } %>>
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <input type="hidden" name="policy" value="<%= p[0] %>">
+          <input type="hidden" name="value" value="<%= p[1] ? '0' : '1' %>">
+          <button type="submit" class="btn btn-sm <%= p[1] ? 'btn-primary' : 'btn-outline' %>"><%= p[1] ? '✓ ' : '○ ' %><%= p[2] %></button>
+        </form>
+      <% }); %>
+      <a href="/admin/audit" class="btn btn-sm btn-outline">🗂️ Open the audit trail</a>
+    </div>
+
+    <h3 style="margin:18px 0 8px;font-size:1rem">Admin accounts</h3>
+    <div class="table-wrap">
+      <table class="table">
+        <thead><tr><th>Admin</th><th>Role</th><th>Two-factor</th></tr></thead>
+        <tbody>
+          <% accounts.admins.forEach(function (a) { %>
+            <tr>
+              <td><strong><%= a.username %></strong><br><small class="muted"><%= a.email %></small></td>
+              <td><%= a.role %></td>
+              <td>
+                <% if (a.totp_enabled) { %><span class="badge badge-completed">ON</span>
+                <% } else { %><span class="badge badge-failed">OFF — this account is one password away</span><% } %>
+              </td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+
+    <% if (accounts.spread && accounts.spread.length) { %>
+      <h3 style="margin:18px 0 8px;font-size:1rem">⚠️ One account, many addresses — this is a stuffing run</h3>
+      <div class="table-wrap">
+        <table class="table">
+          <thead><tr><th>Account tried</th><th class="num">Distinct IPs</th><th class="num">Attempts</th></tr></thead>
+          <tbody>
+            <% accounts.spread.forEach(function (s) { %>
+              <tr><td><code><%= s.username_tried %></code></td><td class="num"><%= s.ips %></td><td class="num"><%= s.tries %></td></tr>
+            <% }); %>
+          </tbody>
+        </table>
+      </div>
+    <% } %>
+
+    <% if (accounts.locked.length) { %>
+      <h3 style="margin:18px 0 8px;font-size:1rem">Locked accounts</h3>
+      <div class="table-wrap">
+        <table class="table">
+          <thead><tr><th>Account</th><th class="num">Failures</th><th>Locked until</th><th></th></tr></thead>
+          <tbody>
+            <% accounts.locked.forEach(function (l) { %>
+              <tr>
+                <td><%= l.username %><br><small class="muted"><%= l.email %></small></td>
+                <td class="num"><%= l.failed_logins %></td>
+                <td><%= h.formatDate(l.locked_until) %></td>
+                <td>
+                  <form method="post" action="/admin/security/unlock" class="inline-form">
+                    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                    <input type="hidden" name="user_id" value="<%= l.id %>">
+                    <button type="submit" class="btn btn-sm btn-outline">🔓 Unlock</button>
+                  </form>
+                </td>
+              </tr>
+            <% }); %>
+          </tbody>
+        </table>
+      </div>
+    <% } %>
+
+    <h3 style="margin:18px 0 8px;font-size:1rem">🕵️ Accounts that look linked</h3>
+    <% if (accounts.flagged.length) { %>
+      <div class="table-wrap">
+        <table class="table">
+          <thead><tr><th>Account</th><th class="num">Risk</th><th>Signals</th><th class="num">Links</th><th class="num">Balance</th><th></th></tr></thead>
+          <tbody>
+            <% accounts.flagged.forEach(function (f) { %>
+              <tr>
+                <td><%= f.username %><br><small class="muted"><%= f.email %></small></td>
+                <td class="num"><strong><%= f.fraud_score %></strong></td>
+                <td><small class="muted"><%= f.fraud_flags || '—' %></small></td>
+                <td class="num"><%= f.link_count %></td>
+                <td class="num">₱<%= h.money(f.balance) %></td>
+                <td><a href="/admin/fraud/<%= f.id %>" class="btn btn-sm btn-outline">View links</a></td>
+              </tr>
+            <% }); %>
+          </tbody>
+        </table>
+      </div>
+      <p class="muted" style="margin-top:8px"><small>A shared IP is weak evidence on its own — households, offices and mobile networks all share one.
+        A shared <strong>payment receipt</strong> is strong. Open an account before acting on it.</small></p>
+    <% } else { %>
+      <p class="muted"><small>Nothing flagged yet. Accounts created before this shipped have no fingerprint — run a backfill to check them against each other.</small></p>
+      <form method="post" action="/admin/fraud/backfill" class="inline-form" style="margin-top:8px">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <button type="submit" class="btn btn-sm btn-outline">Scan older accounts</button>
+      </form>
+    <% } %>
+  </div>
+
+  <div class="card section-card">
     <div class="card-head"><h2>🛰️ Network Guard — VPN · Proxy · Tor · VPS</h2></div>
     <p class="muted">
       Identifies visitors on a VPN, a proxy, a Tor exit node, or a rented server (VPS / datacenter) —

@@ -158,8 +158,25 @@ router.get('/admin/security', async (req, res, next) => {
       ranges: ipintel.rangeCount,
       lookupOn: env.NETGUARD_LOOKUP,
     };
+    const audit = require('../services/audit');
+    const loginGuard = require('../services/loginGuard');
+    const twofactor = require('../services/twofactor');
+    const fraud = require('../services/fraud');
+    const accounts = {
+      require2fa: await twofactor.required(),
+      lockoutOn: await loginGuard.enabled(),
+      admins: (await pool.query(
+        "SELECT id, username, email, role, totp_enabled FROM users WHERE role IN ('admin','super_admin') ORDER BY id"))[0],
+      locked: await loginGuard.lockedAccounts(20),
+      spread: await loginGuard.spreadAttack(),
+      audit: await audit.stats(),
+      recentLogins: await audit.recentLogins({ limit: 25 }),
+      recentActions: await audit.recentAdminActions({ limit: 25 }),
+      flagged: await fraud.flagged(20),
+      fraudOn: await fraud.enabled(),
+    };
     res.render('admin/security', {
-      title: 'Admin · Security', enabled, autoBlock, threats, recent, stat, blockedCount: blk.c, netguard,
+      title: 'Admin · Security', enabled, autoBlock, threats, recent, stat, blockedCount: blk.c, netguard, accounts,
       telegramOn: require('../services/telegram').enabled,
       underAttack: await security.underAttack(),
       threatLevel: security.threatLevel, flagEmoji: security.flagEmoji, kindLabel: security.KIND_LABEL,
@@ -209,6 +226,76 @@ router.post('/admin/security/netguard/clear', async (req, res, next) => {
     await require('../services/ipintel').markResidential(ip);
     await security.allowIp(ip);
     flash(req, 'success', `${ip} cleared — this visitor can use the site normally now.`);
+    res.redirect('/admin/security');
+  } catch (err) { next(err); }
+});
+
+// ── Account security controls ─────────────────────────────
+router.post('/admin/security/policy', async (req, res, next) => {
+  try {
+    const KEYS = { require2fa: 'require_admin_2fa', lockout: 'login_lockout_enabled', fraud: 'fraud_link_detection' };
+    const key = KEYS[String(req.body.policy || '')];
+    if (!key) { flash(req, 'error', 'Unknown policy.'); return res.redirect('/admin/security'); }
+    const on = req.body.value === '1';
+    const before = await getSetting(key, 'on');
+    await setSetting(key, on ? 'on' : 'off');
+    await require('../services/audit').adminAction(req,
+      { action: 'policy_changed', module: 'security', recordId: key, before, after: on ? 'on' : 'off' });
+    flash(req, 'success', `${req.body.policy} turned ${on ? 'ON' : 'OFF'}.`);
+    res.redirect('/admin/security');
+  } catch (err) { next(err); }
+});
+
+router.post('/admin/security/unlock', async (req, res, next) => {
+  try {
+    const userId = clampInt(req.body.user_id, 1, 2147483647);
+    await require('../services/loginGuard').unlock(userId);
+    await require('../services/audit').adminAction(req,
+      { action: 'account_unlocked', module: 'users', recordId: userId });
+    flash(req, 'success', `Account #${userId} unlocked.`);
+    res.redirect('/admin/security');
+  } catch (err) { next(err); }
+});
+
+// Full audit trail, filterable. This is the page a dispute gets settled on.
+router.get('/admin/audit', async (req, res, next) => {
+  try {
+    const audit = require('../services/audit');
+    const mod = String(req.query.module || '').slice(0, 100);
+    const q = String(req.query.q || '').trim().slice(0, 80);
+    const outcome = String(req.query.outcome || '').slice(0, 16);
+    const [mods] = await pool.query(
+      'SELECT affected_module m, COUNT(*) c FROM admin_audit_logs GROUP BY affected_module ORDER BY c DESC LIMIT 20');
+    res.render('admin/audit', {
+      title: 'Admin · Audit trail',
+      actions: await audit.recentAdminActions({ limit: 200, module: mod, q }),
+      logins: await audit.recentLogins({ limit: 200, outcome }),
+      stats: await audit.stats(),
+      modules: mods, module: mod, q, outcome,
+    });
+  } catch (err) { next(err); }
+});
+
+// Linked accounts for one customer — the multi-account picture.
+router.get('/admin/fraud/:id', async (req, res, next) => {
+  try {
+    const id = clampInt(req.params.id, 1, 2147483647);
+    const [[u]] = await pool.query(
+      'SELECT id, username, email, balance, status, fraud_score, fraud_flags, signup_ip, last_ip, created_at FROM users WHERE id = ?', [id]);
+    if (!u) return res.status(404).render('errors/404');
+    res.render('admin/fraud', {
+      title: `Admin · Linked accounts · ${u.username || u.id}`,
+      subject: u, links: await require('../services/fraud').linksFor(id),
+    });
+  } catch (err) { next(err); }
+});
+
+router.post('/admin/fraud/backfill', async (req, res, next) => {
+  try {
+    const r = await require('../services/fraud').backfill(500);
+    await require('../services/audit').adminAction(req,
+      { action: 'fraud_backfill', module: 'security', after: JSON.stringify(r) });
+    flash(req, 'success', `Scanned ${r.scanned} older accounts, recorded ${r.linked} link(s).`);
     res.redirect('/admin/security');
   } catch (err) { next(err); }
 });
@@ -378,6 +465,9 @@ router.post('/admin/tickets/:id/action', async (req, res) => {
         [ticket.order_id, /^\d+$/.test(String(ticket.order_id)) ? ticket.order_id : 0]);
       if (!order) throw new Error('No order linked to this ticket to refund.');
       const r = await orderService.adminRefund(order.id, `Refund from concern #${ticket.id}`, req.user.id);
+      await require('../services/audit').adminAction(req, {
+        action: 'order_refunded', module: 'orders', recordId: order.id,
+        after: `₱${Number(r.refunded || 0).toFixed(2)} refunded from concern #${ticket.id}` });
       if (r.refunded > 0 && r.userId) {
         notifications.notifyUser(r.userId, 'order', 'Order refunded 💸',
           `Your order ${r.orderCode} was refunded ₱${r.refunded.toFixed(2)} to your wallet.`).catch(() => {});
@@ -489,7 +579,15 @@ router.post('/admin/users/:id/adjust', async (req, res) => {
     if (!Number.isFinite(amount) || amount === 0 || Math.abs(amount) > 1000000) {
       flash(req, 'error', 'Enter a non-zero adjustment amount (max ₱1,000,000).');
     } else {
+      const [[was]] = await pool.query('SELECT balance FROM users WHERE id = ?', [userId]);
       await wallet.adjustBalance(userId, amount, req.user.id, note || 'Admin adjustment');
+      const [[now]] = await pool.query('SELECT balance FROM users WHERE id = ?', [userId]);
+      await require('../services/audit').adminAction(req, {
+        action: amount > 0 ? 'balance_credited' : 'balance_debited',
+        module: 'wallet', recordId: userId,
+        before: was ? `₱${Number(was.balance).toFixed(2)}` : null,
+        after: `₱${now ? Number(now.balance).toFixed(2) : '?'} (${amount > 0 ? '+' : ''}${amount.toFixed(2)}) — ${note || 'Admin adjustment'}`,
+      });
       flash(req, 'success', `Balance adjusted by ₱${amount.toFixed(2)} for user #${userId}.`);
     }
   } catch (err) { flash(req, 'error', err.message); }
@@ -504,6 +602,8 @@ router.post('/admin/users/:id/ban', async (req, res, next) => {
     await pool.query(
       "UPDATE users SET status = ? WHERE id = ? AND role NOT IN ('admin','super_admin')",
       [unban ? 'Active' : 'Banned', userId]);
+    await require('../services/audit').adminAction(req, {
+      action: unban ? 'user_unbanned' : 'user_banned', module: 'users', recordId: userId });
     flash(req, 'success', unban ? `User #${userId} unbanned.` : `User #${userId} banned.`);
     res.redirect('/admin/users');
   } catch (err) { next(err); }
@@ -523,7 +623,7 @@ router.get('/admin/deposits', async (req, res, next) => {
 
 router.post('/admin/deposits/:id/approve', async (req, res) => {
   try {
-    const { deposit, bonus, bonusPct, commission, referrerId } =
+    const { deposit, bonus, bonusPct, commission, referrerId, skippedCommissionReason } =
       await wallet.approveDeposit(clampInt(req.params.id, 1, 2147483647), req.user.id, String(req.body.note || '').trim());
     const [[user]] = await pool.query('SELECT email FROM users WHERE id = ?', [deposit.user_id]);
     if (user) mailer.sendDepositResult(user.email, deposit, true);
@@ -533,6 +633,15 @@ router.post('/admin/deposits/:id/approve', async (req, res) => {
     if (referrerId && commission > 0) {
       notifications.notifyUser(referrerId, 'commission', 'Referral commission earned 💰',
         `You earned ₱${commission.toFixed(2)} because a member you invited topped up. Keep sharing your link!`).catch(() => {});
+    }
+    await require('../services/audit').adminAction(req, {
+      action: 'deposit_approved', module: 'deposits', recordId: deposit.id,
+      before: 'Pending',
+      after: `Approved ₱${Number(deposit.amount).toFixed(2)}${bonusLine} for user #${deposit.user_id}`
+        + (skippedCommissionReason ? ` · referral commission withheld: ${skippedCommissionReason}` : ''),
+    });
+    if (skippedCommissionReason) {
+      flash(req, 'error', `Heads up — referral commission was NOT paid on this deposit: ${skippedCommissionReason}`);
     }
     flash(req, 'success', `Deposit #${deposit.id} approved — ₱${Number(deposit.amount).toFixed(2)} credited${bonusLine}.`);
   } catch (err) { flash(req, 'error', err.message); }
@@ -547,6 +656,9 @@ router.post('/admin/deposits/:id/reject', async (req, res) => {
     if (user) mailer.sendDepositResult(user.email, { ...deposit, admin_note: note }, false);
     notifications.notifyUser(deposit.user_id, 'deposit', 'Deposit rejected',
       `Your ${String(deposit.payment_method).toUpperCase()} deposit of ₱${Number(deposit.amount).toFixed(2)} was rejected.${note ? ' Reason: ' + note : ''}`).catch(() => {});
+    await require('../services/audit').adminAction(req, {
+      action: 'deposit_rejected', module: 'deposits', recordId: deposit.id,
+      before: 'Pending', after: `Rejected${note ? ' — ' + note : ''}` });
     flash(req, 'success', `Deposit #${deposit.id} rejected.`);
   } catch (err) { flash(req, 'error', err.message); }
   res.redirect('/admin/deposits');

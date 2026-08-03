@@ -1,0 +1,92 @@
+<%- include('../partials/head', { title }) %>
+<%- include('../partials/nav') %>
+<main id="main-content" class="container page">
+  <div class="page-head">
+    <h1>Audit <span class="grad-text">trail</span> 🗂️</h1>
+    <p class="muted">Every admin action and every sign-in attempt — who, when, and from where.</p>
+  </div>
+  <%- include('../partials/admin-nav') %>
+
+  <div class="kpi-grid kpi-grid-wide">
+    <div class="kpi card"><span class="kpi-label">Admin actions (24h)</span><span class="kpi-value"><%= stats.actions24.toLocaleString() %></span></div>
+    <div class="kpi card"><span class="kpi-label">Sign-ins (24h)</span><span class="kpi-value"><%= stats.logins24.toLocaleString() %></span></div>
+    <div class="kpi card <%= stats.failed24 > 50 ? 'kpi-alert' : '' %>"><span class="kpi-label">Failed attempts (24h)</span><span class="kpi-value"><%= stats.failed24.toLocaleString() %></span></div>
+    <div class="kpi card"><span class="kpi-label">Distinct failing IPs</span><span class="kpi-value"><%= stats.distinctFailedIps24.toLocaleString() %></span></div>
+  </div>
+
+  <div class="card section-card">
+    <div class="card-head"><h2>🗂️ Admin actions</h2></div>
+    <form class="filter-search" method="get" action="/admin/audit">
+      <input type="text" name="q" value="<%= q %>" class="input" placeholder="Search action, record, admin…">
+      <select name="module" class="input-sm">
+        <option value="">All areas</option>
+        <% modules.forEach(function (m) { %>
+          <option value="<%= m.m %>" <%= module === m.m ? 'selected' : '' %>><%= m.m %> (<%= m.c %>)</option>
+        <% }); %>
+      </select>
+      <button type="submit" class="btn btn-primary">Search</button>
+    </form>
+
+    <% if (actions.length) { %>
+    <div class="table-wrap">
+      <table class="table">
+        <thead><tr><th>When</th><th>Admin</th><th>Action</th><th>Area</th><th>Record</th><th>Before → after</th><th>IP</th></tr></thead>
+        <tbody>
+          <% actions.forEach(function (a) { %>
+            <tr>
+              <td><%= h.formatDate(a.created_at) %></td>
+              <td><%= a.admin_username || (a.admin_id ? '#' + a.admin_id : 'system') %></td>
+              <td><span class="badge"><%= a.action %></span></td>
+              <td><%= a.affected_module %></td>
+              <td><%= a.affected_record_id || '—' %></td>
+              <td class="audit-diff">
+                <% if (a.old_value) { %><span class="muted"><%= String(a.old_value).slice(0, 90) %></span> → <% } %>
+                <%= a.new_value ? String(a.new_value).slice(0, 140) : '—' %>
+              </td>
+              <td><code><%= a.ip_address || '—' %></code></td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+    <% } else { %>
+      <p class="empty-note">No admin actions recorded yet<%= q || module ? ' for that filter' : '' %>.</p>
+    <% } %>
+  </div>
+
+  <div class="card section-card">
+    <div class="card-head"><h2>🔑 Sign-in attempts</h2></div>
+    <div class="ticket-actions">
+      <% [['', 'All'], ['success', 'Successful'], ['bad_password', 'Wrong password'], ['unknown_user', 'Unknown user'],
+          ['locked', 'Blocked by lockout'], ['bad_2fa', 'Wrong 2FA'], ['recovery', 'Recovery code']].forEach(function (o) { %>
+        <a href="/admin/audit?outcome=<%= o[0] %>" class="btn btn-sm <%= outcome === o[0] ? 'btn-primary' : 'btn-outline' %>"><%= o[1] %></a>
+      <% }); %>
+    </div>
+
+    <% if (logins.length) { %>
+    <div class="table-wrap">
+      <table class="table">
+        <thead><tr><th>When</th><th>Account</th><th>Result</th><th>IP</th><th>Detail</th></tr></thead>
+        <tbody>
+          <% logins.forEach(function (l) {
+               const bad = ['bad_password', 'unknown_user', 'locked', 'bad_2fa'].indexOf(l.outcome) > -1; %>
+            <tr>
+              <td><%= h.formatDate(l.created_at) %></td>
+              <td>
+                <%= l.username || l.username_tried || (l.user_id ? '#' + l.user_id : '—') %>
+                <% if (l.role && l.role !== 'user') { %><span class="badge badge-tx-order"><%= l.role %></span><% } %>
+              </td>
+              <td><span class="badge <%= bad ? 'badge-failed' : 'badge-completed' %>"><%= l.outcome %></span></td>
+              <td><code><%= l.ip_address || '—' %></code></td>
+              <td class="muted"><small><%= l.detail || '' %></small></td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+    <% } else { %>
+      <p class="empty-note">No sign-in attempts recorded yet.</p>
+    <% } %>
+  </div>
+</main>
+<%- include('../partials/footer') %>

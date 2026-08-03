@@ -253,6 +253,9 @@ app.use(require('./src/middleware/gate').gate);
 // body parser because the money-path checks look at POSTs.
 app.use(require('./src/middleware/networkGuard').networkGuard);
 
+// Admin accounts must carry a second factor before the panel opens.
+app.use(require('./src/middleware/require2fa'));
+
 // ── Routes ────────────────────────────────────────────────
 app.use(require('./src/routes/telegram'));
 app.use(require('./src/routes/internal'));

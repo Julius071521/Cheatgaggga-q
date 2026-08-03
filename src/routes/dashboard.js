@@ -534,6 +534,9 @@ router.post('/wallet/deposit', (req, res, next) => {
         "INSERT INTO deposits (user_id, payment_method, amount, reference_id, status, receipt_path, receipt_hash) VALUES (?, ?, ?, ?, 'Pending', ?, ?)",
         [req.user.id, method, amount.toFixed(4), reference, req.file ? path.basename(req.file.path) : null, receiptHash]);
       req._depositSaved = true; // receipt now belongs to a saved deposit — don't clean it up
+      // The same receipt image claimed by a second account is a multi-account
+      // tell. Only runs once the row is safely in — never on the failure path.
+      require('../services/fraud').onDeposit(req.user.id, receiptHash).catch(() => {});
     } catch (err) {
       // reference_id is globally unique — a reference someone else already used
       // must be rejected cleanly, never crash.
@@ -622,11 +625,19 @@ router.get('/settings', async (req, res, next) => {
     // A pending 2FA setup (secret generated, not yet confirmed) lives in session.
     const pending = req.session.pending2fa || null;
     const [[me]] = await pool.query('SELECT email_optout FROM users WHERE id = ?', [req.user.id]);
+    const twofactor = require('../services/twofactor');
+    // Shown exactly once, straight after they are generated — never stored in
+    // a form we can read back, so this is the only chance to write them down.
+    const freshCodes = req.session.freshRecoveryCodes || null;
+    delete req.session.freshRecoveryCodes;
     res.render('dashboard/settings', {
       title: 'Account Settings',
       twofaEnabled: !!req.user.totp_enabled,
       pending2fa: pending,
       emailUpdates: !(me && me.email_optout),
+      recoveryLeft: req.user.totp_enabled ? await twofactor.remaining(req.user.id) : 0,
+      freshCodes,
+      twofaMandatory: req.user.isAdmin && await twofactor.required(),
     });
   } catch (err) { next(err); }
 });
@@ -667,8 +678,32 @@ router.post('/settings/2fa/enable', async (req, res, next) => {
     }
     await pool.query('UPDATE users SET totp_secret = ?, totp_enabled = 1 WHERE id = ?', [pending.secret, req.user.id]);
     delete req.session.pending2fa;
-    flash(req, 'success', 'Two-factor authentication is now ON. You will be asked for a code at each login. 🔐');
-    res.redirect('/settings');
+    // Mandatory 2FA without a way back in is how an operator loses their own
+    // panel when a phone dies, so the codes are issued in the same step.
+    const codes = await require('../services/twofactor').generate(req.user.id);
+    req.session.freshRecoveryCodes = codes;
+    require('../services/audit').adminAction(req, { action: '2fa_enabled', module: 'account', recordId: req.user.id });
+    flash(req, 'success', 'Two-factor is ON. 🔐 Save your recovery codes below — they are shown only once.');
+    req.session.save(() => res.redirect('/settings#twofa'));
+  } catch (err) { next(err); }
+});
+
+// Fresh recovery codes. Requires a live authenticator code, so a stolen
+// session cannot quietly mint itself a permanent way back in.
+router.post('/settings/2fa/recovery', async (req, res, next) => {
+  try {
+    if (!req.user.totp_enabled) { flash(req, 'error', 'Turn on two-factor first.'); return res.redirect('/settings'); }
+    const [[u]] = await pool.query('SELECT totp_secret FROM users WHERE id = ?', [req.user.id]);
+    if (!u || !totp.verify(u.totp_secret, req.body.code)) {
+      flash(req, 'error', 'Enter a valid current 2FA code to generate new recovery codes.');
+      return res.redirect('/settings#twofa');
+    }
+    // Generating replaces the old set — any code written down before now stops
+    // working, which is the point after a suspected leak.
+    req.session.freshRecoveryCodes = await require('../services/twofactor').generate(req.user.id);
+    require('../services/audit').adminAction(req, { action: 'recovery_codes_regenerated', module: 'account', recordId: req.user.id });
+    flash(req, 'success', 'New recovery codes generated. The old ones no longer work.');
+    req.session.save(() => res.redirect('/settings#twofa'));
   } catch (err) { next(err); }
 });
 
@@ -682,11 +717,18 @@ router.post('/settings/2fa/cancel', (req, res) => {
 router.post('/settings/2fa/disable', async (req, res, next) => {
   try {
     if (!req.user.totp_enabled) return res.redirect('/settings');
+    if (req.user.isAdmin && await require('../services/twofactor').required()) {
+      flash(req, 'error', 'Two-factor is required for admin accounts and cannot be switched off. '
+        + 'An owner can lift the requirement in Admin → Security.');
+      return res.redirect('/settings#twofa');
+    }
     const [[u]] = await pool.query('SELECT totp_secret FROM users WHERE id = ?', [req.user.id]);
     if (!u || !totp.verify(u.totp_secret, req.body.code)) {
       flash(req, 'error', 'Enter a valid current 2FA code to turn it off.'); return res.redirect('/settings');
     }
     await pool.query('UPDATE users SET totp_secret = NULL, totp_enabled = 0 WHERE id = ?', [req.user.id]);
+    await pool.query('DELETE FROM totp_recovery_codes WHERE user_id = ?', [req.user.id]);
+    require('../services/audit').adminAction(req, { action: '2fa_disabled', module: 'account', recordId: req.user.id });
     flash(req, 'success', 'Two-factor authentication turned off.');
     res.redirect('/settings');
   } catch (err) { next(err); }

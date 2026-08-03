@@ -39,9 +39,39 @@
 
     <div class="card twofa-card <%= twofaEnabled ? 'twofa-on' : '' %>" id="twofa" data-reveal data-reveal-delay="160">
       <h2>🔐 Two-factor authentication <%= twofaEnabled ? '— ON' : '' %></h2>
+      <% if (typeof freshCodes !== 'undefined' && freshCodes && freshCodes.length) { %>
+        <div class="recovery-box">
+          <h3>🔑 Your recovery codes — save these now</h3>
+          <p class="muted">Each code works <strong>once</strong>, and gets you in if you lose your phone.
+             This is the only time they are shown; we store only hashes and cannot show them again.</p>
+          <ul class="recovery-codes">
+            <% freshCodes.forEach(function (c) { %><li><code><%= c %></code></li><% }); %>
+          </ul>
+          <button type="button" class="btn btn-outline btn-sm copy-btn" data-copy="<%= freshCodes.join('\n') %>">Copy all</button>
+        </div>
+      <% } %>
+
       <% if (twofaEnabled) { %>
         <p class="muted">Your account is protected. You'll be asked for a code from your authenticator app at each login.</p>
-        <form method="post" action="/settings/2fa/disable" data-confirm="Turn off two-factor protection?">
+        <p class="muted"><small>Recovery codes left: <strong><%= typeof recoveryLeft !== 'undefined' ? recoveryLeft : 0 %></strong>
+          <% if ((typeof recoveryLeft !== 'undefined' ? recoveryLeft : 0) <= 2) { %>
+            — <strong>running low, generate a new set.</strong>
+          <% } %></small></p>
+
+        <form method="post" action="/settings/2fa/recovery">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <label class="field">
+            <span>New recovery codes (enter a current 2FA code)</span>
+            <input type="text" name="code" required inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="123456">
+          </label>
+          <button type="submit" class="btn btn-outline">Generate new recovery codes</button>
+        </form>
+
+        <% if (typeof twofaMandatory !== 'undefined' && twofaMandatory) { %>
+          <p class="muted" style="margin-top:14px"><small>🛡️ Two-factor is <strong>required for admin accounts</strong>
+            and cannot be switched off here. An owner can lift the requirement in Admin → Security.</small></p>
+        <% } else { %>
+        <form method="post" action="/settings/2fa/disable" data-confirm="Turn off two-factor protection?" style="margin-top:14px">
           <input type="hidden" name="_csrf" value="<%= csrfToken %>">
           <label class="field">
             <span>Enter a current code to turn it off</span>
@@ -49,6 +79,7 @@
           </label>
           <button type="submit" class="btn btn-danger">Turn off 2FA</button>
         </form>
+        <% } %>
       <% } else if (pending2fa) { %>
         <p class="muted">Add this account to <strong>Google Authenticator</strong>, Authy, or Microsoft Authenticator, then enter the code it shows to finish.</p>
         <div class="twofa-key">
@@ -69,7 +100,11 @@
           <button type="submit" formaction="/settings/2fa/cancel" formnovalidate class="btn btn-ghost">Cancel</button>
         </form>
       <% } else { %>
-        <p class="muted">Add a second layer of security. After your password, login will also require a 6-digit code from your phone — so a stolen password isn't enough. <strong>Strongly recommended for admins.</strong></p>
+        <p class="muted">Add a second layer of security. After your password, login will also require a 6-digit code from your phone — so a stolen password isn't enough.
+          <% if (typeof twofaMandatory !== 'undefined' && twofaMandatory) { %>
+            <strong>Required for your admin account — the panel stays locked until this is on.</strong>
+          <% } else { %><strong>Strongly recommended for admins.</strong><% } %>
+          You'll get recovery codes so a lost phone never locks you out.</p>
         <form method="post" action="/settings/2fa/start">
           <input type="hidden" name="_csrf" value="<%= csrfToken %>">
           <button type="submit" class="btn btn-primary">Enable two-factor</button>

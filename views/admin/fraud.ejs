@@ -1,0 +1,54 @@
+<%- include('../partials/head', { title }) %>
+<%- include('../partials/nav') %>
+<main id="main-content" class="container page">
+  <div class="page-head">
+    <h1>Linked <span class="grad-text">accounts</span></h1>
+    <p class="muted">Accounts that share an address, a device, or a payment receipt with this one.</p>
+  </div>
+  <%- include('../partials/admin-nav') %>
+
+  <div class="card section-card">
+    <div class="card-head"><h2><%= subject.username || ('#' + subject.id) %></h2></div>
+    <p class="ticket-meta muted">
+      <%= subject.email %> · balance ₱<%= h.money(subject.balance) %> · <%= subject.status || 'Active' %>
+      · joined <%= h.formatDate(subject.created_at) %>
+    </p>
+    <p class="muted">
+      Risk score <strong><%= subject.fraud_score %></strong>/100
+      <% if (subject.fraud_flags) { %> · signals: <code><%= subject.fraud_flags %></code><% } %>
+      <% if (subject.signup_ip) { %> · signed up from <code><%= subject.signup_ip %></code><% } %>
+      <% if (subject.last_ip) { %> · last seen at <code><%= subject.last_ip %></code><% } %>
+    </p>
+    <p class="muted"><small>
+      A shared IP alone is weak evidence — a household, an office or a shared mobile network all look the same.
+      A shared <strong>payment receipt</strong> is strong. Read the reasons below before acting on any account.
+    </small></p>
+  </div>
+
+  <div class="card section-card">
+    <div class="card-head"><h2>🔗 <%= links.length %> linked account<%= links.length === 1 ? '' : 's' %></h2></div>
+    <% if (links.length) { %>
+    <div class="table-wrap">
+      <table class="table">
+        <thead><tr><th>Account</th><th>Why linked</th><th>Detail</th><th class="num">Balance</th><th>Status</th><th>Joined</th><th></th></tr></thead>
+        <tbody>
+          <% links.forEach(function (l) { %>
+            <tr>
+              <td><strong><%= l.username || ('#' + l.id) %></strong><br><small class="muted"><%= l.email %></small></td>
+              <td><span class="badge"><%= l.reasonLabel %></span></td>
+              <td class="muted"><small><%= l.detail || '—' %></small></td>
+              <td class="num">₱<%= h.money(l.balance) %></td>
+              <td><%= l.status || 'Active' %></td>
+              <td><%= h.formatDate(l.joined) %></td>
+              <td><a href="/admin/fraud/<%= l.id %>" class="btn btn-sm btn-outline">View links</a></td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+    <% } else { %>
+      <p class="empty-note">No linked accounts found for this customer.</p>
+    <% } %>
+  </div>
+</main>
+<%- include('../partials/footer') %>

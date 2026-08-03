@@ -1463,3 +1463,19 @@ select.input-sm, select.input-xs { background-position: right 10px center; paddi
   cursor: pointer; transition: border-color 0.15s, color 0.15s;
 }
 .field input[type="file"]::file-selector-button:hover { border-color: var(--primary); color: var(--primary); }
+
+/* ── 2FA recovery codes ────────────────────────────────────────────────────
+   Shown once, meant to be copied or written down, so they are set in a mono
+   face at a size that is comfortable to transcribe by hand. */
+.recovery-box {
+  border: 1.5px solid var(--warning); border-radius: var(--radius-sm);
+  background: rgba(245, 158, 11, 0.08); padding: 14px 16px; margin-bottom: 18px;
+}
+.recovery-box h3 { font-size: 1rem; margin-bottom: 6px; }
+.recovery-codes {
+  list-style: none; display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 8px; margin: 12px 0;
+}
+.recovery-codes code {
+  display: block; text-align: center; font-size: 0.95rem; letter-spacing: 0.5px; padding: 7px 4px;
+}
